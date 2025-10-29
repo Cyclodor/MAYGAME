@@ -405,6 +405,54 @@ class GameDebugger:
         self.debug_ui_visibility(surface)
         self.debug_move_range_issues(surface)
         self.debug_ranged_attack_directions(surface)
+        self.debug_ai_state(surface)
+    
+    def debug_ai_state(self, surface):
+        """Отображает состояние ИИ и его действия"""
+        if not self.game.state == 'game':
+            return
+        
+        y_offset = 140
+        ai_info = []
+        
+        # Информация о текущем выбранном юните
+        if self.game.selected_unit:
+            ai_info.append(f"Текущий юнит: {self.game.selected_unit.unit_type} ({self.game.selected_unit.team})")
+            is_p1_turn = self.game.ai_controller_p1 and self.game.selected_unit.team == self.game.ai_controller_p1.ai_team
+            is_p2_turn = self.game.ai_controller_p2 and self.game.selected_unit.team == self.game.ai_controller_p2.ai_team
+            ai_info.append(f"Ход ИИ: {is_p1_turn or is_p2_turn}")
+            ai_info.append(f"Таймер: {self.game.ai_think_timer}/{self.game.ai_think_delay}")
+            ai_info.append(f"Пауза: {self.game.is_paused}")
+            ai_info.append(f"Герой: {isinstance(self.game.selected_unit, Hero)}")
+            if isinstance(self.game.selected_unit, Hero):
+                ai_info.append(f"  Использовано заклинание: {self.game.selected_unit.used_spell_this_round}")
+                ai_info.append(f"  Выбрано заклинание: {self.game.selected_unit.selected_spell}")
+            else:
+                ai_info.append(f"  Атаковал: {self.game.selected_unit.has_attacked}")
+                ai_info.append(f"  Очки хода: {getattr(self.game.selected_unit, 'move_points_left', 0)}")
+        
+        # Информация о состоянии ИИ контроллеров
+        if self.game.ai_controller_p1:
+            ai_info.append("")
+            ai_info.append(f"ИИ Игрок 1 ({self.game.ai_controller_p1.ai_team}):")
+            ai_info.append(f"  Состояние: {self.game.ai_controller_p1.current_state}")
+            ai_info.append(f"  Действие: {self.game.ai_controller_p1.current_action}")
+            ai_info.append(f"  Последнее решение: {self.game.ai_controller_p1.last_decision}")
+        
+        if self.game.ai_controller_p2:
+            ai_info.append("")
+            ai_info.append(f"ИИ Игрок 2 ({self.game.ai_controller_p2.ai_team}):")
+            ai_info.append(f"  Состояние: {self.game.ai_controller_p2.current_state}")
+            ai_info.append(f"  Действие: {self.game.ai_controller_p2.current_action}")
+            ai_info.append(f"  Последнее решение: {self.game.ai_controller_p2.last_decision}")
+        
+        # Отрисовка информации
+        for i, info in enumerate(ai_info):
+            color = (255, 255, 255) if info else (150, 150, 150)
+            if info.startswith("ИИ") or info.startswith("Текущий"):
+                color = (255, 200, 100)
+            text = self.debug_font.render(info, True, color)
+            surface.blit(text, (10, y_offset + i * 16))
     
     def handle_debug_key(self, key):
         """Обрабатывает клавиши отладки"""

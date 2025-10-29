@@ -95,6 +95,7 @@ class Game:
         self.ai_think_timer = 0  # Таймер для задержки хода ИИ (для визуализации)
         self.ai_think_delay = 30  # Задержка перед ходом ИИ (в кадрах, ~0.5 сек при 60 FPS)
         self.spectator_mode = False  # Режим наблюдения (оба бота)
+        self.is_paused = False  # Пауза игры
         # Инициализация дебаггера
         self.debugger = GameDebugger(self)
         # Загрузка звуков из Heroes 3
@@ -925,6 +926,16 @@ class Game:
         if label:
             surf = self.font.render(label, True, (255,255,180))
             self.screen.blit(surf, (SCREEN_WIDTH//2 - surf.get_width()//2, SCREEN_HEIGHT - 80 + 50))
+        
+        # Индикатор паузы
+        if self.is_paused:
+            pause_font = pygame.font.Font(None, 48)
+            pause_text = pause_font.render("ПАУЗА", True, (255, 100, 100))
+            pause_bg = pygame.Surface((pause_text.get_width() + 20, pause_text.get_height() + 10), pygame.SRCALPHA)
+            pause_bg.fill((0, 0, 0, 200))
+            self.screen.blit(pause_bg, (SCREEN_WIDTH//2 - pause_bg.get_width()//2, 60))
+            self.screen.blit(pause_text, (SCREEN_WIDTH//2 - pause_text.get_width()//2, 65))
+        
         # Меню внутри игры (деревянное средневековое в стиле главного меню)
         if self.menu_open:
             overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -2129,6 +2140,7 @@ class Game:
         self.player1_type = 'human'
         self.player2_type = 'ai'
         self.spectator_mode = False
+        self.is_paused = False
         self.units = []
         self.turn_queue = []
         self.state = 'battle_setup'
@@ -2164,7 +2176,18 @@ class Game:
                 self.menu_music_playing = False
                 return
             # Тоггл простого меню
-            self.menu_open = not self.menu_open
+            if self.state == 'game' and not self.game_over:
+                # В игре - открываем/закрываем меню и автоматически ставим/убираем паузу
+                self.menu_open = not self.menu_open
+                if self.menu_open:
+                    # При открытии меню ставим паузу
+                    self.is_paused = True
+                else:
+                    # При закрытии меню убираем паузу
+                    self.is_paused = False
+            else:
+                # Вне игры - тоггл простого меню
+                self.menu_open = not self.menu_open
 
     def perform_counterattack(self, attacker, defender, is_melee, target_is_melee_unit):
         """
@@ -2252,15 +2275,147 @@ class Game:
                 print(f"Игра окончена! Победили {TEAM_LABELS.get(self.winner_team, self.winner_team) if self.winner_team else 'Никто'}!")
                 return
 
-    def handle_click(self, pos):
+    def handle_click(self, pos, is_ai_action=False):
         # Блокируем действия во время проигрывания intro звука
         if self.state == 'game' and self.battle_intro_playing:
             return
         
-        # В режиме наблюдения (оба бота) разрешаем только ESC и тултипы
-        if self.spectator_mode and self.state == 'game':
-            # Разрешаем только ESC (обрабатывается через handle_key)
+        # Если игра окончена, клик возвращает в меню (высший приоритет)
+        if self.game_over and self.victory_state:
+            # Звук нажатия на кнопку
+            if self.button_click_sound:
+                try:
+                    self.button_click_sound.stop()
+                except:
+                    pass
+                self.button_click_sound.play()
+            # Возврат в главное меню
+            self.state = 'menu'
+            self.game_over = False
+            self.victory_state = None
+            self.winner_team = None
+            self.units = []
+            self.selected_unit = None
+            self.turn_queue = []
+            self.current_initiative_index = 0
+            self.event_log = []
+            self.spellbook_open = False
+            self.history_panel_open = False
+            # Остановка боевой музыки и intro звука, сброс флага меню музыки для её перезапуска
+            from pygame import mixer
+            if self.combat_music_playing:
+                mixer.music.stop()
+                self.combat_music_playing = False
+            if self.battle_intro_playing:
+                if self.intro_channel:
+                    self.intro_channel.stop()
+                elif self.current_intro_sound:
+                    self.current_intro_sound.stop()
+                self.battle_intro_playing = False
+                self.current_intro_sound = None
+                self.intro_channel = None
+            self.menu_music_playing = False  # Сброс для перезапуска музыки меню
             return
+        
+        # Проверяем меню ПЕРЕД блокировкой паузы, чтобы кнопки меню работали
+        if self.menu_open:
+            if self.exit_button_rect.collidepoint(pos):
+                # Звук нажатия на кнопку - мгновенное воспроизведение
+                if self.button_click_sound:
+                    try:
+                        self.button_click_sound.stop()
+                    except:
+                        pass
+                    self.button_click_sound.play()
+                pygame.quit()
+                exit()
+            if hasattr(self, 'fullscreen_button_rect') and self.fullscreen_button_rect.collidepoint(pos):
+                # Звук нажатия на кнопку - мгновенное воспроизведение
+                if self.button_click_sound:
+                    try:
+                        self.button_click_sound.stop()
+                    except:
+                        pass
+                    self.button_click_sound.play()
+                pygame.display.toggle_fullscreen()
+                return
+            if hasattr(self, 'newgame_button_rect') and self.newgame_button_rect.collidepoint(pos):
+                # Звук нажатия на кнопку - мгновенное воспроизведение
+                if self.button_click_sound:
+                    try:
+                        self.button_click_sound.stop()
+                    except:
+                        pass
+                    self.button_click_sound.play()
+                self.state = 'battle_setup'
+                self.menu_open = False
+                self.is_paused = False  # Убираем паузу при закрытии меню
+                return
+            if hasattr(self, 'mainmenu_button_rect') and self.mainmenu_button_rect.collidepoint(pos):
+                # Звук нажатия на кнопку - мгновенное воспроизведение
+                if self.button_click_sound:
+                    try:
+                        self.button_click_sound.stop()
+                    except:
+                        pass
+                    self.button_click_sound.play()
+                # Возврат в главное меню
+                self.state = 'menu'
+                self.menu_open = False
+                self.is_paused = False  # Убираем паузу при закрытии меню
+                # Остановка всех активных процессов игры
+                self.units = []
+                self.selected_unit = None
+                self.turn_queue = []
+                self.current_initiative_index = 0
+                self.event_log = []
+                self.game_over = False
+                self.spellbook_open = False
+                self.history_panel_open = False
+                # Остановка боевой музыки и сброс флага меню музыки для её перезапуска
+                from pygame import mixer
+                if self.combat_music_playing:
+                    mixer.music.stop()
+                    self.combat_music_playing = False
+                self.menu_music_playing = False  # Сброс для перезапуска музыки меню
+                return
+            if not self.menu_rect.collidepoint(pos):
+                self.menu_open = False
+                self.is_paused = False  # Убираем паузу при закрытии меню
+            return
+        
+        # Блокируем действия во время паузы (но меню уже обработано выше)
+        if self.is_paused and not is_ai_action:
+            return
+        
+        # В режиме наблюдения (оба бота) блокируем действия игрока, но разрешаем ИИ
+        if self.spectator_mode and self.state == 'game' and not is_ai_action:
+            # Разрешаем только ESC (обрабатывается через handle_key) и действия ИИ
+            return
+        
+        # Блокируем действия игрока во время хода AI (кроме меню, которое обрабатывается отдельно)
+        # ИИ может совершать клики, передавая is_ai_action=True
+        if self.state == 'game' and self.selected_unit and not is_ai_action:
+            is_ai_turn = False
+            if self.ai_controller_p1 and self.selected_unit.team == self.ai_controller_p1.ai_team:
+                is_ai_turn = True
+            elif self.ai_controller_p2 and self.selected_unit.team == self.ai_controller_p2.ai_team:
+                is_ai_turn = True
+            
+            if is_ai_turn:
+                # Во время хода AI разрешаем только закрытие панели истории
+                if self.history_panel_open and not self.spectator_mode:
+                    if hasattr(self, 'history_panel_close_rect') and self.history_panel_close_rect.collidepoint(pos):
+                        if self.button_click_sound:
+                            try:
+                                self.button_click_sound.stop()
+                            except:
+                                pass
+                            self.button_click_sound.play()
+                        self.history_panel_open = False
+                        return
+                # Блокируем все остальные действия во время хода AI
+                return
         
         # Если игра окончена, клик возвращает в меню
         if self.game_over and self.victory_state:
@@ -2438,68 +2593,6 @@ class Game:
                     self.ai_think_timer = 0
                 # Если условия не выполнены, все равно обрабатываем клик (звук уже проигран)
                     return
-            return
-        if self.menu_open:
-            if self.exit_button_rect.collidepoint(pos):
-                # Звук нажатия на кнопку - мгновенное воспроизведение
-                if self.button_click_sound:
-                    try:
-                        self.button_click_sound.stop()
-                    except:
-                        pass
-                    self.button_click_sound.play()
-                pygame.quit()
-                exit()
-            if hasattr(self, 'fullscreen_button_rect') and self.fullscreen_button_rect.collidepoint(pos):
-                # Звук нажатия на кнопку - мгновенное воспроизведение
-                if self.button_click_sound:
-                    try:
-                        self.button_click_sound.stop()
-                    except:
-                        pass
-                    self.button_click_sound.play()
-                pygame.display.toggle_fullscreen()
-                return
-            if hasattr(self, 'newgame_button_rect') and self.newgame_button_rect.collidepoint(pos):
-                # Звук нажатия на кнопку - мгновенное воспроизведение
-                if self.button_click_sound:
-                    try:
-                        self.button_click_sound.stop()
-                    except:
-                        pass
-                    self.button_click_sound.play()
-                self.state = 'battle_setup'
-                self.menu_open = False
-                return
-            if hasattr(self, 'mainmenu_button_rect') and self.mainmenu_button_rect.collidepoint(pos):
-                # Звук нажатия на кнопку - мгновенное воспроизведение
-                if self.button_click_sound:
-                    try:
-                        self.button_click_sound.stop()
-                    except:
-                        pass
-                    self.button_click_sound.play()
-                # Возврат в главное меню
-                self.state = 'menu'
-                self.menu_open = False
-                # Остановка всех активных процессов игры
-                self.units = []
-                self.selected_unit = None
-                self.turn_queue = []
-                self.current_initiative_index = 0
-                self.event_log = []
-                self.game_over = False
-                self.spellbook_open = False
-                self.history_panel_open = False
-                # Остановка боевой музыки и сброс флага меню музыки для её перезапуска
-                from pygame import mixer
-                if self.combat_music_playing:
-                    mixer.music.stop()
-                    self.combat_music_playing = False
-                self.menu_music_playing = False  # Сброс для перезапуска музыки меню
-                return
-            if not self.menu_rect.collidepoint(pos):
-                self.menu_open = False
             return
         # Книга заклинаний можно открывать для любого героя с заклинаниями, если не использовано в этом раунде (не работает в режиме наблюдения)
         if (not self.spectator_mode
@@ -2773,7 +2866,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -2785,12 +2878,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -2812,24 +2905,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -3025,7 +3118,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -3037,12 +3130,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -3064,24 +3157,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -3268,7 +3361,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -3280,12 +3373,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -3307,24 +3400,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -3511,7 +3604,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -3523,12 +3616,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -3550,24 +3643,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -3754,7 +3847,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -3766,12 +3859,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -3793,24 +3886,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -3997,7 +4090,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -4009,12 +4102,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -4036,24 +4129,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -4240,7 +4333,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -4252,12 +4345,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -4279,24 +4372,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -4483,7 +4576,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -4495,12 +4588,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -4522,24 +4615,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -4726,7 +4819,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -4738,12 +4831,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -4765,24 +4858,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -4969,7 +5062,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -4981,12 +5074,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -5008,24 +5101,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -5212,7 +5305,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -5224,12 +5317,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -5251,24 +5344,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -5455,7 +5548,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -5467,12 +5560,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -5494,24 +5587,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -5698,7 +5791,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -5710,12 +5803,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -5737,24 +5830,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита
@@ -5941,7 +6034,7 @@ class Game:
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
                     if is_melee:
-                        # Ближний бой для лучников - половинный урон, без стрел
+                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -5953,12 +6046,12 @@ class Game:
                         # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                     else:
-                        # Дальняя атака - контратаки нет
+                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                    start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                    # Определяем тип снаряда в зависимости от юнита
-                    if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
+                        # Определяем тип снаряда в зависимости от юнита
+                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
                             # Лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
@@ -5980,24 +6073,24 @@ class Game:
                             # Звук попадания
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
-                    else:
-                        # Маги и герои стреляют магическими снарядами с разными цветами
-                        if self.selected_unit.unit_type == 'succubus':
-                            color = (255, 80, 120)  # красный
-                        elif self.selected_unit.unit_type == 'gog':
-                            color = (255, 120, 40)  # оранжевый
-                        elif self.selected_unit.unit_type == 'lich':
-                            color = (80, 255, 80)   # зеленый
                         else:
-                            color = (120, 180, 255)  # синий для остальных
+                            # Маги и герои стреляют магическими снарядами с разными цветами
+                            if self.selected_unit.unit_type == 'succubus':
+                                color = (255, 80, 120)  # красный
+                            elif self.selected_unit.unit_type == 'gog':
+                                color = (255, 120, 40)  # оранжевый
+                            elif self.selected_unit.unit_type == 'lich':
+                                color = (80, 255, 80)   # зеленый
+                            else:
+                                color = (120, 180, 255)  # синий для остальных
                             # Воспроизводим звук выстрела магов
                             if self.magic_shot_sound:
                                 self.magic_shot_sound.play()
-                        animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                    # Перерисовываем экран, чтобы убрать снаряд
-                    self.draw()
-                    pygame.display.flip()
-                    damage = self.selected_unit.ranged_damage(x, y)
+                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
+                        # Перерисовываем экран, чтобы убрать снаряд
+                        self.draw()
+                        pygame.display.flip()
+                        damage = self.selected_unit.ranged_damage(x, y)
                 else:
                     # Обычные ближние бойцы
                     # Звук ближнего боя в зависимости от типа юнита

@@ -226,11 +226,37 @@ class Unit:
         if hasattr(self, 'forget_turns') and getattr(self, 'forget_turns', 0) > 0:
             return False
         if getattr(self, 'is_ranged', False):
+            # Проверяем расстояние до цели
             dx = abs(self.x - target_x)
             dy = abs(self.y - target_y)
+            distance_to_target = dx + dy
+            
             if self.x == target_x and self.y == target_y:
                 return False
+            
+            # Для дальнобойных: если цель на расстоянии 1, можно только в ближнем бою
+            if distance_to_target == 1:
+                # Это ближний бой, можно атаковать
+                return True
+            
+            # Для дальнобойной атаки проверяем, нет ли вражеских юнитов рядом (на расстоянии 1)
             if units is not None:
+                # Проверяем все 4 соседние клетки
+                adjacent_positions = [
+                    (self.x + 1, self.y),
+                    (self.x - 1, self.y),
+                    (self.x, self.y + 1),
+                    (self.x, self.y - 1)
+                ]
+                # Если рядом есть вражеский юнит, нельзя стрелять дальнобойно
+                for adj_x, adj_y in adjacent_positions:
+                    for unit in units:
+                        if unit != self and unit.x == adj_x and unit.y == adj_y:
+                            # Проверяем, что это враг (разные команды)
+                            if hasattr(unit, 'team') and unit.team != self.team:
+                                return False  # Рядом враг, нельзя стрелять дальнобойно
+                
+                # Проверяем препятствия на пути к цели
                 if dx == 0:
                     step_x = 0
                     step_y = 1 if target_y > self.y else -1
