@@ -1381,9 +1381,12 @@ def animate_rune_haste_spell(screen, target_px, redraw_callback=None):
         pygame.display.flip()
         pygame.time.delay(24)
 
-def animate_fireball(screen, start_px, end_px, redraw_callback=None):
+def animate_fireball(screen, start_px, end_px, redraw_callback=None, explosion_sound_callback=None, flight_sound_callback=None):
     # Горящий камень летит к цели, затем взрыв после приземления
     flight_frames = 18
+    # Воспроизводим звук полёта в начале анимации
+    if flight_sound_callback:
+        flight_sound_callback()
     # Этап 1: полет горящего камня
     for i in range(flight_frames):
         pygame.event.pump()
@@ -1446,6 +1449,9 @@ def animate_fireball(screen, start_px, end_px, redraw_callback=None):
     
     # Этап 2: взрыв после приземления
     explode_frames = 15
+    # Воспроизводим звук взрыва в начале этапа взрыва
+    if explosion_sound_callback and callable(explosion_sound_callback):
+        explosion_sound_callback()
     for i in range(explode_frames):
         pygame.event.pump()
         if redraw_callback:

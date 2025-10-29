@@ -27,6 +27,7 @@ class Unit:
         self.is_ranged = False  # Новое поле
         self.has_moved = False
         self.has_attacked = False
+        self.has_counterattacked = False  # Флаг для контратаки в раунде
         self.move_points_left = self.speed  # Новое поле
         self.image = load_image(f'{unit_type}_{team}')
         self.death_sound = load_sound('death')
@@ -174,6 +175,7 @@ class Unit:
     def reset_turn(self):
         self.has_moved = False
         self.has_attacked = False
+        self.has_counterattacked = False  # Сброс флага контратаки в новом раунде
         self.move_points_left = self.speed
         # Забвение: пропуск хода
         if hasattr(self, 'forget_turns') and self.forget_turns > 0:
@@ -297,9 +299,11 @@ class Unit:
         # Урон уменьшается с расстоянием, минимум 50% от базового, но не меньше 4
         distance = abs(self.x - target_x) + abs(self.y - target_y)
         base_damage = self.get_current_attack()
-        if distance <= 1:
-            return base_damage
-        factor = max(0.5, 1 - 0.04 * (distance - 1))
+        # Если атака в ближнем бою (расстояние = 1), урон уменьшается вдвое для лучников
+        if distance == 1:
+            return max(1, base_damage // 2)  # Половина урона, минимум 1
+        # Уменьшено влияние расстояния (было 0.04, стало 0.03)
+        factor = max(0.5, 1 - 0.03 * (distance - 1))
         return max(4, int(base_damage * factor))
 
 # --- Юниты людей ---
@@ -339,6 +343,9 @@ class Crossbowman(Unit):
         self.is_ranged = True
         self.attack_range = 3
         self.base_defense = 2
+        self.bow_draw_sound = load_sound('bow_draw')
+        self.arrow_shot_sound = load_sound('arrow_shot')
+        self.arrow_hit_sound = load_sound('arrow_hit')
 
 class Swordsman(Unit):
     def __init__(self, x, y, team):
@@ -589,6 +596,9 @@ class ElfArcher(Unit):
         self.is_ranged = True
         self.attack_range = 4
         self.base_defense = 2
+        self.bow_draw_sound = load_sound('bow_draw')
+        self.arrow_shot_sound = load_sound('arrow_shot')
+        self.arrow_hit_sound = load_sound('arrow_hit')
 
 class Dryad(Unit):
     def __init__(self, x, y, team):
