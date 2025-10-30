@@ -69,12 +69,14 @@ class Unit:
         self.fade_debuff = 1.0
 
     def draw(self, surface):
+        # Полоска здоровья (сначала фон и значение, затем спрайт юнита, чтобы полоска не перекрывалась спрайтами соседей)
+        health_ratio = 0 if self.max_health <= 0 else max(0.0, min(1.0, self.health / self.max_health))
+        back_rect = (self.x * CELL_SIZE, self.y * CELL_SIZE - 6, CELL_SIZE, 5)
+        value_rect = (self.x * CELL_SIZE, self.y * CELL_SIZE - 6, int(CELL_SIZE * health_ratio), 5)
+        pygame.draw.rect(surface, RED, back_rect)
+        pygame.draw.rect(surface, GREEN, value_rect)
         # Рисуем текстуру юнита
         surface.blit(self.image, (self.x * CELL_SIZE, self.y * CELL_SIZE))
-        # Полоска здоровья
-        health_width = (self.health / self.max_health) * CELL_SIZE
-        pygame.draw.rect(surface, RED, (self.x * CELL_SIZE, self.y * CELL_SIZE - 5, CELL_SIZE, 5))
-        pygame.draw.rect(surface, GREEN, (self.x * CELL_SIZE, self.y * CELL_SIZE - 5, health_width, 5))
         # Типтул только при наведении
         if getattr(self, 'show_tooltip', False):
             mouse_pos = pygame.mouse.get_pos()
@@ -91,7 +93,7 @@ class Unit:
             g = int(white[1] * (1-fade) + yellow[1] * fade)
             b = int(white[2] * (1-fade) + yellow[2] * fade)
             return (r, g, b)
-        # Найти героя своей команды для бонуса
+        # Найти героя своей команды для бонуса (динамические значения берутся из текущих полей юнита)
         hero = None
         if hasattr(self, 'game_ref') and self.game_ref:
             if hasattr(self.game_ref, 'hero1') and self.team == self.game_ref.hero1.team:
@@ -100,13 +102,13 @@ class Unit:
                 hero = self.game_ref.hero2
         atk_bonus = hero.attack if hero else 0
         def_bonus = hero.defense if hero else 0
-        base_atk = self.attack - atk_bonus if atk_bonus else self.attack
-        base_def = self.base_defense - def_bonus if def_bonus else self.base_defense
+        base_atk = max(0, (self.attack - atk_bonus) if atk_bonus else self.attack)
+        base_def = max(0, (self.base_defense - def_bonus) if def_bonus else self.base_defense)
         base_atk_with_bonus = base_atk + atk_bonus
         base_def_with_bonus = base_def + def_bonus
-        # Текущая атака/защита: если нет эффектов — равна базе+бонус, иначе с учётом эффекта
-        current_atk = base_atk_with_bonus
-        current_def = base_def_with_bonus
+        # Текущая атака/защита: динамически из текущих полей
+        current_atk = self.get_current_attack()
+        current_def = self.defense
         if self.attack_buff_turns > 0:
             current_atk = int(current_atk * 1.25)
         if self.attack_debuff_turns > 0:
@@ -137,9 +139,15 @@ class Unit:
         # Только руна защиты
         if getattr(self, 'rune_shield_turns', 0) > 0:
             tooltip_text.append((f"Руна защиты: {self.rune_shield_turns} хода", (80,255,120)))
-        # Руна скорости
+        # Огненный щит
+        if hasattr(self, 'fire_shield_turns') and getattr(self, 'fire_shield_turns', 0) > 0:
+            tooltip_text.append((f"Огненный щит: {self.fire_shield_turns} хода", (255,180,120)))
+        # Ускорение (обычное заклинание)
         if hasattr(self, 'haste_turns') and getattr(self, 'haste_turns', 0) > 0:
-            tooltip_text.append((f"Руна скорости: {self.haste_turns} хода", (255,255,255)))
+            tooltip_text.append((f"Ускорение: {self.haste_turns} хода", (255,255,255)))
+        # Руна скорости (рунический эффект)
+        if hasattr(self, 'rune_haste_turns') and getattr(self, 'rune_haste_turns', 0) > 0:
+            tooltip_text.append((f"Руна скорости: {self.rune_haste_turns} хода", (255,255,255)))
         if self.curse_turns > 0:
             tooltip_text.append((f"Проклятие: {self.curse_turns} хода", fade_color(self.fade_curse)))
         if hasattr(self, 'slow_turns') and getattr(self, 'slow_turns', 0) > 0:
@@ -169,7 +177,12 @@ class Unit:
         self.prev_speed = self.speed
 
     def take_damage(self, damage):
-        self.health -= max(1, damage - self.defense)
+        actual = max(1, damage - self.defense)
+        self.health -= actual
+        try:
+            self.last_damage_received = actual
+        except Exception:
+            pass
         return self.health <= 0
 
     def reset_turn(self):
@@ -184,15 +197,46 @@ class Unit:
             self.has_attacked = True
             print(f'Забвение: {self.unit_type} пропускает ход ({self.x},{self.y})')
         
-        # Руна скорости
-        if getattr(self, 'haste_turns', 0) > 0:
-            self.haste_turns -= 1
-            if self.haste_turns == 0:
+        # Руна скорости: тикаем отдельный таймер
+        if getattr(self, 'rune_haste_turns', 0) > 0:
+            self.rune_haste_turns -= 1
+            if self.rune_haste_turns == 0:
+                # Сбрасываем к базе и применяем оставшиеся эффекты
                 if hasattr(self, 'base_speed'):
                     self.speed = self.base_speed
                 if hasattr(self, 'base_initiative'):
                     self.initiative = self.base_initiative
-                print(f'Снимаем руну скорости с {self.unit_type} ({self.x},{self.y})')
+                # Если обычное ускорение ещё активно — применяем его
+                if getattr(self, 'haste_turns', 0) > 0:
+                    self.speed += 2
+                    self.initiative += 5
+                # Если замедление активно — применяем его
+                if getattr(self, 'slow_turns', 0) > 0:
+                    self.speed = max(1, self.speed - 1)
+                    self.initiative = max(1, self.initiative - 5)
+                if hasattr(self, 'game_ref') and self.game_ref:
+                    self.game_ref.prepare_initiative_queue()
+                print(f'Эффект Руны скорости закончился у {self.unit_type} ({self.x},{self.y})')
+        # Ускорение: тикаем обычный таймер
+        if getattr(self, 'haste_turns', 0) > 0:
+            self.haste_turns -= 1
+            if self.haste_turns == 0:
+                # Сбрасываем к базе и применяем оставшиеся эффекты
+                if hasattr(self, 'base_speed'):
+                    self.speed = self.base_speed
+                if hasattr(self, 'base_initiative'):
+                    self.initiative = self.base_initiative
+                # Если руна скорости ещё активна — применяем её
+                if getattr(self, 'rune_haste_turns', 0) > 0:
+                    self.speed += 2
+                    self.initiative += 5
+                # Если замедление активно — применяем его
+                if getattr(self, 'slow_turns', 0) > 0:
+                    self.speed = max(1, self.speed - 1)
+                    self.initiative = max(1, self.initiative - 5)
+                if hasattr(self, 'game_ref') and self.game_ref:
+                    self.game_ref.prepare_initiative_queue()
+                print(f'Эффект Ускорения закончился у {self.unit_type} ({self.x},{self.y})')
         # Каменная кожа
         if hasattr(self, 'stone_skin_turns') and self.stone_skin_turns > 0:
             self.stone_skin_turns -= 1
@@ -221,6 +265,12 @@ class Unit:
                 if hasattr(self, 'game_ref') and self.game_ref:
                     self.game_ref.prepare_initiative_queue()
                 self.speed = getattr(self, 'base_speed', self.speed+1)
+        # Огненный щит: тикаем длительность
+        if hasattr(self, 'fire_shield_turns') and getattr(self, 'fire_shield_turns', 0) > 0:
+            self.fire_shield_turns -= 1
+            if self.fire_shield_turns <= 0:
+                self.fire_shield_turns = 0
+                self.fire_shield_damage = 0
 
     def can_attack(self, target_x, target_y, units=None):
         if hasattr(self, 'forget_turns') and getattr(self, 'forget_turns', 0) > 0:
@@ -553,7 +603,11 @@ class Hero(Unit):
         return self.attack * 3 + 1
 
     def take_damage(self, damage):
-        # Герой не может получать урон
+        # Герой не получает урон, но фиксируем полученный урон для реактивных эффектов (огненный щит)
+        try:
+            self.last_damage_received = max(1, int(damage))
+        except Exception:
+            pass
         return False
 
     def reset_turn(self):

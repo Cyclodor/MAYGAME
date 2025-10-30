@@ -70,6 +70,13 @@ def main():
                         hasattr(game.selected_unit, 'selected_spell') and 
                         game.selected_unit.selected_spell is not None):
                         game.selected_unit.selected_spell = None
+            elif event.type == pygame.MOUSEWHEEL:
+                # Прокрутка UI (креатив/редактор книг) колесом мыши
+                if hasattr(game, 'on_mouse_wheel'):
+                    try:
+                        game.on_mouse_wheel(event.y)
+                    except Exception:
+                        pass
             elif event.type == pygame.KEYDOWN:
                 if game.state == 'menu':
                     if event.key == pygame.K_ESCAPE:

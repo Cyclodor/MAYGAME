@@ -1,0 +1,51 @@
+{
+  "Pixie": {
+    "health": 14
+  },
+  "Ent": {
+    "health": 20
+  },
+  "Peasant": {
+    "health": 21
+  },
+  "Hero": {
+    "knowledge": 3,
+    "spell_power": 3,
+    "defense": 3,
+    "attack": 3
+  },
+  "Hero_undead": {
+    "knowledge": 4,
+    "spell_power": 2,
+    "defense": 1,
+    "attack": 1
+  },
+  "Hero_demon": {
+    "spell_power": 4,
+    "defense": 2,
+    "attack": 1
+  },
+  "Hero_dwarf": {
+    "defense": 4,
+    "attack": 2,
+    "knowledge": 1,
+    "spell_power": 2
+  },
+  "Hero_shadow": {
+    "knowledge": 5,
+    "spell_power": 3,
+    "defense": 1,
+    "attack": 1
+  },
+  "Hero_elf": {
+    "attack": 3,
+    "defense": 2,
+    "knowledge": 2,
+    "spell_power": 2
+  },
+  "Hero_human": {
+    "attack": 5,
+    "defense": 2,
+    "knowledge": 2
+  }
+}

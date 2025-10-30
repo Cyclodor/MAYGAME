@@ -2082,25 +2082,25 @@ def animate_dispel_spell(screen, start, end, redraw_callback=None):
         center_x, center_y = CELL_SIZE*2, CELL_SIZE*2
         
         # Основной эффект снятия чар
-        alpha = int(170 * (1 - abs(t - 0.5) * 2))
+        alpha = int(220 * (1 - abs(t - 0.5) * 2))
         
         # Расходящиеся волны
         for wave in range(5):
             wave_radius = 10 + wave * 8 + int(5 * math.sin(i * 0.3 + wave))
             wave_alpha = int(alpha * (1 - wave * 0.2))
-            pygame.draw.circle(dispel_surface, (100, 150, 255, wave_alpha), 
+            pygame.draw.circle(dispel_surface, (80, 140, 255, min(255, wave_alpha+40)), 
                              (center_x, center_y), wave_radius, 3)
         
         # Дополнительные волны
         for wave in range(3):
             wave_radius = 15 + wave * 12 + int(8 * math.sin(i * 0.4 + wave))
             wave_alpha = int(alpha * 0.6 * (1 - wave * 0.3))
-            pygame.draw.circle(dispel_surface, (120, 170, 255, wave_alpha), 
+            pygame.draw.circle(dispel_surface, (140, 200, 255, min(255, int(wave_alpha*0.9)+30)), 
                              (center_x, center_y), wave_radius, 2)
         
         # Центральная вспышка
-        flash_alpha = int(alpha * 1.2)
-        pygame.draw.circle(dispel_surface, (200, 220, 255, flash_alpha), 
+        flash_alpha = min(255, int(alpha * 1.5))
+        pygame.draw.circle(dispel_surface, (230, 240, 255, flash_alpha), 
                          (center_x, center_y), 8)
         pygame.draw.circle(dispel_surface, (255, 255, 255, flash_alpha), 
                          (center_x, center_y), 4)
@@ -2111,16 +2111,16 @@ def animate_dispel_spell(screen, start, end, redraw_callback=None):
             radius = 20 + random.randint(-8, 8)
             particle_x = center_x + int(radius * math.cos(angle))
             particle_y = center_y + int(radius * math.sin(angle))
-            particle_alpha = int(alpha * 0.8)
-            pygame.draw.circle(dispel_surface, (150, 200, 255, particle_alpha), 
+            particle_alpha = min(255, int(alpha * 0.95))
+            pygame.draw.circle(dispel_surface, (180, 220, 255, particle_alpha), 
                              (particle_x, particle_y), 3)
         
         # Дополнительные светящиеся частицы
         for j in range(10):
             particle_x = center_x + random.randint(-25, 25)
             particle_y = center_y + random.randint(-25, 25)
-            particle_alpha = int(alpha * 0.6)
-            pygame.draw.circle(dispel_surface, (180, 220, 255, particle_alpha), 
+            particle_alpha = min(255, int(alpha * 0.8))
+            pygame.draw.circle(dispel_surface, (220, 240, 255, particle_alpha), 
                              (particle_x, particle_y), 2)
         
         # Эффект пульсации волн
@@ -2128,11 +2128,11 @@ def animate_dispel_spell(screen, start, end, redraw_callback=None):
         pulse2 = int(4 * math.sin(i * 0.7 + 1))
         pulse3 = int(3 * math.sin(i * 0.9 + 2))
         
-        pygame.draw.circle(dispel_surface, (80, 130, 255, alpha//4), 
+        pygame.draw.circle(dispel_surface, (90, 150, 255, min(255, alpha//3 + 30)), 
                          (center_x, center_y), 30 + pulse1)
-        pygame.draw.circle(dispel_surface, (100, 150, 255, alpha//5), 
+        pygame.draw.circle(dispel_surface, (120, 180, 255, min(255, alpha//4 + 20)), 
                          (center_x, center_y), 40 + pulse2)
-        pygame.draw.circle(dispel_surface, (120, 170, 255, alpha//6), 
+        pygame.draw.circle(dispel_surface, (150, 200, 255, min(255, alpha//5 + 10)), 
                          (center_x, center_y), 50 + pulse3)
         
         # Световые лучи очищения
@@ -2141,14 +2141,14 @@ def animate_dispel_spell(screen, start, end, redraw_callback=None):
             ray_length = 30 + int(8 * math.sin(i * 0.4 + j))
             ray_x = center_x + int(ray_length * math.cos(angle))
             ray_y = center_y + int(ray_length * math.sin(angle))
-            pygame.draw.line(dispel_surface, (150, 200, 255, alpha//2), 
+            pygame.draw.line(dispel_surface, (200, 230, 255, min(255, alpha//2 + 40)), 
                            (center_x, center_y), (ray_x, ray_y), 3)
         
         # Эффект искр очищения
         for j in range(12):
             spark_x = center_x + random.randint(-30, 30)
             spark_y = center_y + random.randint(-30, 30)
-            spark_alpha = int(alpha * 0.7)
+            spark_alpha = min(255, int(alpha * 0.9))
             pygame.draw.circle(dispel_surface, (255, 255, 255, spark_alpha), 
                              (spark_x, spark_y), 1)
         
@@ -2232,13 +2232,13 @@ def animate_dispel_spell_fly(screen, start, end, redraw_callback=None):
         center_x, center_y = 12, 12
         
         # Центральная вспышка
-        pygame.draw.circle(wave_surface, (200, 220, 255), (center_x, center_y), 6)
+        pygame.draw.circle(wave_surface, (230, 240, 255), (center_x, center_y), 6)
         pygame.draw.circle(wave_surface, (255, 255, 255), (center_x, center_y), 3)
         
         # Волны вокруг центра
         for j in range(3):
             wave_radius = 4 + j * 2
-            pygame.draw.circle(wave_surface, (150, 200, 255, 150), 
+            pygame.draw.circle(wave_surface, (180, 220, 255, 200), 
                              (center_x, center_y), wave_radius, 2)
         
         # Частицы очищения
@@ -2246,7 +2246,7 @@ def animate_dispel_spell_fly(screen, start, end, redraw_callback=None):
             angle = j * 1.047 + i * 0.5
             particle_x = center_x + int(8 * math.cos(angle))
             particle_y = center_y + int(8 * math.sin(angle))
-            pygame.draw.circle(wave_surface, (180, 220, 255, 180), 
+            pygame.draw.circle(wave_surface, (220, 240, 255, 220), 
                              (particle_x, particle_y), 2)
         
         # Применяем к экрану
@@ -2254,6 +2254,43 @@ def animate_dispel_spell_fly(screen, start, end, redraw_callback=None):
         
         pygame.display.flip()
         pygame.time.delay(25)
+
+# Новая анимация: ускорение воздуха вокруг цели — струи ветра обтекают юнита
+def animate_air_haste_spell(screen, start, end, redraw_callback=None):
+    frames = 22
+    tx, ty = end
+    for i in range(frames):
+        pygame.event.pump()
+        if redraw_callback:
+            redraw_callback()
+        t = i / (frames - 1)
+        layer = pygame.Surface((CELL_SIZE*2, CELL_SIZE*2), pygame.SRCALPHA)
+        cx, cy = CELL_SIZE, CELL_SIZE
+        # Динамические «струи» ветра — дуги и линии, огибающие контур
+        for k in range(8):
+            phase = t * 2.8 + k * 0.4
+            radius = int(CELL_SIZE * (0.5 + 0.2 * math.sin(phase)))
+            start_ang = math.radians(210 + 20 * math.sin(phase * 1.3))
+            end_ang = math.radians(330 + 18 * math.cos(phase * 1.1))
+            color = (180, 220, 255, 140 + int(60 * math.sin(phase)))
+            pygame.draw.arc(layer, color, (cx - radius, cy - radius, radius*2, radius*2), start_ang, end_ang, 3)
+        # Тонкие линии потока
+        for k in range(12):
+            ang = 2 * math.pi * (k / 12.0) + t * 1.7
+            r1 = int(CELL_SIZE * 0.6)
+            r2 = r1 + 10 + int(6 * math.sin(t*3 + k))
+            x1 = cx + int(r1 * math.cos(ang))
+            y1 = cy + int(r1 * math.sin(ang))
+            x2 = cx + int(r2 * math.cos(ang + 0.25))
+            y2 = cy + int(r2 * math.sin(ang + 0.25))
+            col = (160, 210, 255, 120)
+            pygame.draw.line(layer, col, (x1, y1), (x2, y2), 2)
+        # Лёгкая голубая пульсация под юнитом
+        pulse_r = 10 + int(6 * math.sin(t * 6))
+        pygame.draw.circle(layer, (180, 220, 255, 70), (cx, cy), pulse_r, 2)
+        screen.blit(layer, (tx - CELL_SIZE, ty - CELL_SIZE))
+        pygame.display.flip()
+        pygame.time.delay(22)
 
 def animate_rune_shield_spell(screen, start, end, redraw_callback=None):
     """Анимация руны защиты: насыщенный глиф над целью с мерцанием и исчезновением"""

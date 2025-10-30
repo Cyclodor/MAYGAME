@@ -1,5 +1,5 @@
 {
-  "music_volume": 0.3,
-  "sfx_volume": 0.3,
-  "muted": false
+  "music_volume": 0.1,
+  "sfx_volume": 0.2,
+  "muted": true
 }

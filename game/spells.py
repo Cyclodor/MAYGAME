@@ -89,20 +89,7 @@ class FireballSpell(Spell):
             if hasattr(game, 'check_game_over'):
                 game.check_game_over()
 
-class HealSpell(Spell):
-    def __init__(self):
-        super().__init__(
-            name="Исцеление",
-            damage=-25,
-            mana_cost=8,
-            cooldown=3,
-            target_type='ally',
-            description="Восстанавливает 25 здоровья союзнику.",
-            icon='heal',
-            duration=0
-        )
-    def apply(self, target):
-        target.health = min(target.max_health, target.health + 25)
+# Удалено: заклинание Исцеление выведено из игры
 
 # Удалено: заклинание Щит выведено из игры
 
@@ -169,7 +156,7 @@ class DispelSpell(Spell):
             damage=0,
             mana_cost=4,
             cooldown=2,
-            target_type='ally',
+            target_type='ally',  # может применяться и к врагу (обрабатывается в core)
             description="Снимает все положительные и отрицательные эффекты с юнита.",
             icon='dispel',
             duration=0,
@@ -185,14 +172,83 @@ class DispelSpell(Spell):
         if hasattr(target, 'stone_skin_bonus') and target.stone_skin_bonus:
             target.defense = max(0, target.defense - target.stone_skin_bonus)
             target.stone_skin_bonus = 0
+        if hasattr(target, 'stone_skin_turns'):
+            target.stone_skin_turns = 0
         if hasattr(target, 'curse_turns'):
             target.curse_turns = 0
         if hasattr(target, 'slow_turns'):
             target.slow_turns = 0
+        if hasattr(target, 'forget_turns'):
+            target.forget_turns = 0
+        # Снимаем огненный щит
+        if hasattr(target, 'fire_shield_turns'):
+            target.fire_shield_turns = 0
+        if hasattr(target, 'fire_shield_damage'):
+            target.fire_shield_damage = 0
+        if hasattr(target, 'fire_shield_pct'):
+            target.fire_shield_pct = 0.0
+        # Снимаем обычное ускорение (это не руна скорости)
+        if hasattr(target, 'haste_turns'):
+            target.haste_turns = 0
+        # Пересчитываем скорость и инициативу от базовых значений
         if hasattr(target, 'initiative') and hasattr(target, 'base_initiative'):
             target.initiative = getattr(target, 'base_initiative', target.initiative)
         if hasattr(target, 'speed') and hasattr(target, 'base_speed'):
             target.speed = getattr(target, 'base_speed', target.speed)
+        # Особенности школы рун: эффекты рун не снимаются — применяем их заново, если активны
+        # намеренно НЕ трогаем rune_shield_turns / rune_haste_turns и их бонусы
+        if getattr(target, 'rune_haste_turns', 0) > 0:
+            if hasattr(target, 'speed'):
+                target.speed += 2
+            if hasattr(target, 'initiative'):
+                target.initiative += 5
+        # Немедленное применение изменений в текущем ходу
+        if hasattr(target, 'move_points_left'):
+            try:
+                target.move_points_left = target.speed
+            except Exception:
+                pass
+        if hasattr(target, 'game_ref') and target.game_ref:
+            try:
+                target.game_ref.prepare_initiative_queue()
+            except Exception:
+                pass
+
+class HasteSpell(Spell):
+    def __init__(self):
+        super().__init__(
+            name="Ускорение",
+            damage=0,
+            mana_cost=7,
+            cooldown=3,
+            target_type='ally',
+            description="Увеличивает скорость на 2 и инициативу на 5 на 2 хода.",
+            icon='haste',
+            duration=2,
+            school='air'
+        )
+    def apply(self, target, caster=None):
+        turns = self.duration
+        if caster and hasattr(caster, 'spell_power'):
+            turns += caster.spell_power
+        # Используем общие поля, как у рунической спешки, чтобы логика снятия/окончания работала одинаково
+        if not hasattr(target, 'haste_turns') or target.haste_turns == 0:
+            target.base_speed = getattr(target, 'base_speed', target.speed)
+            target.speed += 2
+            target.base_initiative = getattr(target, 'base_initiative', target.initiative)
+            target.initiative += 5
+            target.haste_turns = turns
+        else:
+            target.haste_turns = turns
+        # Сделать эффект немедленным: обновляем очки перемещения
+        if hasattr(target, 'move_points_left'):
+            try:
+                target.move_points_left = target.speed
+            except Exception:
+                pass
+        # Обновляем инициативную очередь сразу, чтобы эффект был заметен в порядке ходов
+        if hasattr(target, 'game_ref') and target.game_ref:
+            target.game_ref.prepare_initiative_queue()
 
 class RuneShieldSpell(Spell):
     def __init__(self):
@@ -229,14 +285,23 @@ class RuneHasteSpell(Spell):
         turns = self.duration
         if caster and hasattr(caster, 'spell_power'):
             turns += caster.spell_power
-        if not hasattr(target, 'haste_turns') or target.haste_turns == 0:
+        if not hasattr(target, 'rune_haste_turns') or target.rune_haste_turns == 0:
             target.base_speed = getattr(target, 'base_speed', target.speed)
             target.speed += 2
             target.base_initiative = getattr(target, 'base_initiative', target.initiative)
             target.initiative += 5
-            target.haste_turns = turns
+            target.rune_haste_turns = turns
         else:
-            target.haste_turns = turns
+            target.rune_haste_turns = turns
+        # Сделать эффект немедленным: обновляем очки перемещения
+        if hasattr(target, 'move_points_left'):
+            try:
+                target.move_points_left = target.speed
+            except Exception:
+                pass
+        # Обновляем инициативную очередь сразу, чтобы эффект был заметен в порядке ходов
+        if hasattr(target, 'game_ref') and target.game_ref:
+            target.game_ref.prepare_initiative_queue()
 
 class ForgetSpell(Spell):
     def __init__(self):
@@ -298,12 +363,13 @@ class FrostRingSpell(Spell):
 class RaiseDeadSpell(Spell):
     def __init__(self):
         super().__init__(
-            name="Поднятие мертвецов",
+            name="Призыв скелета",
             damage=0,
             mana_cost=10,
             cooldown=4,
             target_type='area',
-            description="Поднимает скелета на выбранной клетке, если она пуста.",
+            description="Призывает скелета на выбранной пустой клетке.",
+            # Используем идентификатор иконки, ожидаемый интерфейсом
             icon='raise_dead',
             duration=0,
             school='darkness'
@@ -319,20 +385,119 @@ class RaiseDeadSpell(Spell):
             return
         if any(u.x == x and u.y == y for u in game.units):
             return
+        # Красивая анимация призыва: темные частицы, руны, всплеск и подъем скелета из земли
+        try:
+            import pygame, random, math
+            from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
+            cx = x * CELL_SIZE + CELL_SIZE // 2
+            cy = y * CELL_SIZE + CELL_SIZE // 2
+            cell_rect = pygame.Rect(x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE)
+
+            # Этап 1 (теперь первым): рунный всплеск и мерцание
+            for step in range(10):
+                pygame.event.pump()
+                game.draw()
+                s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                radius = 10 + step * 3
+                pygame.draw.circle(s, (150, 0, 180, 90), (cx, cy), radius, 3)
+                pygame.draw.circle(s, (220, 120, 255, 80), (cx, cy), max(2, radius-6), 2)
+                game.screen.blit(s, (0,0))
+                pygame.display.flip()
+                pygame.time.delay(16)
+
+            # Этап 2 (теперь вторым): темные частицы вращаются и стягиваются к центру
+            particles = []  # [px, py, ang, rad, speed]
+            for _ in range(36):
+                ang = random.random() * math.tau
+                rad = random.randint(10, CELL_SIZE//2 + 8)
+                speed = random.uniform(0.6, 1.2)
+                px = cx + int(math.cos(ang) * rad)
+                py = cy + int(math.sin(ang) * rad)
+                particles.append([px, py, ang, rad, speed])
+            for step in range(24):
+                pygame.event.pump()
+                game.draw()
+                s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                # Тёмный вихрь
+                for p in particles:
+                    p[2] += 0.25  # вращение
+                    p[3] = max(2, p[3] - p[4])  # стягивание к центру
+                    p[0] = cx + int(math.cos(p[2]) * p[3])
+                    p[1] = cy + int(math.sin(p[2]) * p[3])
+                    pygame.draw.circle(s, (40, 0, 60, 170), (int(p[0]), int(p[1])), 3)
+                    pygame.draw.circle(s, (120, 0, 120, 110), (int(p[0]), int(p[1])), 1)
+                # Трещины земли
+                crack = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+                for i in range(6):
+                    angle = random.random() * math.tau
+                    length = random.randint(8, CELL_SIZE//2)
+                    ex = CELL_SIZE//2 + int(math.cos(angle) * length)
+                    ey = CELL_SIZE//2 + int(math.sin(angle) * length)
+                    pygame.draw.line(crack, (60, 40, 30, 200), (CELL_SIZE//2, CELL_SIZE//2), (ex, ey), 2)
+                s.blit(crack, (x*CELL_SIZE, y*CELL_SIZE))
+                game.screen.blit(s, (0,0))
+                pygame.display.flip()
+                pygame.time.delay(18)
+
+            # Этап 3: призрачное свечение и всплески энергии в центре
+            for step in range(16):
+                pygame.event.pump()
+                game.draw()
+                s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                pulse_r = 8 + step * 2
+                pulse_a = max(0, 180 - step * 10)
+                pygame.draw.circle(s, (120, 200, 255, pulse_a), (cx, cy), pulse_r, 3)
+                pygame.draw.circle(s, (70, 150, 220, max(0, pulse_a-40)), (cx, cy), max(2, pulse_r-5), 2)
+                # Призрачные огни
+                for i in range(6):
+                    ang = (step*0.4 + i) * 0.8
+                    rr = 10 + step
+                    fx = cx + int(math.cos(ang) * rr)
+                    fy = cy + int(math.sin(ang) * rr)
+                    pygame.draw.circle(s, (80, 180, 255, 90), (fx, fy), 4)
+                game.screen.blit(s, (0,0))
+                pygame.display.flip()
+                pygame.time.delay(18)
+        except Exception:
+            pass
         # Призыв скелета команды кастера
         from .units import Skeleton
         skel = Skeleton(x, y, caster.team)
         skel.game_ref = game
         game.units.append(skel)
-        # Аккуратно добавить в очередь хода в следующий раунд (после разделителя)
         if hasattr(game, 'turn_queue') and getattr(game, 'turn_queue'):
             try:
-                delim_index = game.turn_queue.index(game._round_delimiter)  # type: ignore[attr-defined]
-                # Добавляем в конец (область следующего раунда)
+                _ = game.turn_queue.index(game._round_delimiter)  # type: ignore[attr-defined]
                 game.turn_queue.append(skel)
             except Exception:
-                # Если нет разделителя — просто добавить в конец
                 game.turn_queue.append(skel)
+
+class UndeadHealSpell(Spell):
+    def __init__(self):
+        super().__init__(
+            name="Поднятие мёртвых",
+            damage=0,
+            mana_cost=8,
+            cooldown=3,
+            target_type='ally',
+            description="Лечит только нежить, собирая кости в целебную гору.",
+            icon='raise_undead',
+            duration=0,
+            school='darkness'
+        )
+
+    def apply(self, target, caster=None):
+        # Лечит только нежить, если она ранена
+        if not target or getattr(target, 'team', None) != 'undead':
+            return
+        # Проверяем, нужно ли лечение
+        current_hp = getattr(target, 'health', 0)
+        max_hp = getattr(target, 'max_health', 0)
+        if current_hp >= max_hp:
+            return  # Уже полное здоровье
+        # Лечение
+        heal = 25
+        target.health = min(max_hp, current_hp + heal)
 
 class FireballSpell(Spell):
     def __init__(self):
@@ -398,3 +563,25 @@ class StoneSkinSpell(Spell):
         # Длительность: базово 2 + сила магии героя
         turns = 2 + (getattr(caster, 'spell_power', 0) if caster else 0)
         target.stone_skin_turns = turns
+
+class FireShieldSpell(Spell):
+    def __init__(self):
+        super().__init__(
+            name="Огненный щит",
+            damage=0,
+            mana_cost=8,
+            cooldown=3,
+            target_type='ally',
+            description="Накладывает огненный щит на 2 хода. При атаке щит наносит ответный урон.",
+            icon='fire_shield',
+            duration=2,
+            school='fire'
+        )
+
+    def apply(self, target, caster=None):
+        turns = self.duration
+        if caster and hasattr(caster, 'spell_power'):
+            turns += caster.spell_power
+        # Бафф: процент отражения урона
+        target.fire_shield_turns = turns
+        target.fire_shield_pct = 0.35

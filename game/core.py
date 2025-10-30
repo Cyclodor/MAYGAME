@@ -25,11 +25,12 @@ from .graphics import (
     animate_forget_spell_fly,
     animate_rune_shield_spell,
     animate_rune_haste_spell,
+    animate_air_haste_spell,
     animate_frost_ring,
     animate_frost_impact,
     load_image,
 )
-from .spells import BlessSpell, CurseSpell, HealSpell, SlowSpell, FireArrowSpell, DispelSpell, RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, StoneSkinSpell, RaiseDeadSpell, FireballSpell
+from .spells import BlessSpell, CurseSpell, SlowSpell, FireArrowSpell, DispelSpell, RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, StoneSkinSpell, RaiseDeadSpell, FireballSpell, UndeadHealSpell, HasteSpell, FireShieldSpell
 from .sound import load_sound, load_sound_mp3
 from .debugger import GameDebugger
 from .ai import AIController
@@ -114,6 +115,7 @@ class Game:
         self.creative_panel_rect = pygame.Rect(SCREEN_WIDTH - 220, 0, 220, SCREEN_HEIGHT)
         self.creative_start_rect = pygame.Rect(SCREEN_WIDTH - 200, SCREEN_HEIGHT - 70, 180, 50)
         self.creative_back_rect = pygame.Rect(20, SCREEN_HEIGHT - 60, 180, 40)
+        self.creative_spellbook_rect = pygame.Rect(SCREEN_WIDTH - 200, SCREEN_HEIGHT - 185, 180, 44)
 
         # Настройки звука
         self.music_volume = 0.6
@@ -126,6 +128,10 @@ class Game:
         # Загрузка оверрайдов юнитов
         self.unit_overrides = {}
         self._load_unit_overrides()
+        # Инициализация музыкальных и боевых флагов/ресурсов
+        self._reset_battle_state()
+        # Каталог заклинаний
+        self._spells_catalog = self._build_spells_catalog()
 
     def _reset_battle_state(self):
         """Полный сброс флагов/данных боя при выходе из него."""
@@ -139,6 +145,12 @@ class Game:
         self.combat_music_playing = False
         self.current_intro_sound = None
         self.intro_channel = None
+        # Остановить любую текущую музыку (меню/бой)
+        try:
+            from pygame import mixer
+            mixer.music.stop()
+        except Exception:
+            pass
         # не чистим self.units здесь — это ответственность вызывающего (например, меню может начать новый сетап)
         # Загрузка звуков из Heroes 3
         self.button_click_sound = load_sound_mp3('нажатие на кнопки')
@@ -226,10 +238,10 @@ class Game:
             'shadow': [Scout, Beast, Minotaur, Witch, LizardRider]
         }
         hero_spells = {
-            'human': [BlessSpell(), DispelSpell()],
-            'undead': [CurseSpell(), RaiseDeadSpell()],
+            'human': [BlessSpell(), DispelSpell(), HasteSpell()],
+            'undead': [CurseSpell(), RaiseDeadSpell(), UndeadHealSpell()],
             'elf': [SlowSpell(), StoneSkinSpell()],
-            'demon': [FireArrowSpell(), FireballSpell()],
+            'demon': [FireArrowSpell(), FireballSpell(), FireShieldSpell()],
             'dwarf': [RuneShieldSpell(), RuneHasteSpell()],
             'shadow': [ForgetSpell(), FrostRingSpell()]
         }
@@ -251,10 +263,19 @@ class Game:
             self.hero1 = Hero(GRID_WIDTH-1, 0, p1_race, spells=hero1_spells, **hero1_params)
             self.hero1.used_spell_this_round = False
             self.hero1.game_ref = self
+            # Применяем оверрайды к герою расы 1
+            try:
+                self._apply_unit_overrides_to_instance(self.hero1)
+            except Exception:
+                pass
             army = []
             for i, unit_cls in enumerate(races[p1_race]):
                 unit = unit_cls(GRID_WIDTH-2, 1 + i*2, p1_race)
                 unit.game_ref = self
+                try:
+                    self._apply_unit_overrides_to_instance(unit)
+                except Exception:
+                    pass
                 army.append(unit)
             self.units.append(self.hero1)
             self.hero1.apply_bonuses_to_army(army)
@@ -277,14 +298,25 @@ class Game:
             self.hero2 = Hero(0, 0, p2_race, spells=hero2_spells, **hero2_params)
             self.hero2.used_spell_this_round = False
             self.hero2.game_ref = self
+            # Применяем оверрайды к герою расы 2
+            try:
+                self._apply_unit_overrides_to_instance(self.hero2)
+            except Exception:
+                pass
             army = []
             for i, unit_cls in enumerate(races[p2_race]):
                 unit = unit_cls(1, 1 + i*2, p2_race)
                 unit.game_ref = self
+                try:
+                    self._apply_unit_overrides_to_instance(unit)
+                except Exception:
+                    pass
                 army.append(unit)
             self.units.append(self.hero2)
             self.hero2.apply_bonuses_to_army(army)
             self.units.extend(army)
+        # Применяем сохранённые оверрайды ко всем созданным юнитам
+        self._apply_overrides_to_all_units()
 
     def draw_grid(self):
         # Подсветка диапазона хода только для активного юнита (не героя)
@@ -301,10 +333,11 @@ class Game:
                     else:
                         alpha = max_alpha
                     surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-                    # Более яркий и четкий цвет с плавным переходом
-                    surf.fill((80, 160, 255, alpha))
-                    # Добавляем рамку для четкости
-                    pygame.draw.rect(surf, (120, 200, 255, min(alpha + 30, 255)), (0, 0, CELL_SIZE, CELL_SIZE), 2)
+                    # Цвет заполняем без альфы, прозрачность задаём через set_alpha — совместимо с разными версиями pygame
+                    surf.set_alpha(alpha)
+                    surf.fill((80, 160, 255))
+                    # Добавляем рамку для четкости (без альфы — прозрачность уже задана у поверхности)
+                    pygame.draw.rect(surf, (120, 200, 255), (0, 0, CELL_SIZE, CELL_SIZE), 2)
                     self.screen.blit(surf, (mx*CELL_SIZE, my*CELL_SIZE))
 
     def draw_ui(self):
@@ -550,6 +583,18 @@ class Game:
             pygame.draw.line(book_surface, (255,255,255), (book_w-36, 20), (book_w-20, 36), 4)
             pygame.draw.line(book_surface, (255,255,255), (book_w-20, 20), (book_w-36, 36), 4)
             self.spellbook_close_rect = pygame.Rect(book_x+book_w-44, book_y+12, 32, 32)
+            # --- Отображение маны текущего героя ---
+            if isinstance(self.selected_unit, Hero):
+                mana_font = pygame.font.Font(None, 28)
+                mana_text = f"Мана: {self.selected_unit.mana}/{self.selected_unit.max_mana}"
+                mana_surf_shadow = mana_font.render(mana_text, True, (40, 30, 60))
+                mana_surf = mana_font.render(mana_text, True, (255, 245, 220))
+                # фон-плашка
+                mana_bg = pygame.Surface((mana_surf.get_width()+16, mana_surf.get_height()+8), pygame.SRCALPHA)
+                mana_bg.fill((60, 40, 100, 160))
+                book_surface.blit(mana_bg, (16, 12))
+                book_surface.blit(mana_surf_shadow, (24+2, 14+2))
+                book_surface.blit(mana_surf, (24, 14))
             # --- Переплёт (спайн) - магический архимагский ---
             spine_x = book_w // 2
             # Основание переплета с магическим свечением
@@ -849,6 +894,13 @@ class Game:
                         px = cx + int(13*math.cos(angle))
                         py = cy + int(13*math.sin(angle))
                         pygame.draw.circle(book_surface, (255,255,120,180), (px, py), 2)
+                elif spell.icon == 'haste':
+                    # Иконка ускорения воздуха: бело-голубые крылья и потоки ветра
+                    cx, cy = icon_box.center
+                    pygame.draw.arc(book_surface, (200,240,255), (cx-12, cy-8, 24, 16), math.radians(200), math.radians(340), 3)
+                    pygame.draw.arc(book_surface, (255,255,255), (cx-10, cy-6, 20, 12), math.radians(200), math.radians(340), 2)
+                    for dx in [-6, -2, 2, 6]:
+                        pygame.draw.line(book_surface, (180,220,255), (cx+dx, cy+6), (cx+dx+4, cy-6), 2)
                 elif spell.icon == 'forget':
                     # Фиолетовый туман
                     cx, cy = icon_box.center
@@ -885,8 +937,8 @@ class Game:
                     spell_power = getattr(hero, 'spell_power', 0) if hero else 0
                     knowledge = getattr(hero, 'knowledge', 0) if hero else 0
                     tip_lines = [spell.name, f"Мана: {spell.mana_cost}"]
-                    # Bless/Curse/Shield/Slow: duration
-                    if spell.icon in ('bless', 'curse', 'shield', 'slow', 'rune_shield', 'rune_haste'):
+                    # Bless/Curse/Shield/Slow/Haste: duration
+                    if spell.icon in ('bless', 'curse', 'shield', 'slow', 'rune_shield', 'rune_haste', 'haste'):
                         base_dur = spell.duration
                         bonus = spell_power
                         final_dur = base_dur + bonus
@@ -901,6 +953,8 @@ class Game:
                             tip_lines.append(f"-5 инициативы и -1 скорость на {dur_str} {pluralize(final_dur, ['ход', 'хода', 'ходов'])}")
                         elif spell.icon == 'rune_haste':
                             tip_lines.append(f"+2 скорость и +5 инициатива на {dur_str} {pluralize(final_dur, ['ход', 'хода', 'ходов'])}")
+                        elif spell.icon == 'haste':
+                            tip_lines.append(f"+2 скорость и +5 инициатива на {dur_str} {pluralize(final_dur, ['ход', 'хода', 'ходов'])}")
                     elif spell.icon in ('firearrow', 'fireball'):
                         base_dmg = spell.damage
                         bonus = spell_power * 5
@@ -911,6 +965,18 @@ class Game:
                             tip_lines.append("Зона: 3×3 клетки")
                     elif spell.icon == 'heal':
                         tip_lines.append("Восстанавливает 25 здоровья союзнику.")
+                    elif spell.icon == 'frost_ring':
+                        base_dmg = getattr(spell, 'damage', 0)
+                        bonus = spell_power * 5
+                        final_dmg = base_dmg + bonus
+                        dmg_str = f"{base_dmg}" + (f" ({final_dmg})" if bonus else "")
+                        tip_lines.append(f"Урон: {dmg_str}")
+                        tip_lines.append("Зона: кольцо радиус 1 (центр не бьёт)")
+                    elif spell.icon == 'raise_dead':
+                        tip_lines.append("Призывает скелета на выбранной пустой клетке.")
+                    elif spell.icon == 'raise_undead':
+                        tip_lines.append("Лечит только нежить: +25 здоровья.")
+                    
                     if spell.icon not in ('bless', 'curse', 'shield', 'slow', 'firearrow', 'fireball', 'heal', 'rune_shield', 'rune_haste'):
                         tip_lines.append(spell.description)
                     # Автоматическое увеличение высоты типтула
@@ -957,8 +1023,12 @@ class Game:
         # Лента: кто ходит сейчас
         label = None
         if hasattr(self, 'turn_queue'):
-            active = self.turn_queue[0]
-            label = f"Ходит: {active.unit_type.capitalize()} ({TEAM_LABELS.get(active.team, active.team)})"
+            active = None
+            if self.turn_queue:
+                # Пропускаем разделитель раунда
+                active = next((u for u in self.turn_queue if u is not self._round_delimiter), None)
+            if active:
+                label = f"Ходит: {active.unit_type.capitalize()} ({TEAM_LABELS.get(active.team, active.team)})"
         elif hasattr(self, 'initiative_queue') and self.initiative_queue:
             active = self.initiative_queue[self.current_initiative_index]
             label = f"Ходит: {active.unit_type.capitalize()} ({TEAM_LABELS.get(active.team, active.team)})"
@@ -1049,40 +1119,27 @@ class Game:
             fullscreen_shadow = font.render('Во весь экран (F)', True, (60, 50, 40))
             self.screen.blit(fullscreen_shadow, (btn_x + (btn_w - fullscreen_shadow.get_width())//2 + 2, btn_y + 18))
             self.screen.blit(fullscreen_text, (btn_x + (btn_w - fullscreen_text.get_width())//2, btn_y + 16))
-            # Кнопка "Новая игра"
-            newgame_rect = pygame.Rect(btn_x, btn_y + btn_h + btn_gap, btn_w, btn_h)
-            self.newgame_button_rect = newgame_rect
-            # Градиент
+            # Кнопка "Настройки"
+            settings_rect = pygame.Rect(btn_x, btn_y + btn_h + btn_gap, btn_w, btn_h)
+            self.pause_settings_button_rect = settings_rect
             for y_offset in range(btn_h):
                 btn_gradient = (
-                    int(160 - y_offset * 0.3),
-                    int(120 - y_offset * 0.25),
-                    int(90 - y_offset * 0.2)
+                    int(140 - y_offset * 0.25),
+                    int(120 - y_offset * 0.2),
+                    int(100 - y_offset * 0.15)
                 )
                 pygame.draw.line(self.screen, btn_gradient,
-                               (btn_x, newgame_rect.y + y_offset),
-                               (btn_x + btn_w, newgame_rect.y + y_offset))
-            pygame.draw.rect(self.screen, (70, 50, 35), newgame_rect, 5, border_radius=14)
-            inner_newgame = pygame.Rect(btn_x + 3, newgame_rect.y + 3, btn_w - 6, btn_h - 6)
-            pygame.draw.rect(self.screen, (180, 150, 120), inner_newgame, 2, border_radius=12)
-            # Узор
-            for i in range(4):
-                x_pos = btn_x + 30 + i * 50
-                pygame.draw.line(self.screen, (100, 80, 60), (x_pos, newgame_rect.y + 10), (x_pos, newgame_rect.y + btn_h - 10), 2)
-                for j in range(2):
-                    knot_y = newgame_rect.y + 20 + j * 20
-                    pygame.draw.circle(self.screen, (90, 70, 50), (x_pos, knot_y), 3)
-            # Заклёпки
-            for corner_x, corner_y in [(btn_x + 8, newgame_rect.y + 8), (btn_x + btn_w - 8, newgame_rect.y + 8),
-                                       (btn_x + 8, newgame_rect.y + btn_h - 8), (btn_x + btn_w - 8, newgame_rect.y + btn_h - 8)]:
-                pygame.draw.circle(self.screen, (180, 170, 160), (corner_x, corner_y), 5)
-                pygame.draw.circle(self.screen, (220, 210, 200), (corner_x, corner_y), 3)
-            newgame_text = font.render('Новая игра', True, (255, 245, 220))
-            newgame_shadow = font.render('Новая игра', True, (60, 50, 40))
-            self.screen.blit(newgame_shadow, (btn_x + (btn_w - newgame_shadow.get_width())//2 + 2, newgame_rect.y + 18))
-            self.screen.blit(newgame_text, (btn_x + (btn_w - newgame_text.get_width())//2, newgame_rect.y + 16))
+                               (btn_x, settings_rect.y + y_offset),
+                               (btn_x + btn_w, settings_rect.y + y_offset))
+            pygame.draw.rect(self.screen, (70, 50, 35), settings_rect, 5, border_radius=14)
+            inner_settings = pygame.Rect(btn_x + 3, settings_rect.y + 3, btn_w - 6, btn_h - 6)
+            pygame.draw.rect(self.screen, (180, 150, 120), inner_settings, 2, border_radius=12)
+            set_text = font.render('Настройки', True, (255, 245, 220))
+            set_shadow = font.render('Настройки', True, (60, 50, 40))
+            self.screen.blit(set_shadow, (btn_x + (btn_w - set_shadow.get_width())//2 + 2, settings_rect.y + 18))
+            self.screen.blit(set_text, (btn_x + (btn_w - set_text.get_width())//2, settings_rect.y + 16))
             # Кнопка "Главное меню"
-            mainmenu_rect = pygame.Rect(btn_x, newgame_rect.y + btn_h + btn_gap, btn_w, btn_h)
+            mainmenu_rect = pygame.Rect(btn_x, settings_rect.y + btn_h + btn_gap, btn_w, btn_h)
             self.mainmenu_button_rect = mainmenu_rect
             # Градиент
             for y_offset in range(btn_h):
@@ -1698,14 +1755,16 @@ class Game:
         pygame.draw.rect(self.screen, (200,60,60), close_rect, border_radius=8)
         self.screen.blit(font.render('X', True, (255,255,255)), (close_rect.x+7, close_rect.y+2))
         # Стрелки прокрутки
+        arrow_up = None
+        arrow_down = None
         if len(self.event_log) > lines:
             arrow_up = pygame.Rect(panel_x+panel_w-40, panel_y+60, 30, 20)
             arrow_down = pygame.Rect(panel_x+panel_w-40, panel_y+panel_h-60, 30, 20)
             pygame.draw.polygon(self.screen, (200,200,120), [(arrow_up.x+15, arrow_up.y+4), (arrow_up.x+4, arrow_up.y+16), (arrow_up.x+26, arrow_up.y+16)])
             pygame.draw.polygon(self.screen, (200,200,120), [(arrow_down.x+15, arrow_down.y+16), (arrow_down.x+4, arrow_down.y+4), (arrow_down.x+26, arrow_down.y+4)])
         self.history_panel_close_rect = close_rect
-        self.history_panel_arrow_up = arrow_up if len(self.event_log) > lines else None
-        self.history_panel_arrow_down = arrow_down if len(self.event_log) > lines else None
+        self.history_panel_arrow_up = arrow_up
+        self.history_panel_arrow_down = arrow_down
 
     def draw_creative(self):
         # Фон и сетка
@@ -1719,9 +1778,22 @@ class Game:
         pygame.draw.rect(self.screen, (120, 140, 180), self.creative_panel_rect, 2)
         font = pygame.font.Font(None, 26)
         self.screen.blit(font.render('Креатив режим', True, (220, 220, 240)), (self.creative_panel_rect.x + 12, 10))
-        # Переключатель команды
-        y = 40
-        for team_key, team_label in [('human','Люди'), ('elf','Эльфы'), ('undead','Нежить'), ('demon','Демоны'), ('dwarf','Гномы'), ('shadow','Тени')]:
+        # Переключатель команды (прокручиваемая область)
+        races = [('human','Люди'), ('elf','Эльфы'), ('undead','Нежить'), ('demon','Демоны'), ('dwarf','Гномы'), ('shadow','Тени')]
+        self.creative_race_scroll = getattr(self, 'creative_race_scroll', 0)
+        race_view_top = 40
+        race_view_h = 120
+        # рамка окна
+        pygame.draw.rect(self.screen, (28, 28, 48), (self.creative_panel_rect.x + 8, race_view_top - 4, self.creative_panel_rect.w - 16, race_view_h + 8), border_radius=8)
+        visible_races = max(1, race_view_h // 34)
+        start_r = min(self.creative_race_scroll, max(0, len(races) - visible_races))
+        end_r = min(len(races), start_r + visible_races)
+        y = race_view_top
+        # Сброс прежних rect
+        for key, _ in races:
+            if hasattr(self, f'creative_team_rect_{key}'):
+                delattr(self, f'creative_team_rect_{key}')
+        for team_key, team_label in races[start_r:end_r]:
             rect = pygame.Rect(self.creative_panel_rect.x + 12, y, 90, 28)
             sel = (self.creative_selected_team == team_key)
             pygame.draw.rect(self.screen, (70, 110, 90) if sel else (60, 60, 80), rect, border_radius=6)
@@ -1729,22 +1801,44 @@ class Game:
             self.screen.blit(pygame.font.Font(None, 22).render(team_label, True, (255,255,255)), (rect.x+8, rect.y+5))
             setattr(self, f'creative_team_rect_{team_key}', rect)
             y += 34
-        # Список юнитов по выбранной расе
+        # Скролл кнопки для рас
+        self.creative_race_up = pygame.Rect(self.creative_panel_rect.x + 120, race_view_top - 2, 24, 20)
+        self.creative_race_down = pygame.Rect(self.creative_panel_rect.x + 120, race_view_top + race_view_h - 18, 24, 20)
+        pygame.draw.rect(self.screen, (80,80,120), self.creative_race_up, border_radius=4)
+        pygame.draw.rect(self.screen, (80,80,120), self.creative_race_down, border_radius=4)
+        self.screen.blit(pygame.font.Font(None, 20).render('▲', True, (255,255,255)), (self.creative_race_up.x+5, self.creative_race_up.y+1))
+        self.screen.blit(pygame.font.Font(None, 20).render('▼', True, (255,255,255)), (self.creative_race_down.x+5, self.creative_race_down.y+1))
+        # Список юнитов по выбранной расе (со скроллом)
         y += 6
         self.screen.blit(font.render('Юниты:', True, (220, 220, 240)), (self.creative_panel_rect.x + 12, y))
-        y += 8
+        y += 14  # опустить ниже, чтобы заголовок не перекрывался кнопками
         self.creative_unit_rects = []
         unit_pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
-        for name, _cls in unit_pool:
-            y += 28
-            rect = pygame.Rect(self.creative_panel_rect.x + 12, y, 180, 24)
+        # Область списка и скролла
+        list_top = y
+        list_height = SCREEN_HEIGHT - 260
+        pygame.draw.rect(self.screen, (35, 35, 60), (self.creative_panel_rect.x + 8, list_top, self.creative_panel_rect.w - 16, list_height), border_radius=8)
+        # Индекс прокрутки
+        self.creative_units_scroll = getattr(self, 'creative_units_scroll', 0)
+        visible_count = max(1, (list_height - 16) // 30)
+        start_idx = min(self.creative_units_scroll, max(0, len(unit_pool) - visible_count))
+        end_idx = min(len(unit_pool), start_idx + visible_count)
+        draw_y = list_top + 8
+        for name, _cls in unit_pool[start_idx:end_idx]:
+            rect = pygame.Rect(self.creative_panel_rect.x + 12, draw_y, 180, 24)
             sel = (self.creative_selected_unit == name)
             pygame.draw.rect(self.screen, (100, 120, 160) if sel else (50, 60, 80), rect, border_radius=6)
             pygame.draw.rect(self.screen, (180, 180, 200), rect, 2, border_radius=6)
             self.screen.blit(pygame.font.Font(None, 22).render(name, True, (240,240,255)), (rect.x+8, rect.y+3))
             self.creative_unit_rects.append((rect, name))
-            if y > SCREEN_HEIGHT - 160:
-                break
+            draw_y += 30
+        # Кнопки скролла
+        self.creative_scroll_up = pygame.Rect(self.creative_panel_rect.x + 160, list_top + 4, 32, 24)
+        self.creative_scroll_down = pygame.Rect(self.creative_panel_rect.x + 160, list_top + list_height - 28, 32, 24)
+        pygame.draw.rect(self.screen, (80,80,120), self.creative_scroll_up, border_radius=6)
+        pygame.draw.rect(self.screen, (80,80,120), self.creative_scroll_down, border_radius=6)
+        self.screen.blit(pygame.font.Font(None, 22).render('▲', True, (255,255,255)), (self.creative_scroll_up.x+7, self.creative_scroll_up.y+1))
+        self.screen.blit(pygame.font.Font(None, 22).render('▼', True, (255,255,255)), (self.creative_scroll_down.x+7, self.creative_scroll_down.y+1))
         # Кнопки снизу
         pygame.draw.rect(self.screen, (80, 130, 80), self.creative_start_rect, border_radius=10)
         pygame.draw.rect(self.screen, (220, 240, 220), self.creative_start_rect, 2, border_radius=10)
@@ -1757,44 +1851,96 @@ class Game:
         pygame.draw.rect(self.screen, (80, 80, 140), self.unit_editor_rect, border_radius=8)
         pygame.draw.rect(self.screen, (200, 200, 240), self.unit_editor_rect, 2, border_radius=8)
         self.screen.blit(pygame.font.Font(None, 24).render('Редактор юнитов', True, (255,255,255)), (self.unit_editor_rect.x + 14, self.unit_editor_rect.y + 10))
+        # Кнопка редактирования книг заклинаний
+        pygame.draw.rect(self.screen, (80, 120, 100), self.creative_spellbook_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (200, 240, 220), self.creative_spellbook_rect, 2, border_radius=8)
+        self.screen.blit(pygame.font.Font(None, 24).render('Книги заклинаний', True, (255,255,255)), (self.creative_spellbook_rect.x + 8, self.creative_spellbook_rect.y + 10))
 
     # ===================== Настройки (Settings) =====================
     def draw_settings(self):
-        self.screen.fill((25, 25, 40))
-        title = pygame.font.Font(None, 48).render('Настройки', True, (240,240,255))
-        self.screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 40))
+        # Полупрозрачный оверлей как в паузе/меню
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((30, 20, 10, 200))
+        self.screen.blit(overlay, (0,0))
+        # Деревянная панель стиля главного меню
+        panel_w, panel_h = 560, 360
+        panel_x, panel_y = (SCREEN_WIDTH - panel_w)//2, (SCREEN_HEIGHT - panel_h)//2
+        self.settings_panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
+        for y_offset in range(panel_h):
+            panel_gradient = (
+                int(150 - y_offset * 0.2),
+                int(110 - y_offset * 0.15),
+                int(80 - y_offset * 0.10)
+            )
+            pygame.draw.line(self.screen, panel_gradient,
+                             (panel_x, panel_y + y_offset),
+                             (panel_x + panel_w, panel_y + y_offset))
+        pygame.draw.rect(self.screen, (70, 50, 35), self.settings_panel_rect, 6, border_radius=16)
+        inner_panel = pygame.Rect(panel_x + 4, panel_y + 4, panel_w - 8, panel_h - 8)
+        pygame.draw.rect(self.screen, (170, 140, 110), inner_panel, 2, border_radius=14)
+        # Заголовок
+        title_font = pygame.font.Font(None, 46)
+        title = title_font.render('НАСТРОЙКИ', True, (255, 245, 220))
+        title_shadow = title_font.render('НАСТРОЙКИ', True, (60, 50, 40))
+        self.screen.blit(title_shadow, (panel_x + (panel_w - title.get_width())//2 + 2, panel_y + 18))
+        self.screen.blit(title, (panel_x + (panel_w - title.get_width())//2, panel_y + 16))
         font = pygame.font.Font(None, 32)
-        y = 140
+        y = panel_y + 86
         # Музыка
-        self.music_minus_rect = pygame.Rect(240, y, 40, 40)
-        self.music_plus_rect = pygame.Rect(520, y, 40, 40)
-        pygame.draw.rect(self.screen, (80,80,120), self.music_minus_rect, border_radius=8)
-        pygame.draw.rect(self.screen, (80,80,120), self.music_plus_rect, border_radius=8)
-        self.screen.blit(font.render('-', True, (255,255,255)), (self.music_minus_rect.x+12, self.music_minus_rect.y+5))
-        self.screen.blit(font.render('+', True, (255,255,255)), (self.music_plus_rect.x+10, self.music_plus_rect.y+5))
-        self.screen.blit(font.render('Музыка', True, (220,220,240)), (320, y))
-        self.screen.blit(font.render(f"{int(self.music_volume*100)}%", True, (200,220,255)), (580, y))
+        label_x = panel_x + 40
+        val_x = panel_x + panel_w - 120
+        btn_minus_x = panel_x + panel_w - 200
+        btn_plus_x = panel_x + panel_w - 60
+        self.music_minus_rect = pygame.Rect(btn_minus_x, y, 40, 40)
+        self.music_plus_rect = pygame.Rect(btn_plus_x, y, 40, 40)
+        for r in [self.music_minus_rect, self.music_plus_rect]:
+            for yy in range(r.height):
+                grad = (int(140 - yy*0.5), int(120 - yy*0.4), int(100 - yy*0.3))
+                pygame.draw.line(self.screen, grad, (r.x, r.y+yy), (r.x+r.width, r.y+yy))
+            pygame.draw.rect(self.screen, (70,50,35), r, 3, border_radius=8)
+            pygame.draw.rect(self.screen, (180,150,120), pygame.Rect(r.x+2, r.y+2, r.width-4, r.height-4), 1, border_radius=7)
+        self.screen.blit(font.render('-', True, (255,245,220)), (self.music_minus_rect.x+13, self.music_minus_rect.y+5))
+        self.screen.blit(font.render('+', True, (255,245,220)), (self.music_plus_rect.x+10, self.music_plus_rect.y+5))
+        self.screen.blit(font.render('Музыка', True, (255,245,220)), (label_x, y))
+        self.screen.blit(font.render(f"{int(self.music_volume*100)}%", True, (255,245,220)), (val_x, y))
         y += 80
         # Звуки
-        self.sfx_minus_rect = pygame.Rect(240, y, 40, 40)
-        self.sfx_plus_rect = pygame.Rect(520, y, 40, 40)
-        pygame.draw.rect(self.screen, (80,80,120), self.sfx_minus_rect, border_radius=8)
-        pygame.draw.rect(self.screen, (80,80,120), self.sfx_plus_rect, border_radius=8)
-        self.screen.blit(font.render('-', True, (255,255,255)), (self.sfx_minus_rect.x+12, self.sfx_minus_rect.y+5))
-        self.screen.blit(font.render('+', True, (255,255,255)), (self.sfx_plus_rect.x+10, self.sfx_plus_rect.y+5))
-        self.screen.blit(font.render('Звуки', True, (220,220,240)), (320, y))
-        self.screen.blit(font.render(f"{int(self.sfx_volume*100)}%", True, (200,220,255)), (580, y))
+        self.sfx_minus_rect = pygame.Rect(btn_minus_x, y, 40, 40)
+        self.sfx_plus_rect = pygame.Rect(btn_plus_x, y, 40, 40)
+        for r in [self.sfx_minus_rect, self.sfx_plus_rect]:
+            for yy in range(r.height):
+                grad = (int(140 - yy*0.5), int(120 - yy*0.4), int(100 - yy*0.3))
+                pygame.draw.line(self.screen, grad, (r.x, r.y+yy), (r.x+r.width, r.y+yy))
+            pygame.draw.rect(self.screen, (70,50,35), r, 3, border_radius=8)
+            pygame.draw.rect(self.screen, (180,150,120), pygame.Rect(r.x+2, r.y+2, r.width-4, r.height-4), 1, border_radius=7)
+        self.screen.blit(font.render('-', True, (255,245,220)), (self.sfx_minus_rect.x+13, self.sfx_minus_rect.y+5))
+        self.screen.blit(font.render('+', True, (255,245,220)), (self.sfx_plus_rect.x+10, self.sfx_plus_rect.y+5))
+        self.screen.blit(font.render('Звуки', True, (255,245,220)), (label_x, y))
+        self.screen.blit(font.render(f"{int(self.sfx_volume*100)}%", True, (255,245,220)), (val_x, y))
         y += 80
         # Отключить звук
-        self.mute_toggle_rect = pygame.Rect(SCREEN_WIDTH//2 - 120, y, 240, 44)
-        pygame.draw.rect(self.screen, (100,60,60) if self.muted else (60,100,60), self.mute_toggle_rect, border_radius=10)
-        pygame.draw.rect(self.screen, (220,220,220), self.mute_toggle_rect, 2, border_radius=10)
-        self.screen.blit(font.render('Выключить звук' if not self.muted else 'Звук выключен', True, (255,255,255)), (self.mute_toggle_rect.x+16, self.mute_toggle_rect.y+8))
+        self.mute_toggle_rect = pygame.Rect(panel_x + (panel_w-260)//2, y, 260, 48)
+        for yy in range(self.mute_toggle_rect.height):
+            grad = (int(90 - yy*0.3), int(70 - yy*0.2), int(50 - yy*0.15)) if self.muted else (int(120 - yy*0.3), int(100 - yy*0.25), int(80 - yy*0.2))
+            pygame.draw.line(self.screen, grad,
+                             (self.mute_toggle_rect.x, self.mute_toggle_rect.y + yy),
+                             (self.mute_toggle_rect.x + self.mute_toggle_rect.width, self.mute_toggle_rect.y + yy))
+        pygame.draw.rect(self.screen, (70,50,35), self.mute_toggle_rect, 3, border_radius=12)
+        pygame.draw.rect(self.screen, (180,150,120), pygame.Rect(self.mute_toggle_rect.x+2, self.mute_toggle_rect.y+2, self.mute_toggle_rect.width-4, self.mute_toggle_rect.height-4), 1, border_radius=10)
+        self.screen.blit(font.render('Звук выключен' if self.muted else 'Выключить звук', True, (255,245,220)), (self.mute_toggle_rect.x+22, self.mute_toggle_rect.y+10))
         # Кнопка назад
-        self.settings_back_rect = pygame.Rect(20, SCREEN_HEIGHT-60, 180, 40)
-        pygame.draw.rect(self.screen, (130,80,80), self.settings_back_rect, border_radius=8)
-        pygame.draw.rect(self.screen, (240,220,220), self.settings_back_rect, 2, border_radius=8)
-        self.screen.blit(pygame.font.Font(None, 28).render('Назад', True, (255,255,255)), (self.settings_back_rect.x+60, self.settings_back_rect.y+8))
+        back_w, back_h = 200, 50
+        self.settings_back_rect = pygame.Rect(panel_x + (panel_w - back_w)//2, panel_y + panel_h - back_h - 20, back_w, back_h)
+        for yy in range(back_h):
+            grad = (int(150 - yy * 0.35), int(110 - yy * 0.30), int(80 - yy * 0.25))
+            pygame.draw.line(self.screen, grad, (self.settings_back_rect.x, self.settings_back_rect.y + yy), (self.settings_back_rect.x + back_w, self.settings_back_rect.y + yy))
+        pygame.draw.rect(self.screen, (70,50,35), self.settings_back_rect, 5, border_radius=12)
+        pygame.draw.rect(self.screen, (170,140,110), pygame.Rect(self.settings_back_rect.x+3, self.settings_back_rect.y+3, back_w-6, back_h-6), 2, border_radius=10)
+        back_font = pygame.font.Font(None, 30)
+        back_text = back_font.render('Назад', True, (255,245,220))
+        back_shadow = back_font.render('Назад', True, (60,50,40))
+        self.screen.blit(back_shadow, (self.settings_back_rect.x + (back_w - back_shadow.get_width())//2 + 2, self.settings_back_rect.y + 14))
+        self.screen.blit(back_text, (self.settings_back_rect.x + (back_w - back_text.get_width())//2, self.settings_back_rect.y + 12))
 
     def handle_settings_click(self, pos):
         if hasattr(self, 'music_minus_rect') and self.music_minus_rect.collidepoint(pos):
@@ -1823,6 +1969,12 @@ class Game:
             self._save_settings()
             return
         if hasattr(self, 'settings_back_rect') and self.settings_back_rect.collidepoint(pos):
+            # Если зашли в настройки из паузы — возвращаемся в пауз-меню
+            if self.is_paused:
+                self.state = 'game'
+                self.menu_open = True
+                return
+            # Иначе возвращаемся в главное меню настроек
             self.state = 'menu'
             return
 
@@ -1847,6 +1999,17 @@ class Game:
                     s.set_volume(sv)
                 except Exception:
                     pass
+        # Громкость длинных интро-звуков приравниваем к громкости музыки
+        for s in getattr(self, 'battle_intro_sounds', []) or []:
+            try:
+                s.set_volume(mv)
+            except Exception:
+                pass
+        if getattr(self, 'current_intro_sound', None):
+            try:
+                self.current_intro_sound.set_volume(mv)
+            except Exception:
+                pass
 
     def _load_settings(self):
         try:
@@ -1889,15 +2052,323 @@ class Game:
             print(f"Ошибка сохранения параметров юнитов: {e}")
 
     def _apply_unit_overrides_to_instance(self, unit):
-        data = self.unit_overrides.get(unit.__class__.__name__)
+        # Для героев используем ключ вида Hero_<race>, чтобы настраивать по расам
+        data = None
+        try:
+            from .units import Hero as _Hero
+            if isinstance(unit, _Hero):
+                data = self.unit_overrides.get(f"Hero_{getattr(unit, 'team', '')}") or self.unit_overrides.get('Hero')
+        except Exception:
+            pass
+        if data is None:
+            data = self.unit_overrides.get(unit.__class__.__name__)
         if not data:
             return
-        for key in ['health','max_health','attack','defense','speed','initiative','attack_range','is_ranged']:
+        # Если указан health и он больше текущего max_health (и max_health не задан), поднимаем max_health
+        if 'health' in data and 'max_health' not in data:
+            try:
+                unit.max_health = int(data['health'])
+            except Exception:
+                pass
+        for key in ['max_health','health','attack','defense','speed','initiative','attack_range','is_ranged',
+                    'knowledge','spell_power','mana','max_mana','mana_regen']:
             if key in data:
                 try:
                     setattr(unit, key, data[key])
                 except Exception:
                     pass
+        # Корректируем здоровье в рамках max_health
+        if hasattr(unit, 'max_health') and hasattr(unit, 'health'):
+            try:
+                unit.health = unit.max_health  # считать, что юнит полон после изменения параметров
+            except Exception:
+                pass
+        # Корректируем ману в рамках max_mana
+        if hasattr(unit, 'max_mana') and hasattr(unit, 'mana'):
+            try:
+                unit.mana = unit.max_mana
+            except Exception:
+                pass
+
+    def _apply_overrides_to_all_units(self):
+        for unit in self.units:
+            try:
+                self._apply_unit_overrides_to_instance(unit)
+            except Exception:
+                pass
+
+    # --------- Spells catalog and editor ---------
+    def _build_spells_catalog(self):
+        from .spells import (
+            BlessSpell, CurseSpell, SlowSpell, FireArrowSpell, DispelSpell,
+            RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, RaiseDeadSpell, FireballSpell, StoneSkinSpell, UndeadHealSpell, HasteSpell, FireShieldSpell
+        )
+        classes = [BlessSpell, CurseSpell, SlowSpell, FireArrowSpell, DispelSpell,
+                   RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, RaiseDeadSpell, FireballSpell, StoneSkinSpell, UndeadHealSpell, HasteSpell, FireShieldSpell]
+        catalog = []
+        for cls in classes:
+            try:
+                s = cls()
+                catalog.append({'name': s.name, 'school': getattr(s, 'school', None), 'class': cls, 'icon': getattr(s, 'icon', None), 'target_type': getattr(s, 'target_type', 'enemy')})
+            except Exception:
+                pass
+        return catalog
+
+    def draw_spellbook_editor(self):
+        self.screen.fill((25, 30, 45))
+        title = pygame.font.Font(None, 46).render('Книги заклинаний (Креатив)', True, (240,240,255))
+        self.screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 16))
+        font = pygame.font.Font(None, 26)
+        # Вкладки героев
+        heroes = getattr(self, '_spellbook_heroes', [])
+        tab_x = 20
+        self.spellbook_hero_tabs = []
+        for idx, h in enumerate(heroes):
+            rect = pygame.Rect(tab_x, 60, 220, 36)
+            sel = (idx == getattr(self, '_spellbook_selected_hero_idx', 0))
+            pygame.draw.rect(self.screen, (90,120,160) if sel else (60,70,90), rect, border_radius=8)
+            pygame.draw.rect(self.screen, (210,220,240), rect, 2, border_radius=8)
+            label = f"Герой {idx+1} ({TEAM_LABELS.get(h.team, h.team)})"
+            self.screen.blit(font.render(label, True, (255,255,255)), (rect.x+10, rect.y+7))
+            self.spellbook_hero_tabs.append((rect, idx))
+            tab_x += 240
+        # Фильтр школ (вертикальная панель со скроллом)
+        schools = ['all','light','darkness','fire','water','earth','air','rune']
+        self.spellbook_school_rects = []
+        panel_x = 20
+        panel_top = 110
+        panel_w = 150
+        panel_h = SCREEN_HEIGHT - 200
+        # фон панели школ
+        pygame.draw.rect(self.screen, (40,50,70), (panel_x-2, panel_top-2, panel_w, panel_h), border_radius=8)
+        # элементы
+        item_h = 30
+        vis_cnt_s = max(1, (panel_h - 16)//item_h)
+        self.school_scroll = getattr(self, 'school_scroll', 0)
+        start_s = min(self.school_scroll, max(0, len(schools) - vis_cnt_s))
+        end_s = min(len(schools), start_s + vis_cnt_s)
+        draw_y = panel_top + 6
+        for sc in schools[start_s:end_s]:
+            rect = pygame.Rect(panel_x, draw_y, panel_w-20, item_h-4)
+            sel = (sc == getattr(self, '_spellbook_selected_school', 'all'))
+            pygame.draw.rect(self.screen, (80,120,90) if sel else (60,60,80), rect, border_radius=6)
+            pygame.draw.rect(self.screen, (200,200,220), rect, 2, border_radius=6)
+            label = sc.capitalize() if sc!='all' else 'Все'
+            self.screen.blit(font.render(label, True, (255,255,255)), (rect.x+10, rect.y+4))
+            self.spellbook_school_rects.append((rect, sc))
+            draw_y += item_h
+        # стрелки скролла школ
+        self.school_up = pygame.Rect(panel_x + panel_w - 24, panel_top, 20, 20)
+        self.school_down = pygame.Rect(panel_x + panel_w - 24, panel_top + panel_h - 20, 20, 20)
+        pygame.draw.rect(self.screen, (80,80,120), self.school_up, border_radius=4)
+        pygame.draw.rect(self.screen, (80,80,120), self.school_down, border_radius=4)
+        self.screen.blit(font.render('▲', True, (255,255,255)), (self.school_up.x+3, self.school_up.y-2))
+        self.screen.blit(font.render('▼', True, (255,255,255)), (self.school_down.x+3, self.school_down.y-2))
+        # Доступные заклинания
+        sel_hero = heroes[getattr(self, '_spellbook_selected_hero_idx', 0)] if heroes else None
+        available = [it for it in self._spells_catalog if self._spellbook_selected_school in ('all', it['school'])]
+        self.spell_add_rects = []
+        x = panel_x + panel_w + 20
+        y = 120
+        self.screen.blit(font.render('Доступные:', True, (220,220,240)), (x, y))
+        # Прокручиваемая область доступных
+        avail_top = y + 30
+        avail_height = SCREEN_HEIGHT - 190
+        pygame.draw.rect(self.screen, (35,40,65), (x-2, avail_top-2, 300, avail_height), border_radius=8)
+        vis_cnt = max(1, (avail_height - 16)//30)
+        self.spell_avail_scroll = getattr(self, 'spell_avail_scroll', 0)
+        start = min(self.spell_avail_scroll, max(0, len(available) - vis_cnt))
+        end = min(len(available), start + vis_cnt)
+        draw_y = avail_top + 6
+        for it in available[start:end]:
+            rect = pygame.Rect(x, draw_y, 260, 26)
+            pygame.draw.rect(self.screen, (50,60,80), rect, border_radius=6)
+            pygame.draw.rect(self.screen, (160,170,200), rect, 2, border_radius=6)
+            label = it['name'] + (f" [{it['school']}]" if it['school'] else '')
+            self.screen.blit(font.render(label, True, (240,240,255)), (rect.x+8, rect.y+4))
+            self.spell_add_rects.append((rect, it))
+            draw_y += 30
+        # Скролл кнопки
+        self.spell_avail_up = pygame.Rect(x+260, avail_top, 28, 22)
+        self.spell_avail_down = pygame.Rect(x+260, avail_top+avail_height-22, 28, 22)
+        pygame.draw.rect(self.screen, (80,80,120), self.spell_avail_up, border_radius=6)
+        pygame.draw.rect(self.screen, (80,80,120), self.spell_avail_down, border_radius=6)
+        self.screen.blit(font.render('▲', True, (255,255,255)), (self.spell_avail_up.x+6, self.spell_avail_up.y+1))
+        self.screen.blit(font.render('▼', True, (255,255,255)), (self.spell_avail_down.x+6, self.spell_avail_down.y+1))
+        # Текущая книга
+        x = panel_x + panel_w + 20 + 300 + 40
+        y = 120
+        self.screen.blit(font.render('Книга героя:', True, (220,220,240)), (x, y))
+        self.spell_remove_rects = []
+        # Прокручиваемая область книги
+        book_top = y + 30
+        book_height = SCREEN_HEIGHT - 190
+        pygame.draw.rect(self.screen, (45,40,35), (x-2, book_top-2, 340, book_height), border_radius=8)
+        vis_cnt_b = max(1, (book_height - 16)//30)
+        self.spell_book_scroll = getattr(self, 'spell_book_scroll', 0)
+        book_list = list(getattr(sel_hero, 'spells', [])) if sel_hero else []
+        start_b = min(self.spell_book_scroll, max(0, len(book_list) - vis_cnt_b))
+        end_b = min(len(book_list), start_b + vis_cnt_b)
+        draw_y = book_top + 6
+        for s in book_list[start_b:end_b]:
+            rect = pygame.Rect(x, draw_y, 300, 26)
+            pygame.draw.rect(self.screen, (80,70,60), rect, border_radius=6)
+            pygame.draw.rect(self.screen, (200,180,150), rect, 2, border_radius=6)
+            label = getattr(s, 'name', s.__class__.__name__)
+            self.screen.blit(font.render(label, True, (255,245,220)), (rect.x+8, rect.y+4))
+            self.spell_remove_rects.append((rect, s))
+            draw_y += 30
+        # Скролл кнопки
+        self.spell_book_up = pygame.Rect(x+300, book_top, 28, 22)
+        self.spell_book_down = pygame.Rect(x+300, book_top+book_height-22, 28, 22)
+        pygame.draw.rect(self.screen, (120,100,80), self.spell_book_up, border_radius=6)
+        pygame.draw.rect(self.screen, (120,100,80), self.spell_book_down, border_radius=6)
+        self.screen.blit(font.render('▲', True, (255,255,255)), (self.spell_book_up.x+6, self.spell_book_up.y+1))
+        self.screen.blit(font.render('▼', True, (255,255,255)), (self.spell_book_down.x+6, self.spell_book_down.y+1))
+        # Кнопки
+        self.spellbook_back_rect = pygame.Rect(20, SCREEN_HEIGHT-60, 180, 40)
+        pygame.draw.rect(self.screen, (130,80,80), self.spellbook_back_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (240,220,220), self.spellbook_back_rect, 2, border_radius=8)
+        self.screen.blit(pygame.font.Font(None, 28).render('Назад', True, (255,255,255)), (self.spellbook_back_rect.x+60, self.spellbook_back_rect.y+8))
+
+    def handle_spellbook_editor_click(self, pos):
+        # Табы героев
+        if hasattr(self, 'spellbook_hero_tabs'):
+            for rect, idx in self.spellbook_hero_tabs:
+                if rect.collidepoint(pos):
+                    self._spellbook_selected_hero_idx = idx
+                    return
+        # Фильтр школ
+        if hasattr(self, 'spellbook_school_rects'):
+            for rect, sc in self.spellbook_school_rects:
+                if rect.collidepoint(pos):
+                    self._spellbook_selected_school = sc
+                    return
+        # Скролл школ
+        if hasattr(self, 'school_up') and self.school_up.collidepoint(pos):
+            self.school_scroll = max(0, getattr(self, 'school_scroll', 0) - 1)
+            return
+        if hasattr(self, 'school_down') and self.school_down.collidepoint(pos):
+            schools = ['all','light','darkness','fire','water','earth','air','rune']
+            panel_h = SCREEN_HEIGHT - 200
+            item_h = 30
+            vis_cnt_s = max(1, (panel_h - 16)//item_h)
+            max_scroll_s = max(0, len(schools) - vis_cnt_s)
+            self.school_scroll = min(max_scroll_s, getattr(self, 'school_scroll', 0) + 1)
+            return
+        # Добавление заклинания
+        heroes = getattr(self, '_spellbook_heroes', [])
+        sel_hero = heroes[getattr(self, '_spellbook_selected_hero_idx', 0)] if heroes else None
+        if sel_hero and hasattr(self, 'spell_add_rects'):
+            for rect, it in self.spell_add_rects:
+                if rect.collidepoint(pos):
+                    # Не дублировать одинаковые по имени
+                    if not any(getattr(s, 'name', None) == it['name'] for s in getattr(sel_hero, 'spells', [])):
+                        try:
+                            s = it['class']()
+                            sel_hero.spells.append(s)
+                        except Exception:
+                            pass
+                    return
+        # Скролл доступных
+        if hasattr(self, 'spell_avail_up') and self.spell_avail_up.collidepoint(pos):
+            self.spell_avail_scroll = max(0, getattr(self, 'spell_avail_scroll', 0) - 1)
+            return
+        if hasattr(self, 'spell_avail_down') and self.spell_avail_down.collidepoint(pos):
+            available = [it for it in self._spells_catalog if self._spellbook_selected_school in ('all', it['school'])]
+            avail_height = SCREEN_HEIGHT - 220
+            vis_cnt = max(1, (avail_height - 16)//30)
+            max_scroll = max(0, len(available) - vis_cnt)
+            self.spell_avail_scroll = min(max_scroll, getattr(self, 'spell_avail_scroll', 0) + 1)
+            return
+        # Удаление заклинания
+        if sel_hero and hasattr(self, 'spell_remove_rects'):
+            for rect, s in self.spell_remove_rects:
+                if rect.collidepoint(pos):
+                    try:
+                        sel_hero.spells.remove(s)
+                    except Exception:
+                        pass
+                    return
+        # Скролл книги
+        if hasattr(self, 'spell_book_up') and self.spell_book_up.collidepoint(pos):
+            self.spell_book_scroll = max(0, getattr(self, 'spell_book_scroll', 0) - 1)
+            return
+        if hasattr(self, 'spell_book_down') and self.spell_book_down.collidepoint(pos):
+            heroes = getattr(self, '_spellbook_heroes', [])
+            sel_hero = heroes[getattr(self, '_spellbook_selected_hero_idx', 0)] if heroes else None
+            book_list = list(getattr(sel_hero, 'spells', [])) if sel_hero else []
+            book_height = SCREEN_HEIGHT - 190
+            vis_cnt_b = max(1, (book_height - 16)//30)
+            max_scroll_b = max(0, len(book_list) - vis_cnt_b)
+            self.spell_book_scroll = min(max_scroll_b, getattr(self, 'spell_book_scroll', 0) + 1)
+            return
+        # Назад
+        if hasattr(self, 'spellbook_back_rect') and self.spellbook_back_rect.collidepoint(pos):
+            self.state = 'creative'
+            return
+
+    # Универсальная обработка прокрутки колесом мыши (вызывать из внешнего цикла событий)
+    def on_mouse_wheel(self, y_delta):
+        mx, my = pygame.mouse.get_pos()
+        # Креатив: скролл рас
+        race_view_top = 40
+        race_view_h = 120
+        race_view_rect = pygame.Rect(self.creative_panel_rect.x + 8, race_view_top - 4, self.creative_panel_rect.w - 16, race_view_h + 8)
+        if self.state == 'creative' and race_view_rect.collidepoint(mx, my):
+            races_len = 6
+            visible_races = max(1, race_view_h // 34)
+            max_scroll = max(0, races_len - visible_races)
+            self.creative_race_scroll = int(max(0, min(max_scroll, getattr(self, 'creative_race_scroll', 0) - y_delta)))
+            return
+        # Креатив: скролл списка юнитов
+        if self.state == 'creative':
+            list_top = 40 + race_view_h + 14 + 14  # приблизительно ниже блока рас и заголовка
+            list_height = SCREEN_HEIGHT - 260
+            list_rect = pygame.Rect(self.creative_panel_rect.x + 8, list_top, self.creative_panel_rect.w - 16, list_height)
+            if list_rect.collidepoint(mx, my):
+                unit_pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
+                visible_count = max(1, (list_height - 16) // 30)
+                max_scroll = max(0, len(unit_pool) - visible_count)
+                self.creative_units_scroll = int(max(0, min(max_scroll, getattr(self, 'creative_units_scroll', 0) - y_delta)))
+                return
+        # Spellbook: доступные
+        if self.state == 'spellbook_editor':
+            panel_x = 20
+            panel_w = 150
+            avail_top = 120 + 30
+            avail_height = SCREEN_HEIGHT - 190
+            avail_rect = pygame.Rect(panel_x + panel_w + 20 - 2, avail_top-2, 300, avail_height)
+            if avail_rect.collidepoint(mx, my):
+                available = [it for it in self._spells_catalog if self._spellbook_selected_school in ('all', it['school'])]
+                vis_cnt = max(1, (avail_height - 16)//30)
+                max_scroll = max(0, len(available) - vis_cnt)
+                self.spell_avail_scroll = int(max(0, min(max_scroll, getattr(self, 'spell_avail_scroll', 0) - y_delta)))
+                return
+            # книга героя
+            book_top = 120 + 30
+            book_height = SCREEN_HEIGHT - 190
+            book_x = panel_x + panel_w + 20 + 300 + 40
+            book_rect = pygame.Rect(book_x - 2, book_top-2, 340, book_height)
+            if book_rect.collidepoint(mx, my):
+                heroes = getattr(self, '_spellbook_heroes', [])
+                sel_hero = heroes[getattr(self, '_spellbook_selected_hero_idx', 0)] if heroes else None
+                book_list = list(getattr(sel_hero, 'spells', [])) if sel_hero else []
+                vis_cnt_b = max(1, (book_height - 16)//30)
+                max_scroll_b = max(0, len(book_list) - vis_cnt_b)
+                self.spell_book_scroll = int(max(0, min(max_scroll_b, getattr(self, 'spell_book_scroll', 0) - y_delta)))
+                return
+            # панель школ
+            panel_top = 110
+            panel_h = SCREEN_HEIGHT - 200
+            school_rect = pygame.Rect(panel_x-2, panel_top-2, panel_w, panel_h)
+            if school_rect.collidepoint(mx, my):
+                schools = ['all','light','darkness','fire','water','earth','air','rune']
+                item_h = 30
+                vis_cnt_s = max(1, (panel_h - 16)//item_h)
+                max_scroll_s = max(0, len(schools) - vis_cnt_s)
+                self.school_scroll = int(max(0, min(max_scroll_s, getattr(self, 'school_scroll', 0) - y_delta)))
+                return
 
     def handle_creative_click(self, pos):
         # Кнопки
@@ -1905,6 +2376,18 @@ class Game:
             if self.button_click_sound:
                 self.button_click_sound.play()
             self.start_simulation_from_creative()
+            return
+        # Скролл списка юнитов
+        if hasattr(self, 'creative_scroll_up') and self.creative_scroll_up.collidepoint(pos):
+            self.creative_units_scroll = max(0, getattr(self, 'creative_units_scroll', 0) - 1)
+            return
+        if hasattr(self, 'creative_scroll_down') and self.creative_scroll_down.collidepoint(pos):
+            unit_pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
+            list_top = 0  # не нужен для расчёта
+            list_height = SCREEN_HEIGHT - 260
+            visible_count = max(1, (list_height - 16) // 30)
+            max_scroll = max(0, len(unit_pool) - visible_count)
+            self.creative_units_scroll = min(max_scroll, getattr(self, 'creative_units_scroll', 0) + 1)
             return
         if self.creative_back_rect.collidepoint(pos):
             if self.button_click_sound:
@@ -1916,9 +2399,23 @@ class Game:
                 self.button_click_sound.play()
             self.state = 'unit_editor'
             self._unit_editor_selected_race = self.creative_selected_team
-            # По умолчанию первый юнит из пула
-            pool = self.creative_units_by_race.get(self._unit_editor_selected_race, [])
-            self._unit_editor_selected_unit = pool[0][0] if pool else 'Peasant'
+            # По умолчанию первый юнит из пула + герой выбранной расы
+            pool = list(self.creative_units_by_race.get(self._unit_editor_selected_race, []))
+            pool.append((f"Hero_{self._unit_editor_selected_race}", Hero))
+            self._unit_editor_selected_unit = pool[0][0] if pool else f"Hero_{self._unit_editor_selected_race}"
+            return
+        if self.creative_spellbook_rect.collidepoint(pos):
+            if self.button_click_sound:
+                self.button_click_sound.play()
+            # Входим в редактор книг только если на карте есть хотя бы один герой
+            heroes = [u for u in self.units if isinstance(u, Hero)]
+            if not heroes:
+                return
+            # Первый созданный герой — первый в списке units, второй — второй
+            self._spellbook_heroes = heroes[:2]
+            self._spellbook_selected_hero_idx = 0
+            self._spellbook_selected_school = 'all'
+            self.state = 'spellbook_editor'
             return
         # Выбор команды
         for team_key in ['human','elf','undead','demon','dwarf','shadow']:
@@ -1928,6 +2425,17 @@ class Game:
                 if self.button_click_sound:
                     self.button_click_sound.play()
                 return
+        # Скролл рас
+        if hasattr(self, 'creative_race_up') and self.creative_race_up.collidepoint(pos):
+            self.creative_race_scroll = max(0, getattr(self, 'creative_race_scroll', 0) - 1)
+            return
+        if hasattr(self, 'creative_race_down') and self.creative_race_down.collidepoint(pos):
+            races_len = 6
+            race_view_h = 120
+            visible_races = max(1, race_view_h // 34)
+            max_scroll = max(0, races_len - visible_races)
+            self.creative_race_scroll = min(max_scroll, getattr(self, 'creative_race_scroll', 0) + 1)
+            return
         # Выбор юнита
         if hasattr(self, 'creative_unit_rects'):
             for rect, name in self.creative_unit_rects:
@@ -2002,9 +2510,10 @@ class Game:
             self.screen.blit(font.render(label, True, (255,255,255)), (rect.x+10, rect.y+6))
             self.unit_editor_race_rects.append((rect, r))
             y += 42
-        # Список юнитов по расе
+        # Список юнитов по расе (+ герой этой расы)
         self.unit_editor_unit_rects = []
-        pool = self.creative_units_by_race.get(self._unit_editor_selected_race, [])
+        pool = list(self.creative_units_by_race.get(self._unit_editor_selected_race, []))
+        pool.append((f"Hero_{self._unit_editor_selected_race}", Hero))
         x = 200
         y = 80
         for name, _ in pool:
@@ -2012,14 +2521,22 @@ class Game:
             sel = (self._unit_editor_selected_unit == name)
             pygame.draw.rect(self.screen, (100,120,160) if sel else (50,60,80), rect, border_radius=6)
             pygame.draw.rect(self.screen, (180,180,200), rect, 2, border_radius=6)
-            self.screen.blit(font.render(name, True, (240,240,255)), (rect.x+8, rect.y+5))
+            label = name
+            if name.startswith('Hero_'):
+                race = name.split('_',1)[1]
+                label = f"Герой ({TEAM_LABELS.get(race, race)})"
+            self.screen.blit(font.render(label, True, (240,240,255)), (rect.x+8, rect.y+5))
             self.unit_editor_unit_rects.append((rect, name))
             y += 36
         # Параметры справа
-        params = ['health','max_health','attack','defense','speed','initiative','attack_range','is_ranged']
+        unit_key = self._unit_editor_selected_unit
+        # Для Героя показываем геройские параметры, для остальных — общие боевые
+        if unit_key == 'Hero' or unit_key.startswith('Hero_'):
+            params = ['attack','defense','knowledge','spell_power','max_mana']
+        else:
+            params = ['health','max_health','attack','defense','speed','initiative','attack_range','is_ranged']
         x = 420
         y = 80
-        unit_key = self._unit_editor_selected_unit
         overrides = self.unit_overrides.get(unit_key, {})
         # Получаем базовые значения из класса
         base_val = {}
@@ -2032,10 +2549,14 @@ class Game:
                         break
                 if unit_cls:
                     break
-            if not unit_cls and unit_key == 'Hero':
+            if not unit_cls and (unit_key == 'Hero' or unit_key.startswith('Hero_')):
                 unit_cls = Hero
             if unit_cls:
-                tmp = unit_cls(0, 0, 'human') if unit_cls is not Hero else Hero(0,0,'human')
+                # Для ключа Hero_<race> подставляем соответствующую расу
+                tmp_team = 'human'
+                if unit_key.startswith('Hero_'):
+                    tmp_team = unit_key.split('_',1)[1]
+                tmp = unit_cls(0, 0, tmp_team) if unit_cls is not Hero else Hero(0,0,tmp_team)
                 base_val = {
                     'health': getattr(tmp, 'health', 0),
                     'max_health': getattr(tmp, 'max_health', 0),
@@ -2045,6 +2566,12 @@ class Game:
                     'initiative': getattr(tmp, 'initiative', 0),
                     'attack_range': getattr(tmp, 'attack_range', 1) if hasattr(tmp, 'attack_range') else 1,
                     'is_ranged': bool(getattr(tmp, 'is_ranged', False)),
+                    # Геройские поля
+                    'knowledge': getattr(tmp, 'knowledge', 0),
+                    'spell_power': getattr(tmp, 'spell_power', 0),
+                    'mana': getattr(tmp, 'mana', 0),
+                    'max_mana': getattr(tmp, 'max_mana', 0),
+                    'mana_regen': getattr(tmp, 'mana_regen', 0),
                 }
         except Exception:
             base_val = {}
@@ -2067,8 +2594,13 @@ class Game:
                 self.screen.blit(font.render('-', True, (255,255,255)), (minus.x+7, minus.y+3))
                 self.screen.blit(font.render('+', True, (255,255,255)), (plus.x+7, plus.y+3))
                 cur = overrides.get(p, base_val.get(p, 0))
-                self.screen.blit(font.render(str(cur), True, (240,240,255)), (x+260, y+6))
+                value_rect = pygame.Rect(x+256, y+4, 66, 28)
+                pygame.draw.rect(self.screen, (30,40,60), value_rect, border_radius=6)
+                pygame.draw.rect(self.screen, (120,140,180), value_rect, 1, border_radius=6)
+                self.screen.blit(font.render(str(cur), True, (240,240,255)), (value_rect.x+6, value_rect.y+4))
                 self.unit_editor_param_controls.append((p, 'step', minus, plus))
+                # Для двойного клика по значению — сохранить прямоугольник
+                self.unit_editor_param_controls.append((p, 'value', value_rect))
             y += 44
         # Кнопки действия
         self.unit_editor_save_rect = pygame.Rect(SCREEN_WIDTH-220, SCREEN_HEIGHT-60, 200, 40)
@@ -2079,6 +2611,49 @@ class Game:
         pygame.draw.rect(self.screen, (130,80,80), self.unit_editor_back_rect, border_radius=8)
         pygame.draw.rect(self.screen, (240,220,220), self.unit_editor_back_rect, 2, border_radius=8)
         self.screen.blit(pygame.font.Font(None, 28).render('Назад', True, (255,255,255)), (self.unit_editor_back_rect.x+60, self.unit_editor_back_rect.y+8))
+        # Оверлей ввода числа (он-скрин клавиатура), если активен
+        if hasattr(self, 'num_input') and self.num_input:
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0,0,0,160))
+            self.screen.blit(overlay, (0,0))
+            box_w, box_h = 260, 300
+            box_x = SCREEN_WIDTH//2 - box_w//2
+            box_y = SCREEN_HEIGHT//2 - box_h//2
+            box = pygame.Rect(box_x, box_y, box_w, box_h)
+            pygame.draw.rect(self.screen, (40,50,70), box, border_radius=12)
+            pygame.draw.rect(self.screen, (200,200,220), box, 2, border_radius=12)
+            lbl = pygame.font.Font(None, 28).render(f"Введите {self.num_input.get('param')}", True, (255,255,255))
+            self.screen.blit(lbl, (box_x+20, box_y+12))
+            # Поле ввода
+            input_rect = pygame.Rect(box_x+20, box_y+44, box_w-40, 36)
+            pygame.draw.rect(self.screen, (20,30,50), input_rect, border_radius=8)
+            pygame.draw.rect(self.screen, (120,140,180), input_rect, 2, border_radius=8)
+            cur_text = str(self.num_input.get('value', ''))
+            self.screen.blit(pygame.font.Font(None, 28).render(cur_text, True, (240,240,255)), (input_rect.x+8, input_rect.y+6))
+            # Кнопки цифр 0-9, backspace, OK, Cancel
+            self.num_buttons = []
+            digits = [str(i) for i in range(1,10)] + ['0']
+            bx, by = box_x+20, box_y+96
+            for idx, d in enumerate(digits):
+                r = pygame.Rect(bx + (idx%3)*70, by + (idx//3)*46, 60, 36)
+                pygame.draw.rect(self.screen, (70,90,120), r, border_radius=8)
+                pygame.draw.rect(self.screen, (180,200,220), r, 1, border_radius=8)
+                self.screen.blit(pygame.font.Font(None, 28).render(d, True, (255,255,255)), (r.x+22, r.y+6))
+                self.num_buttons.append(('digit', d, r))
+            # Backspace
+            back_r = pygame.Rect(box_x+20, box_y+96 + 4*46, 90, 36)
+            pygame.draw.rect(self.screen, (120,90,90), back_r, border_radius=8)
+            self.screen.blit(pygame.font.Font(None, 24).render('Стереть', True, (255,255,255)), (back_r.x+12, back_r.y+7))
+            self.num_buttons.append(('back', None, back_r))
+            # OK и Отмена
+            ok_r = pygame.Rect(box_x+120, box_y+96 + 4*46, 60, 36)
+            cancel_r = pygame.Rect(box_x+190, box_y+96 + 4*46, 60, 36)
+            pygame.draw.rect(self.screen, (80,120,90), ok_r, border_radius=8)
+            pygame.draw.rect(self.screen, (120,80,80), cancel_r, border_radius=8)
+            self.screen.blit(pygame.font.Font(None, 24).render('OK', True, (255,255,255)), (ok_r.x+16, ok_r.y+7))
+            self.screen.blit(pygame.font.Font(None, 24).render('Отм', True, (255,255,255)), (cancel_r.x+8, cancel_r.y+7))
+            self.num_buttons.append(('ok', None, ok_r))
+            self.num_buttons.append(('cancel', None, cancel_r))
 
     def handle_unit_editor_click(self, pos):
         # Выбор расы
@@ -2095,6 +2670,30 @@ class Game:
                 if rect.collidepoint(pos):
                     self._unit_editor_selected_unit = name
                     return
+        # Если открыт ввод числа — обрабатываем его приоритетно
+        if hasattr(self, 'num_input') and self.num_input and hasattr(self, 'num_buttons'):
+            for kind, val, r in self.num_buttons:
+                if r.collidepoint(pos):
+                    if kind == 'digit':
+                        self.num_input['value'] = (self.num_input.get('value','') + val)[:6]
+                    elif kind == 'back':
+                        self.num_input['value'] = self.num_input.get('value','')[:-1]
+                    elif kind == 'ok':
+                        try:
+                            p = self.num_input.get('param')
+                            key = self._unit_editor_selected_unit
+                            self.unit_overrides.setdefault(key, {})
+                            self.unit_overrides[key][p] = int(self.num_input.get('value') or 0)
+                            self._save_unit_overrides()
+                            self._apply_overrides_to_all_units()
+                        except Exception:
+                            pass
+                        self.num_input = None
+                    elif kind == 'cancel':
+                        self.num_input = None
+                    return
+            # Если открыт ввод и клик вне кнопок — блокируем остальной интерфейс
+            return
         # Параметры
         if hasattr(self, 'unit_editor_param_controls'):
             key = self._unit_editor_selected_unit
@@ -2106,7 +2705,7 @@ class Game:
                         cur = bool(self.unit_overrides[key].get(p, False))
                         self.unit_overrides[key][p] = not cur
                         return
-                else:
+                elif item[1] == 'step':
                     p, _, minus, plus = item
                     if minus.collidepoint(pos):
                         cur = int(self.unit_overrides[key].get(p, 0) or 0)
@@ -2116,9 +2715,25 @@ class Game:
                         cur = int(self.unit_overrides[key].get(p, 0) or 0)
                         self.unit_overrides[key][p] = cur + 1
                         return
+                elif item[1] == 'value':
+                    p, _, value_rect = item
+                    if value_rect.collidepoint(pos):
+                        now = pygame.time.get_ticks()
+                        last = getattr(self, '_unit_edit_last_click', 0)
+                        last_rect = getattr(self, '_unit_edit_last_rect', None)
+                        if last_rect == value_rect and now - last < 450:
+                            # двойной клик — открыть ввод числа
+                            current = self.unit_overrides[key].get(p, 0)
+                            self.num_input = {'param': p, 'value': str(current)}
+                        self._unit_edit_last_click = now
+                        self._unit_edit_last_rect = value_rect
+                        return
         # Кнопки
         if hasattr(self, 'unit_editor_save_rect') and self.unit_editor_save_rect.collidepoint(pos):
             self._save_unit_overrides()
+            # Немедленно применяем изменения к уже размещённым юнитам,
+            # чтобы они отражались и в тултипе, и по факту в бою
+            self._apply_overrides_to_all_units()
             return
         if hasattr(self, 'unit_editor_back_rect') and self.unit_editor_back_rect.collidepoint(pos):
             self.state = 'creative'
@@ -2209,6 +2824,10 @@ class Game:
             self.draw_unit_editor()
             pygame.display.flip()
             return
+        if self.state == 'spellbook_editor':
+            self.draw_spellbook_editor()
+            pygame.display.flip()
+            return
         if self.state == 'battle_setup':
             self.draw_battle_setup()
             pygame.display.flip()
@@ -2260,6 +2879,12 @@ class Game:
                             pygame.draw.rect(preview_surface, (255, 140, 60, 120), 
                                             (cx - CELL_SIZE//2 + dx*CELL_SIZE, cy - CELL_SIZE//2 + dy*CELL_SIZE, CELL_SIZE, CELL_SIZE), 2)
                 self.screen.blit(preview_surface, (0,0))
+                if hasattr(spell, 'icon') and spell.icon == 'frost_ring':
+                    hint = pygame.font.Font(None, 20).render('Кольцо холода: зона 3x3 (центр пуст)', True, (220,230,255))
+                    hint_bg = pygame.Surface((hint.get_width()+10, hint.get_height()+6), pygame.SRCALPHA)
+                    hint_bg.fill((0,0,0,160))
+                    self.screen.blit(hint_bg, (cx - hint.get_width()//2 - 5, cy - CELL_SIZE - 24))
+                    self.screen.blit(hint, (cx - hint.get_width()//2, cy - CELL_SIZE - 20))
         # --- Отдельный проход для типтулов, чтобы они были поверх ---
         mouse_pos = pygame.mouse.get_pos()
         # Определяем наведённого юнита
@@ -2321,16 +2946,17 @@ class Game:
         
         # Управление фоновой музыкой главного меню
         from pygame import mixer
-        if self.state == 'menu':
+        if (self.state == 'menu') or (self.state == 'settings' and not self.is_paused):
             if not self.menu_music_playing and os.path.exists(self.menu_music_path):
                 try:
                     mixer.music.load(self.menu_music_path)
                     mixer.music.play(-1)  # -1 = бесконечный повтор
+                    mixer.music.set_volume(0.0 if self.muted else self.music_volume)
                     self.menu_music_playing = True
                 except Exception as e:
                     print(f"Ошибка загрузки музыки меню: {e}")
         else:
-            if self.menu_music_playing:
+            if self.menu_music_playing and not (self.state == 'settings' and not self.is_paused):
                 mixer.music.stop()
                 self.menu_music_playing = False
         
@@ -2362,7 +2988,7 @@ class Game:
                         try:
                             mixer.music.load(self.current_combat_music)
                             mixer.music.play(-1)  # бесконечный повтор
-                            mixer.music.set_volume(0.6)
+                            mixer.music.set_volume(0.0 if self.muted else self.music_volume)
                             self.combat_music_playing = True
                         except Exception as e:
                             print(f"Ошибка загрузки боевой музыки: {e}")
@@ -2412,7 +3038,7 @@ class Game:
                             self.combat_music_playing = True
                         except Exception as e:
                             print(f"Ошибка загрузки боевой музыки: {e}")
-        elif self.combat_music_playing and (self.game_over or self.state != 'game'):
+        elif self.combat_music_playing and (self.game_over or (self.state != 'game' and not (self.state == 'settings' and self.is_paused))):
             mixer.music.stop()
             self.combat_music_playing = False
             # Останавливаем intro звук, если он играет
@@ -2639,6 +3265,84 @@ class Game:
     def animate_curse(self, caster, target):
         self.animate_spell_flash(target, (200,0,0), redraw_callback=self.draw)
 
+    def animate_undead_heal_cast(self, target):
+        # Анимация исцеления нежити: призрачные кости и голубоватое свечение
+        cx = target.x*CELL_SIZE+CELL_SIZE//2
+        cy = target.y*CELL_SIZE+CELL_SIZE//2
+        frames = 16
+        for i in range(frames):
+            pygame.event.pump()
+            self.draw()
+            s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            # Призрачные "кости" — светлые частицы, вращающиеся и стягивающиеся к центру
+            for k in range(10):
+                ang = (i*0.4 + k) * 0.8
+                rad = 16 + max(0, 24 - i*2)
+                px = cx + int(math.cos(ang) * rad)
+                py = cy + int(math.sin(ang) * rad)
+                pygame.draw.circle(s, (200, 220, 240, 120), (px, py), 3)
+                pygame.draw.circle(s, (230, 240, 255, 90), (px, py), 1)
+            # Голубое лечебное свечение
+            r = 8 + i*2
+            a = max(0, 180 - i*10)
+            pygame.draw.circle(s, (120, 200, 255, a), (cx, cy), r, 3)
+            self.screen.blit(s, (0,0))
+            pygame.display.flip()
+            pygame.time.delay(18)
+
+    def animate_fire_shield_cast(self, target):
+        # Кратковременное появление огненного купола на цели
+        cx = target.x*CELL_SIZE+CELL_SIZE//2
+        cy = target.y*CELL_SIZE+CELL_SIZE//2
+        max_r = CELL_SIZE
+        frames = 12
+        for i in range(frames):
+            pygame.event.pump()
+            self.draw()
+            s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            r = int(max_r * (i+1) / frames)
+            alpha = max(60, 220 - int(200 * i / frames))
+            pygame.draw.circle(s, (255, 120, 40, alpha), (cx, cy), r, 4)
+            pygame.draw.circle(s, (255, 200, 120, max(20, alpha-40)), (cx, cy), max(2, r-6), 2)
+            self.screen.blit(s, (0,0))
+            pygame.display.flip()
+            pygame.time.delay(16)
+
+    def animate_fire_shield_burst(self, defender, attacker):
+        # Реакция щита: только появление и пульсация щита на защитнике без снарядов
+        sx = defender.x*CELL_SIZE+CELL_SIZE//2
+        sy = defender.y*CELL_SIZE+CELL_SIZE//2
+        steps = 14
+        for i in range(steps):
+            pygame.event.pump()
+            self.draw()
+            s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            rr = 8 + i*3
+            aa = max(0, 220 - i*14)
+            # Внешнее пламя
+            pygame.draw.circle(s, (255, 140, 60, aa), (sx, sy), rr, 4)
+            # Внутренняя жаркая кромка
+            pygame.draw.circle(s, (255, 210, 140, max(0, aa-60)), (sx, sy), max(2, rr-7), 2)
+            # Искры вокруг
+            for k in range(6):
+                ang = (i*0.6 + k) * 0.9
+                rad = 6 + i*2
+                ex = sx + int(math.cos(ang) * rad)
+                ey = sy + int(math.sin(ang) * rad)
+                pygame.draw.circle(s, (255, 120, 60, max(0, aa-80)), (ex, ey), 3)
+            self.screen.blit(s, (0,0))
+            pygame.display.flip()
+            pygame.time.delay(18)
+        # Финальный жаркий импульс на защитнике
+        for i in range(6):
+            pygame.event.pump()
+            self.draw()
+            s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            pygame.draw.circle(s, (255, 180, 90, 160 - i*20), (sx, sy), 10 + i*4, 3)
+            self.screen.blit(s, (0,0))
+            pygame.display.flip()
+            pygame.time.delay(18)
+
     def start_new_game(self):
         """Сброс в главное меню выбора рас."""
         # Сброс состояния победы/поражения
@@ -2714,14 +3418,33 @@ class Game:
                 self.menu_open = not self.menu_open
 
     def perform_counterattack(self, attacker, defender, is_melee, target_is_melee_unit):
-        """
-        Выполняет контратаку: сначала ждет завершения первой атаки (урон и звук),
-        затем выполняет контратаку
-        """
-        # Разрешаем контратаку всем юнитам в ближнем бою, включая дальнобойных
-        if not (is_melee and 
-                defender.health > 0 and 
-                not (hasattr(defender, 'has_counterattacked') and defender.has_counterattacked)):
+        """Реакции на атаку (огненный щит), затем стандартная контратака (если ближний бой)."""
+        # 1) Реактивный урон огненного щита (не считается контратакой) - ТОЛЬКО для ближних атак
+        if is_melee and defender and attacker and getattr(defender, 'fire_shield_turns', 0) > 0 and defender.health > 0:
+            try:
+                self.animate_fire_shield_burst(defender, attacker)
+            except Exception:
+                pass
+            # 35% от полученного урона (если известен), минимум 1
+            received = int(getattr(defender, 'last_damage_received', 0) or 0)
+            pct = float(getattr(defender, 'fire_shield_pct', 0.35) or 0.35)
+            shield_damage = max(1, int(round(received * pct)))
+            if shield_damage > 0:
+                if attacker.take_damage(shield_damage):
+                    if attacker in self.units:
+                        self.units.remove(attacker)
+                        if hasattr(self, 'turn_queue'):
+                            self.turn_queue = [u for u in self.turn_queue if u != attacker]
+                        self.animate_queue_fade(attacker)
+                    self.add_event(f"{defender.unit_type.capitalize()} обжёг {attacker.unit_type} огненным щитом")
+                    self.check_game_over()
+                    # Если атакующий погиб — контратаки не будет
+                    return True
+                else:
+                    self.add_event(f"{defender.unit_type.capitalize()} обжёг {attacker.unit_type} огненным щитом")
+
+        # 2) Стандартная логика контратаки - только для ближнего боя
+        if not (is_melee and defender.health > 0 and not (hasattr(defender, 'has_counterattacked') and defender.has_counterattacked)):
             return False
         
         # Ждем завершения первой атаки (урон и звук)
@@ -2851,18 +3574,17 @@ class Game:
                     self.button_click_sound.play()
                 pygame.display.toggle_fullscreen()
                 return
-            if hasattr(self, 'newgame_button_rect') and self.newgame_button_rect.collidepoint(pos):
-                # Звук нажатия на кнопку - мгновенное воспроизведение
+            # Кнопка "Настройки" (в паузе)
+            if hasattr(self, 'pause_settings_button_rect') and self.pause_settings_button_rect.collidepoint(pos):
                 if self.button_click_sound:
                     try:
                         self.button_click_sound.stop()
                     except:
                         pass
                     self.button_click_sound.play()
-                self._reset_battle_state()
-                self.state = 'battle_setup'
+                self.state = 'settings'
                 self.menu_open = False
-                self.is_paused = False  # Убираем паузу при закрытии меню
+                self.is_paused = True
                 return
             if hasattr(self, 'mainmenu_button_rect') and self.mainmenu_button_rect.collidepoint(pos):
                 # Звук нажатия на кнопку - мгновенное воспроизведение
@@ -2898,8 +3620,8 @@ class Game:
                 self.is_paused = False  # Убираем паузу при закрытии меню
             return
         
-        # Блокируем действия во время паузы (но меню уже обработано выше)
-        if self.is_paused and not is_ai_action:
+        # Блокируем действия во время паузы (кроме экранов интерфейса типа настроек/меню)
+        if self.is_paused and self.state not in ('settings', 'menu') and not is_ai_action:
             return
         
         # В режиме наблюдения (оба бота) блокируем действия игрока, но разрешаем ИИ
@@ -3056,7 +3778,7 @@ class Game:
                     except:
                         pass
                     self.button_click_sound.play()
-                self._reset_battle_state()
+                # Без сброса состояния/музыки — продолжаем фоновую музыку меню
                 self.state = 'settings'
                 return
             return
@@ -3068,6 +3790,9 @@ class Game:
             return
         if self.state == 'unit_editor':
             self.handle_unit_editor_click(pos)
+            return
+        if self.state == 'spellbook_editor':
+            self.handle_spellbook_editor_click(pos)
             return
         if self.state == 'battle_setup':
             # Переключатель типа игрока 1
@@ -3341,8 +4066,8 @@ class Game:
                 self.next_turn()
                 return
             elif spell.target_type == 'ally':
-                # Если клик по врагу — ничего не делаем
-                if target and target.team != caster.team:
+                # Разрешаем Снятие чар по врагу для развеивания баффов
+                if target and target.team != caster.team and not (hasattr(spell, 'icon') and spell.icon == 'dispel'):
                     return
                 if target and target.team == caster.team and caster.mana >= spell.mana_cost:
                     self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
@@ -3360,14 +4085,31 @@ class Game:
                         animate_rune_shield_spell(self.screen, caster_px, target_px, redraw_callback=self.draw)
                     elif hasattr(spell, 'icon') and spell.icon == 'rune_haste':
                         animate_rune_haste_spell(self.screen, caster_px, target_px, redraw_callback=self.draw)
+                    elif hasattr(spell, 'icon') and spell.icon == 'haste':
+                        # Анимация ускорения воздуха
+                        animate_air_haste_spell(self.screen, target_px, target_px, redraw_callback=self.draw)
                     elif hasattr(spell, 'icon') and spell.icon == 'stone_skin':
                         animate_stone_skin(self.screen, target_px, redraw_callback=self.draw)
+                    # Применение союзных баффов/эффектов и завершение хода
                     spell.apply(target, caster=caster)
                     caster.mana = max(0, caster.mana - spell.mana_cost)
                     caster.selected_spell = None
                     caster.used_spell_this_round = True
                     self.area_preview_dismiss = True
                     # Герой передает ход после использования заклинания
+                    self.next_turn()
+                    return
+                    
+                # Если это Снятие чар по вражеской цели
+                if target and (hasattr(spell, 'icon') and spell.icon == 'dispel') and caster.mana >= spell.mana_cost:
+                    self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
+                    target_px = (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2)
+                    animate_dispel_spell(self.screen, target_px, target_px, redraw_callback=self.draw)
+                    spell.apply(target, caster=caster)
+                    caster.mana = max(0, caster.mana - spell.mana_cost)
+                    caster.selected_spell = None
+                    caster.used_spell_this_round = True
+                    self.area_preview_dismiss = True
                     self.next_turn()
                     return
             # Если заклинание не может быть применено — ничего не делаем
@@ -3607,12 +4349,27 @@ class Game:
                 if target and target.team != self.selected_unit.team:
                     return
                 if target and target.team == self.selected_unit.team and self.selected_unit.mana >= spell.mana_cost:
+                    spell_icon = getattr(spell, 'icon', None)
+                    # Дополнительная проверка для raise_undead: только раненая нежить
+                    if spell_icon == 'raise_undead':
+                        if getattr(target, 'team', None) != 'undead':
+                            return  # Не нежить
+                        current_hp = getattr(target, 'health', 0)
+                        max_hp = getattr(target, 'max_health', 0)
+                        if current_hp >= max_hp:
+                            return  # Уже полное здоровье, не тратим ману
+                    
                     self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
-                    # --- Анимация для благословения и снятия чар ---
-                    if hasattr(spell, 'icon') and spell.icon == 'bless':
+                    # --- Анимация каста ---
+                    if spell_icon == 'bless':
                         self.animate_water_bless(target)
-                    elif hasattr(spell, 'icon') and spell.icon == 'dispel':
+                    elif spell_icon == 'dispel':
                         self.animate_spell_flash(target, (80,180,255))
+                    elif spell_icon == 'fire_shield':
+                        self.animate_fire_shield_cast(target)
+                    elif spell_icon == 'raise_undead':
+                        self.animate_undead_heal_cast(target)
+                    
                     spell.apply(target, caster=self.selected_unit)
                     self.selected_unit.mana -= spell.mana_cost
                     self.selected_unit.selected_spell = None
