@@ -98,6 +98,48 @@ class Game:
         self.is_paused = False  # Пауза игры
         # Инициализация дебаггера
         self.debugger = GameDebugger(self)
+        # Режим разработчика (креатив)
+        self.creative_selected_team = 'human'
+        self.creative_selected_unit = 'Peasant'
+        # Пулы юнитов по расам
+        self.creative_units_by_race = {
+            'human': [('Peasant', Peasant), ('Spearman', Spearman), ('Swordsman', Swordsman), ('Crossbowman', Crossbowman), ('Gryphon', Gryphon)],
+            'elf': [('Pixie', Pixie), ('ElfScout', ElfScout), ('ElfArcher', ElfArcher), ('Dryad', Dryad), ('Ent', Ent)],
+            'undead': [('Skeleton', Skeleton), ('Zombie', Zombie), ('Ghost', Ghost), ('Vampire', Vampire), ('Lich', Lich)],
+            'demon': [('Imp', Imp), ('Gog', Gog), ('Demon', Demon), ('Cerberus', Cerberus), ('Succubus', Succubus)],
+            'dwarf': [('Miner', Miner), ('Spearthrower', Spearthrower), ('BearRider', BearRider), ('RuneMage', RuneMage), ('Jarl', Jarl)],
+            'shadow': [('Scout', Scout), ('Beast', Beast), ('Minotaur', Minotaur), ('Witch', Witch), ('LizardRider', LizardRider)],
+        }
+        self.creative_units_common = [('Hero', Hero)]
+        self.creative_panel_rect = pygame.Rect(SCREEN_WIDTH - 220, 0, 220, SCREEN_HEIGHT)
+        self.creative_start_rect = pygame.Rect(SCREEN_WIDTH - 200, SCREEN_HEIGHT - 70, 180, 50)
+        self.creative_back_rect = pygame.Rect(20, SCREEN_HEIGHT - 60, 180, 40)
+
+        # Настройки звука
+        self.music_volume = 0.6
+        self.sfx_volume = 0.8
+        self.muted = False
+        self._settings_path = os.path.join('data', 'settings.json')
+        self._unit_overrides_path = os.path.join('data', 'unit_overrides.json')
+        self._load_settings()
+        self._apply_audio_volumes()
+        # Загрузка оверрайдов юнитов
+        self.unit_overrides = {}
+        self._load_unit_overrides()
+
+    def _reset_battle_state(self):
+        """Полный сброс флагов/данных боя при выходе из него."""
+        self.game_over = False
+        self.victory_state = None
+        self.winner_team = None
+        if hasattr(self, 'turn_queue'):
+            self.turn_queue = []
+        self.current_initiative_index = 0 if hasattr(self, 'current_initiative_index') else 0
+        self.battle_intro_playing = False
+        self.combat_music_playing = False
+        self.current_intro_sound = None
+        self.intro_channel = None
+        # не чистим self.units здесь — это ответственность вызывающего (например, меню может начать новый сетап)
         # Загрузка звуков из Heroes 3
         self.button_click_sound = load_sound_mp3('нажатие на кнопки')
         # Оптимизация звука кнопок для мгновенного воспроизведения
@@ -1359,6 +1401,38 @@ class Game:
         self.screen.blit(exit_shadow, (exit_btn_x + (exit_btn_w - exit_shadow.get_width())//2 + 2, exit_btn_y + 15 + 2))
         self.screen.blit(exit_text, (exit_btn_x + (exit_btn_w - exit_text.get_width())//2, exit_btn_y + 15))
 
+        # Кнопка "Режим разработчика"
+        dev_btn_y = exit_btn_y + exit_btn_h + btn_gap
+        dev_btn_w, dev_btn_h = 220, 55
+        dev_btn_x = btn_panel_x + (btn_w - dev_btn_w) // 2
+        self.dev_button_rect = pygame.Rect(dev_btn_x, dev_btn_y, dev_btn_w, dev_btn_h)
+        for y_offset in range(dev_btn_h):
+            grad = (int(120 - y_offset * 0.25), int(140 - y_offset * 0.2), int(160 - y_offset * 0.15))
+            pygame.draw.line(self.screen, grad, (dev_btn_x, dev_btn_y + y_offset), (dev_btn_x + dev_btn_w, dev_btn_y + y_offset))
+        pygame.draw.rect(self.screen, (50, 50, 70), self.dev_button_rect, 5, border_radius=12)
+        inner_dev = pygame.Rect(dev_btn_x + 3, dev_btn_y + 3, dev_btn_w - 6, dev_btn_h - 6)
+        pygame.draw.rect(self.screen, (180, 180, 220), inner_dev, 2, border_radius=10)
+        dev_text = self.font.render('РЕЖИМ РАЗРАБОТЧИКА', True, (240, 240, 255))
+        dev_shadow = self.font.render('РЕЖИМ РАЗРАБОТЧИКА', True, (40, 40, 60))
+        self.screen.blit(dev_shadow, (dev_btn_x + (dev_btn_w - dev_shadow.get_width())//2 + 2, dev_btn_y + 15 + 2))
+        self.screen.blit(dev_text, (dev_btn_x + (dev_btn_w - dev_text.get_width())//2, dev_btn_y + 15))
+
+        # Кнопка "Настройки"
+        settings_btn_y = dev_btn_y + dev_btn_h + btn_gap
+        settings_btn_w, settings_btn_h = 220, 55
+        settings_btn_x = btn_panel_x + (btn_w - settings_btn_w) // 2
+        self.settings_button_rect = pygame.Rect(settings_btn_x, settings_btn_y, settings_btn_w, settings_btn_h)
+        for y_offset in range(settings_btn_h):
+            grad = (int(140 - y_offset * 0.25), int(120 - y_offset * 0.2), int(100 - y_offset * 0.15))
+            pygame.draw.line(self.screen, grad, (settings_btn_x, settings_btn_y + y_offset), (settings_btn_x + settings_btn_w, settings_btn_y + y_offset))
+        pygame.draw.rect(self.screen, (70, 50, 35), self.settings_button_rect, 5, border_radius=12)
+        inner_set = pygame.Rect(settings_btn_x + 3, settings_btn_y + 3, settings_btn_w - 6, settings_btn_h - 6)
+        pygame.draw.rect(self.screen, (200, 180, 160), inner_set, 2, border_radius=10)
+        set_text = self.font.render('НАСТРОЙКИ', True, (255, 245, 220))
+        set_shadow = self.font.render('НАСТРОЙКИ', True, (60, 50, 40))
+        self.screen.blit(set_shadow, (settings_btn_x + (settings_btn_w - set_shadow.get_width())//2 + 2, settings_btn_y + 15 + 2))
+        self.screen.blit(set_text, (settings_btn_x + (settings_btn_w - set_text.get_width())//2, settings_btn_y + 15))
+
     def draw_battle_setup(self):
         """Панель настройки боя с выбором рас и типа игрока."""
         self.screen.fill((30, 30, 60))
@@ -1633,6 +1707,423 @@ class Game:
         self.history_panel_arrow_up = arrow_up if len(self.event_log) > lines else None
         self.history_panel_arrow_down = arrow_down if len(self.event_log) > lines else None
 
+    def draw_creative(self):
+        # Фон и сетка
+        self.screen.blit(self.background, (0, 0)) if hasattr(self, 'background') else self.screen.fill((20, 30, 40))
+        self.draw_grid()
+        # Отрисовать юнитов
+        for unit in self.units:
+            unit.draw(self.screen)
+        # Правая панель выбора
+        pygame.draw.rect(self.screen, (30, 30, 60), self.creative_panel_rect)
+        pygame.draw.rect(self.screen, (120, 140, 180), self.creative_panel_rect, 2)
+        font = pygame.font.Font(None, 26)
+        self.screen.blit(font.render('Креатив режим', True, (220, 220, 240)), (self.creative_panel_rect.x + 12, 10))
+        # Переключатель команды
+        y = 40
+        for team_key, team_label in [('human','Люди'), ('elf','Эльфы'), ('undead','Нежить'), ('demon','Демоны'), ('dwarf','Гномы'), ('shadow','Тени')]:
+            rect = pygame.Rect(self.creative_panel_rect.x + 12, y, 90, 28)
+            sel = (self.creative_selected_team == team_key)
+            pygame.draw.rect(self.screen, (70, 110, 90) if sel else (60, 60, 80), rect, border_radius=6)
+            pygame.draw.rect(self.screen, (200, 200, 200), rect, 2, border_radius=6)
+            self.screen.blit(pygame.font.Font(None, 22).render(team_label, True, (255,255,255)), (rect.x+8, rect.y+5))
+            setattr(self, f'creative_team_rect_{team_key}', rect)
+            y += 34
+        # Список юнитов по выбранной расе
+        y += 6
+        self.screen.blit(font.render('Юниты:', True, (220, 220, 240)), (self.creative_panel_rect.x + 12, y))
+        y += 8
+        self.creative_unit_rects = []
+        unit_pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
+        for name, _cls in unit_pool:
+            y += 28
+            rect = pygame.Rect(self.creative_panel_rect.x + 12, y, 180, 24)
+            sel = (self.creative_selected_unit == name)
+            pygame.draw.rect(self.screen, (100, 120, 160) if sel else (50, 60, 80), rect, border_radius=6)
+            pygame.draw.rect(self.screen, (180, 180, 200), rect, 2, border_radius=6)
+            self.screen.blit(pygame.font.Font(None, 22).render(name, True, (240,240,255)), (rect.x+8, rect.y+3))
+            self.creative_unit_rects.append((rect, name))
+            if y > SCREEN_HEIGHT - 160:
+                break
+        # Кнопки снизу
+        pygame.draw.rect(self.screen, (80, 130, 80), self.creative_start_rect, border_radius=10)
+        pygame.draw.rect(self.screen, (220, 240, 220), self.creative_start_rect, 2, border_radius=10)
+        self.screen.blit(pygame.font.Font(None, 28).render('Старт симуляции', True, (255,255,255)), (self.creative_start_rect.x + 10, self.creative_start_rect.y + 12))
+        pygame.draw.rect(self.screen, (130, 80, 80), self.creative_back_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (240, 220, 220), self.creative_back_rect, 2, border_radius=8)
+        self.screen.blit(pygame.font.Font(None, 24).render('Назад в меню', True, (255,255,255)), (self.creative_back_rect.x + 18, self.creative_back_rect.y + 10))
+        # Кнопка редактора юнитов
+        self.unit_editor_rect = pygame.Rect(SCREEN_WIDTH - 200, SCREEN_HEIGHT - 130, 180, 44)
+        pygame.draw.rect(self.screen, (80, 80, 140), self.unit_editor_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (200, 200, 240), self.unit_editor_rect, 2, border_radius=8)
+        self.screen.blit(pygame.font.Font(None, 24).render('Редактор юнитов', True, (255,255,255)), (self.unit_editor_rect.x + 14, self.unit_editor_rect.y + 10))
+
+    # ===================== Настройки (Settings) =====================
+    def draw_settings(self):
+        self.screen.fill((25, 25, 40))
+        title = pygame.font.Font(None, 48).render('Настройки', True, (240,240,255))
+        self.screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 40))
+        font = pygame.font.Font(None, 32)
+        y = 140
+        # Музыка
+        self.music_minus_rect = pygame.Rect(240, y, 40, 40)
+        self.music_plus_rect = pygame.Rect(520, y, 40, 40)
+        pygame.draw.rect(self.screen, (80,80,120), self.music_minus_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (80,80,120), self.music_plus_rect, border_radius=8)
+        self.screen.blit(font.render('-', True, (255,255,255)), (self.music_minus_rect.x+12, self.music_minus_rect.y+5))
+        self.screen.blit(font.render('+', True, (255,255,255)), (self.music_plus_rect.x+10, self.music_plus_rect.y+5))
+        self.screen.blit(font.render('Музыка', True, (220,220,240)), (320, y))
+        self.screen.blit(font.render(f"{int(self.music_volume*100)}%", True, (200,220,255)), (580, y))
+        y += 80
+        # Звуки
+        self.sfx_minus_rect = pygame.Rect(240, y, 40, 40)
+        self.sfx_plus_rect = pygame.Rect(520, y, 40, 40)
+        pygame.draw.rect(self.screen, (80,80,120), self.sfx_minus_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (80,80,120), self.sfx_plus_rect, border_radius=8)
+        self.screen.blit(font.render('-', True, (255,255,255)), (self.sfx_minus_rect.x+12, self.sfx_minus_rect.y+5))
+        self.screen.blit(font.render('+', True, (255,255,255)), (self.sfx_plus_rect.x+10, self.sfx_plus_rect.y+5))
+        self.screen.blit(font.render('Звуки', True, (220,220,240)), (320, y))
+        self.screen.blit(font.render(f"{int(self.sfx_volume*100)}%", True, (200,220,255)), (580, y))
+        y += 80
+        # Отключить звук
+        self.mute_toggle_rect = pygame.Rect(SCREEN_WIDTH//2 - 120, y, 240, 44)
+        pygame.draw.rect(self.screen, (100,60,60) if self.muted else (60,100,60), self.mute_toggle_rect, border_radius=10)
+        pygame.draw.rect(self.screen, (220,220,220), self.mute_toggle_rect, 2, border_radius=10)
+        self.screen.blit(font.render('Выключить звук' if not self.muted else 'Звук выключен', True, (255,255,255)), (self.mute_toggle_rect.x+16, self.mute_toggle_rect.y+8))
+        # Кнопка назад
+        self.settings_back_rect = pygame.Rect(20, SCREEN_HEIGHT-60, 180, 40)
+        pygame.draw.rect(self.screen, (130,80,80), self.settings_back_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (240,220,220), self.settings_back_rect, 2, border_radius=8)
+        self.screen.blit(pygame.font.Font(None, 28).render('Назад', True, (255,255,255)), (self.settings_back_rect.x+60, self.settings_back_rect.y+8))
+
+    def handle_settings_click(self, pos):
+        if hasattr(self, 'music_minus_rect') and self.music_minus_rect.collidepoint(pos):
+            self.music_volume = max(0.0, round(self.music_volume - 0.1, 2))
+            self._apply_audio_volumes()
+            self._save_settings()
+            return
+        if hasattr(self, 'music_plus_rect') and self.music_plus_rect.collidepoint(pos):
+            self.music_volume = min(1.0, round(self.music_volume + 0.1, 2))
+            self._apply_audio_volumes()
+            self._save_settings()
+            return
+        if hasattr(self, 'sfx_minus_rect') and self.sfx_minus_rect.collidepoint(pos):
+            self.sfx_volume = max(0.0, round(self.sfx_volume - 0.1, 2))
+            self._apply_audio_volumes()
+            self._save_settings()
+            return
+        if hasattr(self, 'sfx_plus_rect') and self.sfx_plus_rect.collidepoint(pos):
+            self.sfx_volume = min(1.0, round(self.sfx_volume + 0.1, 2))
+            self._apply_audio_volumes()
+            self._save_settings()
+            return
+        if hasattr(self, 'mute_toggle_rect') and self.mute_toggle_rect.collidepoint(pos):
+            self.muted = not self.muted
+            self._apply_audio_volumes()
+            self._save_settings()
+            return
+        if hasattr(self, 'settings_back_rect') and self.settings_back_rect.collidepoint(pos):
+            self.state = 'menu'
+            return
+
+    def _apply_audio_volumes(self):
+        from pygame import mixer
+        mv = 0.0 if self.muted else self.music_volume
+        sv = 0.0 if self.muted else self.sfx_volume
+        try:
+            mixer.music.set_volume(mv)
+        except Exception:
+            pass
+        # Применяем к загруженным эффектам
+        for lst in [getattr(self, 'human_melee_sounds', []), getattr(self, 'monster_melee_sounds', [])]:
+            for s in lst:
+                try:
+                    s.set_volume(sv)
+                except Exception:
+                    pass
+        for s in [getattr(self, 'shot_sound', None), getattr(self, 'shot2_sound', None), getattr(self, 'magic_shot_sound', None), getattr(self, 'button_click_sound', None)]:
+            if s:
+                try:
+                    s.set_volume(sv)
+                except Exception:
+                    pass
+
+    def _load_settings(self):
+        try:
+            if os.path.exists(self._settings_path):
+                import json
+                with open(self._settings_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                self.music_volume = float(data.get('music_volume', self.music_volume))
+                self.sfx_volume = float(data.get('sfx_volume', self.sfx_volume))
+                self.muted = bool(data.get('muted', self.muted))
+        except Exception as e:
+            print(f"Ошибка загрузки настроек: {e}")
+
+    def _save_settings(self):
+        try:
+            os.makedirs(os.path.dirname(self._settings_path), exist_ok=True)
+            import json
+            with open(self._settings_path, 'w', encoding='utf-8') as f:
+                json.dump({'music_volume': self.music_volume, 'sfx_volume': self.sfx_volume, 'muted': self.muted}, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Ошибка сохранения настроек: {e}")
+
+    # --------- Unit overrides persistence ---------
+    def _load_unit_overrides(self):
+        try:
+            if os.path.exists(self._unit_overrides_path):
+                import json
+                with open(self._unit_overrides_path, 'r', encoding='utf-8') as f:
+                    self.unit_overrides = json.load(f)
+        except Exception as e:
+            print(f"Ошибка загрузки параметров юнитов: {e}")
+
+    def _save_unit_overrides(self):
+        try:
+            os.makedirs(os.path.dirname(self._unit_overrides_path), exist_ok=True)
+            import json
+            with open(self._unit_overrides_path, 'w', encoding='utf-8') as f:
+                json.dump(self.unit_overrides, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Ошибка сохранения параметров юнитов: {e}")
+
+    def _apply_unit_overrides_to_instance(self, unit):
+        data = self.unit_overrides.get(unit.__class__.__name__)
+        if not data:
+            return
+        for key in ['health','max_health','attack','defense','speed','initiative','attack_range','is_ranged']:
+            if key in data:
+                try:
+                    setattr(unit, key, data[key])
+                except Exception:
+                    pass
+
+    def handle_creative_click(self, pos):
+        # Кнопки
+        if self.creative_start_rect.collidepoint(pos):
+            if self.button_click_sound:
+                self.button_click_sound.play()
+            self.start_simulation_from_creative()
+            return
+        if self.creative_back_rect.collidepoint(pos):
+            if self.button_click_sound:
+                self.button_click_sound.play()
+            self.state = 'menu'
+            return
+        if hasattr(self, 'unit_editor_rect') and self.unit_editor_rect.collidepoint(pos):
+            if self.button_click_sound:
+                self.button_click_sound.play()
+            self.state = 'unit_editor'
+            self._unit_editor_selected_race = self.creative_selected_team
+            # По умолчанию первый юнит из пула
+            pool = self.creative_units_by_race.get(self._unit_editor_selected_race, [])
+            self._unit_editor_selected_unit = pool[0][0] if pool else 'Peasant'
+            return
+        # Выбор команды
+        for team_key in ['human','elf','undead','demon','dwarf','shadow']:
+            r = getattr(self, f'creative_team_rect_{team_key}', None)
+            if r and r.collidepoint(pos):
+                self.creative_selected_team = team_key
+                if self.button_click_sound:
+                    self.button_click_sound.play()
+                return
+        # Выбор юнита
+        if hasattr(self, 'creative_unit_rects'):
+            for rect, name in self.creative_unit_rects:
+                if rect.collidepoint(pos):
+                    self.creative_selected_unit = name
+                    if self.button_click_sound:
+                        self.button_click_sound.play()
+                    return
+        # Клик по полю: левая кнопка — поставить, правая — удалить
+        gx = pos[0] // CELL_SIZE
+        gy = pos[1] // CELL_SIZE
+        # Игнорируем клики по панели
+        if self.creative_panel_rect.collidepoint(pos):
+            return
+        # Удаление правой кнопкой
+        if pygame.mouse.get_pressed()[2]:
+            for u in list(self.units):
+                if u.x == gx and u.y == gy:
+                    self.units.remove(u)
+                    break
+            return
+        # Постановка левой кнопкой
+        if 0 <= gx < GRID_WIDTH and 0 <= gy < GRID_HEIGHT and not any(u.x == gx and u.y == gy for u in self.units):
+            pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
+            ctor = next((_cls for name, _cls in pool if name == self.creative_selected_unit), None)
+            if ctor:
+                # Особый случай героя
+                if ctor is Hero:
+                    unit = Hero(gx, gy, self.creative_selected_team)
+                else:
+                    unit = ctor(gx, gy, self.creative_selected_team)
+                self._apply_unit_overrides_to_instance(unit)
+                if hasattr(unit, 'game_ref'):
+                    unit.game_ref = self
+                self.units.append(unit)
+
+    def start_simulation_from_creative(self):
+        # Подготовка игры на основе размещённых юнитов
+        self.state = 'game'
+        self.background = self.generate_battlefield()
+        # Сброс боевых состояний
+        self.game_over = False
+        self.victory_state = None
+        self.turn_queue = []
+        # Найти героев (если есть)
+        heroes = [u for u in self.units if isinstance(u, Hero)]
+        self.hero1 = next((h for h in heroes if h.team in ['human','elf']), heroes[0] if heroes else None)
+        self.hero2 = next((h for h in heroes if h is not self.hero1), None)
+        if hasattr(self, 'hero1') and self.hero1:
+            self.hero1.game_ref = self
+        if hasattr(self, 'hero2') and self.hero2:
+            self.hero2.game_ref = self
+        # Инициативная очередь
+        self.prepare_initiative_queue()
+
+    # ---------------- Unit Editor UI ----------------
+    def draw_unit_editor(self):
+        self.screen.fill((20, 30, 45))
+        title = pygame.font.Font(None, 46).render('Редактор юнитов', True, (240,240,255))
+        self.screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 20))
+        font = pygame.font.Font(None, 28)
+        # Выбор расы слева
+        races = ['human','elf','undead','demon','dwarf','shadow']
+        self.unit_editor_race_rects = []
+        y = 80
+        for r in races:
+            rect = pygame.Rect(30, y, 140, 34)
+            sel = (self._unit_editor_selected_race == r)
+            pygame.draw.rect(self.screen, (70,110,90) if sel else (60,60,80), rect, border_radius=8)
+            pygame.draw.rect(self.screen, (200,200,200), rect, 2, border_radius=8)
+            label = TEAM_LABELS.get(r, r)
+            self.screen.blit(font.render(label, True, (255,255,255)), (rect.x+10, rect.y+6))
+            self.unit_editor_race_rects.append((rect, r))
+            y += 42
+        # Список юнитов по расе
+        self.unit_editor_unit_rects = []
+        pool = self.creative_units_by_race.get(self._unit_editor_selected_race, [])
+        x = 200
+        y = 80
+        for name, _ in pool:
+            rect = pygame.Rect(x, y, 180, 30)
+            sel = (self._unit_editor_selected_unit == name)
+            pygame.draw.rect(self.screen, (100,120,160) if sel else (50,60,80), rect, border_radius=6)
+            pygame.draw.rect(self.screen, (180,180,200), rect, 2, border_radius=6)
+            self.screen.blit(font.render(name, True, (240,240,255)), (rect.x+8, rect.y+5))
+            self.unit_editor_unit_rects.append((rect, name))
+            y += 36
+        # Параметры справа
+        params = ['health','max_health','attack','defense','speed','initiative','attack_range','is_ranged']
+        x = 420
+        y = 80
+        unit_key = self._unit_editor_selected_unit
+        overrides = self.unit_overrides.get(unit_key, {})
+        # Получаем базовые значения из класса
+        base_val = {}
+        try:
+            unit_cls = None
+            for pool in self.creative_units_by_race.values():
+                for name, cls in pool:
+                    if name == unit_key:
+                        unit_cls = cls
+                        break
+                if unit_cls:
+                    break
+            if not unit_cls and unit_key == 'Hero':
+                unit_cls = Hero
+            if unit_cls:
+                tmp = unit_cls(0, 0, 'human') if unit_cls is not Hero else Hero(0,0,'human')
+                base_val = {
+                    'health': getattr(tmp, 'health', 0),
+                    'max_health': getattr(tmp, 'max_health', 0),
+                    'attack': getattr(tmp, 'attack', 0),
+                    'defense': getattr(tmp, 'defense', 0),
+                    'speed': getattr(tmp, 'speed', 0),
+                    'initiative': getattr(tmp, 'initiative', 0),
+                    'attack_range': getattr(tmp, 'attack_range', 1) if hasattr(tmp, 'attack_range') else 1,
+                    'is_ranged': bool(getattr(tmp, 'is_ranged', False)),
+                }
+        except Exception:
+            base_val = {}
+        self.unit_editor_param_controls = []
+        for p in params:
+            pygame.draw.rect(self.screen, (40,50,70), (x, y, 340, 36), border_radius=8)
+            self.screen.blit(font.render(p, True, (220,220,240)), (x+10, y+6))
+            if p == 'is_ranged':
+                val = bool(overrides.get(p, base_val.get(p, False)))
+                rect = pygame.Rect(x+220, y+4, 100, 28)
+                pygame.draw.rect(self.screen, (90,130,90) if val else (120,80,80), rect, border_radius=8)
+                pygame.draw.rect(self.screen, (220,220,220), rect, 2, border_radius=8)
+                self.screen.blit(font.render('Да' if val else 'Нет', True, (255,255,255)), (rect.x+30, rect.y+4))
+                self.unit_editor_param_controls.append((p, 'toggle', rect))
+            else:
+                minus = pygame.Rect(x+220, y+4, 28, 28)
+                plus = pygame.Rect(x+330, y+4, 28, 28)
+                pygame.draw.rect(self.screen, (80,80,120), minus, border_radius=6)
+                pygame.draw.rect(self.screen, (80,80,120), plus, border_radius=6)
+                self.screen.blit(font.render('-', True, (255,255,255)), (minus.x+7, minus.y+3))
+                self.screen.blit(font.render('+', True, (255,255,255)), (plus.x+7, plus.y+3))
+                cur = overrides.get(p, base_val.get(p, 0))
+                self.screen.blit(font.render(str(cur), True, (240,240,255)), (x+260, y+6))
+                self.unit_editor_param_controls.append((p, 'step', minus, plus))
+            y += 44
+        # Кнопки действия
+        self.unit_editor_save_rect = pygame.Rect(SCREEN_WIDTH-220, SCREEN_HEIGHT-60, 200, 40)
+        self.unit_editor_back_rect = pygame.Rect(20, SCREEN_HEIGHT-60, 180, 40)
+        pygame.draw.rect(self.screen, (80,130,80), self.unit_editor_save_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (220,240,220), self.unit_editor_save_rect, 2, border_radius=8)
+        self.screen.blit(pygame.font.Font(None, 28).render('Сохранить', True, (255,255,255)), (self.unit_editor_save_rect.x+46, self.unit_editor_save_rect.y+8))
+        pygame.draw.rect(self.screen, (130,80,80), self.unit_editor_back_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (240,220,220), self.unit_editor_back_rect, 2, border_radius=8)
+        self.screen.blit(pygame.font.Font(None, 28).render('Назад', True, (255,255,255)), (self.unit_editor_back_rect.x+60, self.unit_editor_back_rect.y+8))
+
+    def handle_unit_editor_click(self, pos):
+        # Выбор расы
+        if hasattr(self, 'unit_editor_race_rects'):
+            for rect, r in self.unit_editor_race_rects:
+                if rect.collidepoint(pos):
+                    self._unit_editor_selected_race = r
+                    pool = self.creative_units_by_race.get(r, [])
+                    self._unit_editor_selected_unit = pool[0][0] if pool else self._unit_editor_selected_unit
+                    return
+        # Выбор юнита
+        if hasattr(self, 'unit_editor_unit_rects'):
+            for rect, name in self.unit_editor_unit_rects:
+                if rect.collidepoint(pos):
+                    self._unit_editor_selected_unit = name
+                    return
+        # Параметры
+        if hasattr(self, 'unit_editor_param_controls'):
+            key = self._unit_editor_selected_unit
+            self.unit_overrides.setdefault(key, {})
+            for item in self.unit_editor_param_controls:
+                if item[1] == 'toggle':
+                    p, _, rect = item
+                    if rect.collidepoint(pos):
+                        cur = bool(self.unit_overrides[key].get(p, False))
+                        self.unit_overrides[key][p] = not cur
+                        return
+                else:
+                    p, _, minus, plus = item
+                    if minus.collidepoint(pos):
+                        cur = int(self.unit_overrides[key].get(p, 0) or 0)
+                        self.unit_overrides[key][p] = max(0, cur - 1)
+                        return
+                    if plus.collidepoint(pos):
+                        cur = int(self.unit_overrides[key].get(p, 0) or 0)
+                        self.unit_overrides[key][p] = cur + 1
+                        return
+        # Кнопки
+        if hasattr(self, 'unit_editor_save_rect') and self.unit_editor_save_rect.collidepoint(pos):
+            self._save_unit_overrides()
+            return
+        if hasattr(self, 'unit_editor_back_rect') and self.unit_editor_back_rect.collidepoint(pos):
+            self.state = 'creative'
+            return
+
     def draw_victory_screen(self):
         """Отрисовка заставки победы"""
         # Темный фон с градиентом
@@ -1706,6 +2197,18 @@ class Game:
             self.draw_menu()
             pygame.display.flip()
             return
+        if self.state == 'creative':
+            self.draw_creative()
+            pygame.display.flip()
+            return
+        if self.state == 'settings':
+            self.draw_settings()
+            pygame.display.flip()
+            return
+        if self.state == 'unit_editor':
+            self.draw_unit_editor()
+            pygame.display.flip()
+            return
         if self.state == 'battle_setup':
             self.draw_battle_setup()
             pygame.display.flip()
@@ -1777,9 +2280,10 @@ class Game:
 
     def update(self):
         """Минимальное обновление состояния игры за кадр."""
-        if self.game_over:
-            return
-        self.check_game_over()
+        if self.state == 'game':
+            if self.game_over:
+                return
+            self.check_game_over()
         self.update_cursor()
         
         # Обработка хода ИИ для обоих игроков
@@ -2094,6 +2598,26 @@ class Game:
             pygame.display.flip()
             pygame.time.delay(20)
 
+    def animate_unit_move(self, unit, dest_x, dest_y):
+        """Пошаговая анимация перемещения по манхэттен-пути (без диагоналей)."""
+        # Строим простой путь: сначала по X, затем по Y
+        path = []
+        cx, cy = unit.x, unit.y
+        step_x = 1 if dest_x > cx else -1
+        while cx != dest_x:
+            cx += step_x
+            path.append((cx, cy))
+        step_y = 1 if dest_y > cy else -1
+        while cy != dest_y:
+            cy += step_y
+            path.append((cx, cy))
+        # Проигрываем шаги
+        for px, py in path:
+            unit.x, unit.y = px, py
+            self.draw()
+            pygame.display.flip()
+            pygame.time.delay(60)
+
     def animate_firearrow(self, caster, target):
         start = (caster.x*CELL_SIZE+CELL_SIZE//2, caster.y*CELL_SIZE+CELL_SIZE//2)
         end = (target.x*CELL_SIZE+CELL_SIZE//2, target.y*CELL_SIZE+CELL_SIZE//2)
@@ -2194,9 +2718,9 @@ class Game:
         Выполняет контратаку: сначала ждет завершения первой атаки (урон и звук),
         затем выполняет контратаку
         """
+        # Разрешаем контратаку всем юнитам в ближнем бою, включая дальнобойных
         if not (is_melee and 
                 defender.health > 0 and 
-                target_is_melee_unit and 
                 not (hasattr(defender, 'has_counterattacked') and defender.has_counterattacked)):
             return False
         
@@ -2207,7 +2731,11 @@ class Game:
         pygame.time.delay(400)  # Задержка для первой атаки
         
         # Теперь выполняем контратаку
-        counter_damage = defender.get_current_attack()
+        # Дальнобойные в ближнем бою бьют вполсилы
+        if hasattr(defender, 'is_ranged') and defender.is_ranged:
+            counter_damage = max(1, defender.get_current_attack() // 2)
+        else:
+            counter_damage = defender.get_current_attack()
         if attacker.take_damage(counter_damage):
             if attacker in self.units:
                 self.units.remove(attacker)
@@ -2236,44 +2764,28 @@ class Game:
         return True
 
     def check_game_over(self):
-        # Проигрыш героя, если все его юниты погибли
+        # Завершение боя: если осталась только одна команда или у какой-то команды не осталось юнитов
         if self.game_over:
-            return  # Уже определено окончание игры
-        
-        heroes = [u for u in self.units if isinstance(u, Hero)]
-        for hero in heroes:
-            allies = [u for u in self.units if u.team == hero.team and u != hero]
-            if not allies:
-                self.game_over = True
-                loser = hero.team
-                # Определяем победителя
-                winner_hero = [h for h in heroes if h != hero][0] if len(heroes) > 1 else None
-                if winner_hero:
-                    self.winner_team = winner_hero.team
-                    # Определяем, победа это для игрока 1 или поражение
-                    # player1_race соответствует команде первого игрока
-                    if self.winner_team == self.player1_race:
-                        self.victory_state = 'victory'  # Победил игрок 1
-                    else:
-                        self.victory_state = 'defeat'  # Победил игрок 2 (бот)
-                else:
-                    self.winner_team = None
-                    self.victory_state = 'defeat'
-                
-                # Останавливаем боевую музыку
-                from pygame import mixer
-                if self.combat_music_playing:
-                    mixer.music.stop()
-                    self.combat_music_playing = False
-                
-                # Воспроизводим звук победы или поражения
-                if self.victory_state == 'victory' and self.victory_sound:
-                    self.victory_sound.play()
-                elif self.victory_state == 'defeat' and self.defeat_sound:
-                    self.defeat_sound.play()
-                
-                print(f"Игра окончена! Победили {TEAM_LABELS.get(self.winner_team, self.winner_team) if self.winner_team else 'Никто'}!")
-                return
+            return
+        teams_present = set(u.team for u in self.units)
+        if len(teams_present) <= 1:
+            # Победила последняя оставшаяся команда (или никого нет)
+            self.game_over = True
+            self.winner_team = next(iter(teams_present)) if teams_present else None
+            if self.winner_team is None:
+                self.victory_state = 'defeat'
+            else:
+                self.victory_state = 'victory' if self.winner_team == self.player1_race else 'defeat'
+            from pygame import mixer
+            if self.combat_music_playing:
+                mixer.music.stop()
+                self.combat_music_playing = False
+            if self.victory_state == 'victory' and self.victory_sound:
+                self.victory_sound.play()
+            elif self.victory_state == 'defeat' and self.defeat_sound:
+                self.defeat_sound.play()
+            print(f"Игра окончена! Победили {TEAM_LABELS.get(self.winner_team, self.winner_team) if self.winner_team else 'Никто'}!")
+            return
 
     def handle_click(self, pos, is_ai_action=False):
         # Блокируем действия во время проигрывания intro звука
@@ -2347,6 +2859,7 @@ class Game:
                     except:
                         pass
                     self.button_click_sound.play()
+                self._reset_battle_state()
                 self.state = 'battle_setup'
                 self.menu_open = False
                 self.is_paused = False  # Убираем паузу при закрытии меню
@@ -2360,6 +2873,7 @@ class Game:
                         pass
                     self.button_click_sound.play()
                 # Возврат в главное меню
+                self._reset_battle_state()
                 self.state = 'menu'
                 self.menu_open = False
                 self.is_paused = False  # Убираем паузу при закрытии меню
@@ -2522,6 +3036,38 @@ class Game:
                     self.button_click_sound.play()
                 pygame.quit()
                 exit()
+            if hasattr(self, 'dev_button_rect') and self.dev_button_rect.collidepoint(pos):
+                if self.button_click_sound:
+                    try:
+                        self.button_click_sound.stop()
+                    except:
+                        pass
+                    self.button_click_sound.play()
+                # Вход в креатив-режим
+                self._reset_battle_state()
+                self.state = 'creative'
+                self.units = []
+                self.selected_unit = None
+                return
+            if hasattr(self, 'settings_button_rect') and self.settings_button_rect.collidepoint(pos):
+                if self.button_click_sound:
+                    try:
+                        self.button_click_sound.stop()
+                    except:
+                        pass
+                    self.button_click_sound.play()
+                self._reset_battle_state()
+                self.state = 'settings'
+                return
+            return
+        if self.state == 'creative':
+            self.handle_creative_click(pos)
+            return
+        if self.state == 'settings':
+            self.handle_settings_click(pos)
+            return
+        if self.state == 'unit_editor':
+            self.handle_unit_editor_click(pos)
             return
         if self.state == 'battle_setup':
             # Переключатель типа игрока 1
@@ -2839,8 +3385,7 @@ class Game:
             if self.selected_unit.can_move(x, y, self.units):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
-                    self.selected_unit.x = x
-                    self.selected_unit.y = y
+                    self.animate_unit_move(self.selected_unit, x, y)
                     self.selected_unit.move_points_left -= path_len
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} переместился на ({x},{y})")
                     if (self.selected_unit.move_points_left <= 0 and not self.can_attack_any(self.selected_unit)):
@@ -3090,8 +3635,7 @@ class Game:
             if self.selected_unit.can_move(x, y, self.units):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
-                    self.selected_unit.x = x
-                    self.selected_unit.y = y
+                    self.animate_unit_move(self.selected_unit, x, y)
                     self.selected_unit.move_points_left -= path_len
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} переместился на ({x},{y})")
                     if (self.selected_unit.move_points_left <= 0 and not self.can_attack_any(self.selected_unit)):
