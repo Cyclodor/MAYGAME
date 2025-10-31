@@ -30,6 +30,7 @@ from .graphics import (
     animate_frost_impact,
     load_image,
 )
+from .hero_animations import animate_warrior_teleport
 from .spells import BlessSpell, CurseSpell, SlowSpell, FireArrowSpell, DispelSpell, RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, StoneSkinSpell, RaiseDeadSpell, FireballSpell, UndeadHealSpell, HasteSpell, FireShieldSpell
 from .sound import load_sound, load_sound_mp3
 from .debugger import GameDebugger
@@ -55,6 +56,7 @@ class Game:
     def __init__(self, screen):
         self.screen = screen
         self.units = []
+        self.corpses = []  # Список трупов на поле боя
         self.selected_unit = None
         self.current_team = 'human'
         self.game_over = False
@@ -86,6 +88,8 @@ class Game:
         self._round_delimiter = object()
         self.player1_race = None
         self.player2_race = None
+        self.player1_hero_class = None  # Класс героя игрока 1
+        self.player2_hero_class = None  # Класс героя игрока 2
         self.player1_type = 'human'  # 'human' или 'ai' (бот)
         self.player2_type = 'ai'  # 'human' или 'ai' (бот)
         self.player1_side = 'right'
@@ -260,6 +264,8 @@ class Game:
             elif p1_race == 'shadow':
                 hero1_params = dict(attack=2, defense=2, knowledge=3, spell_power=2)
             hero1_spells = hero_spells[p1_race]
+            # Добавляем класс героя
+            hero1_params['hero_class'] = self.player1_hero_class
             self.hero1 = Hero(GRID_WIDTH-1, 0, p1_race, spells=hero1_spells, **hero1_params)
             self.hero1.used_spell_this_round = False
             self.hero1.game_ref = self
@@ -295,6 +301,8 @@ class Game:
             elif p2_race == 'shadow':
                 hero2_params = dict(attack=2, defense=2, knowledge=3, spell_power=2)
             hero2_spells = hero_spells[p2_race]
+            # Добавляем класс героя
+            hero2_params['hero_class'] = self.player2_hero_class
             self.hero2 = Hero(0, 0, p2_race, spells=hero2_spells, **hero2_params)
             self.hero2.used_spell_this_round = False
             self.hero2.game_ref = self
@@ -937,61 +945,97 @@ class Game:
                     spell_power = getattr(hero, 'spell_power', 0) if hero else 0
                     knowledge = getattr(hero, 'knowledge', 0) if hero else 0
                     tip_lines = [spell.name, f"Мана: {spell.mana_cost}"]
-                    # Bless/Curse/Shield/Slow/Haste: duration
-                    if spell.icon in ('bless', 'curse', 'shield', 'slow', 'rune_shield', 'rune_haste', 'haste'):
+                    # Bless/Curse/Shield/Slow/Haste: duration (компактный формат)
+                    if spell.icon in ('bless', 'curse', 'shield', 'slow', 'rune_shield', 'rune_haste', 'haste', 'stone_skin', 'fire_shield'):
                         base_dur = spell.duration
                         bonus = spell_power
                         final_dur = base_dur + bonus
-                        dur_str = f"{base_dur}" + (f" ({final_dur})" if bonus else "")
+                        dur_str = f"{final_dur}" if bonus else f"{base_dur}"
                         if spell.icon == 'bless':
-                            tip_lines.append(f"+25% к атаке на {dur_str} {pluralize(final_dur, ['ход', 'хода', 'ходов'])}")
+                            tip_lines.append(f"+25% атака, {dur_str} ход")
                         elif spell.icon == 'curse':
-                            tip_lines.append(f"-25% к атаке на {dur_str} {pluralize(final_dur, ['ход', 'хода', 'ходов'])}")
+                            tip_lines.append(f"-25% атака, {dur_str} ход")
                         elif spell.icon == 'shield' or spell.icon == 'rune_shield':
-                            tip_lines.append(f"+15 к защите на {dur_str} {pluralize(final_dur, ['ход', 'хода', 'ходов'])}")
+                            tip_lines.append(f"+15 защита, {dur_str} ход")
+                        elif spell.icon == 'stone_skin':
+                            tip_lines.append(f"+50% защита, {dur_str} ход")
                         elif spell.icon == 'slow':
-                            tip_lines.append(f"-5 инициативы и -1 скорость на {dur_str} {pluralize(final_dur, ['ход', 'хода', 'ходов'])}")
+                            tip_lines.append(f"-5 иниц., -1 скор., {dur_str} ход")
                         elif spell.icon == 'rune_haste':
-                            tip_lines.append(f"+2 скорость и +5 инициатива на {dur_str} {pluralize(final_dur, ['ход', 'хода', 'ходов'])}")
+                            tip_lines.append(f"+2 скор., +5 иниц., {dur_str} ход")
                         elif spell.icon == 'haste':
-                            tip_lines.append(f"+2 скорость и +5 инициатива на {dur_str} {pluralize(final_dur, ['ход', 'хода', 'ходов'])}")
+                            tip_lines.append(f"+2 скор., +5 иниц., {dur_str} ход")
+                        elif spell.icon == 'fire_shield':
+                            tip_lines.append(f"Отражение урона, {dur_str} ход")
                     elif spell.icon in ('firearrow', 'fireball'):
                         base_dmg = spell.damage
                         bonus = spell_power * 5
                         final_dmg = base_dmg + bonus
-                        dmg_str = f"{base_dmg}" + (f" ({final_dmg})" if bonus else "")
+                        dmg_str = f"{final_dmg}" if bonus else f"{base_dmg}"
                         tip_lines.append(f"Урон: {dmg_str}")
                         if spell.icon == 'fireball':
-                            tip_lines.append("Зона: 3×3 клетки")
+                            tip_lines.append("Зона 3×3")
                     elif spell.icon == 'heal':
-                        tip_lines.append("Восстанавливает 25 здоровья союзнику.")
+                        tip_lines.append("Лечит на 25 ОЗ")
                     elif spell.icon == 'frost_ring':
                         base_dmg = getattr(spell, 'damage', 0)
                         bonus = spell_power * 5
                         final_dmg = base_dmg + bonus
-                        dmg_str = f"{base_dmg}" + (f" ({final_dmg})" if bonus else "")
+                        dmg_str = f"{final_dmg}" if bonus else f"{base_dmg}"
                         tip_lines.append(f"Урон: {dmg_str}")
-                        tip_lines.append("Зона: кольцо радиус 1 (центр не бьёт)")
+                        tip_lines.append("Кольцо R=1")
                     elif spell.icon == 'raise_dead':
-                        tip_lines.append("Призывает скелета на выбранной пустой клетке.")
+                        tip_lines.append("Призыв скелета")
                     elif spell.icon == 'raise_undead':
-                        tip_lines.append("Лечит только нежить: +25 здоровья.")
+                        tip_lines.append("Лечит нежить: +25 ОЗ")
+                    elif spell.icon == 'dispel':
+                        tip_lines.append("Снимает все эффекты")
+                    elif spell.icon == 'forget':
+                        tip_lines.append("Пропуск хода врага")
                     
-                    if spell.icon not in ('bless', 'curse', 'shield', 'slow', 'firearrow', 'fireball', 'heal', 'rune_shield', 'rune_haste'):
-                        tip_lines.append(spell.description)
-                    # Автоматическое увеличение высоты типтула
-                    tip_w = max(font2.size(line)[0] for line in tip_lines) + 16
-                    tip_h = 20 * len(tip_lines) + 12
+                    # Ограничиваем ширину тултипа
+                    max_tip_width = 200
+                    wrapped_lines = []
+                    for line in tip_lines:
+                        line_width = font2.size(line)[0]
+                        if line_width > max_tip_width - 16:
+                            # Разбиваем длинную строку
+                            words = line.split()
+                            current_line = ""
+                            for word in words:
+                                test_line = current_line + (" " if current_line else "") + word
+                                if font2.size(test_line)[0] <= max_tip_width - 16:
+                                    current_line = test_line
+                                else:
+                                    if current_line:
+                                        wrapped_lines.append(current_line)
+                                    current_line = word
+                            if current_line:
+                                wrapped_lines.append(current_line)
+                        else:
+                            wrapped_lines.append(line)
+                    
+                    # Компактный формат тултипа
+                    tip_w = min(max_tip_width, max(font2.size(line)[0] for line in wrapped_lines) + 16)
+                    line_height = 18  # Уменьшена высота строки
+                    tip_h = line_height * len(wrapped_lines) + 10
                     tiptul = pygame.Surface((tip_w, tip_h), pygame.SRCALPHA)
                     tiptul.fill((10,10,24,240))
-                    for j, line in enumerate(tip_lines):
-                        tiptul.blit(font2.render(line, True, (255,255,220)), (8, 6 + j*20))
+                    for j, line in enumerate(wrapped_lines):
+                        tiptul.blit(font2.render(line, True, (255,255,220)), (8, 5 + j*line_height))
+                    
+                    # Позиционирование с учетом границ экрана
                     tx = book_x + sx + spell_size + 10
                     ty = book_y + sy
-                    if tx + tip_w > SCREEN_WIDTH:
+                    # Проверка выхода за правую границу
+                    if tx + tip_w > SCREEN_WIDTH - 10:
                         tx = book_x + sx - tip_w - 10
-                    if ty + tip_h > SCREEN_HEIGHT:
-                        ty = SCREEN_HEIGHT - tip_h
+                    # Проверка выхода за нижнюю границу
+                    if ty + tip_h > SCREEN_HEIGHT - 10:
+                        ty = SCREEN_HEIGHT - tip_h - 10
+                    # Проверка выхода за верхнюю границу
+                    if ty < 10:
+                        ty = 10
                     tiptul_rect = (tx, ty)
             # Сначала книга, затем типтул поверх
             # Рисуем книгу с анимацией перелистывания
@@ -1027,8 +1071,8 @@ class Game:
             if self.turn_queue:
                 # Пропускаем разделитель раунда
                 active = next((u for u in self.turn_queue if u is not self._round_delimiter), None)
-            if active:
-                label = f"Ходит: {active.unit_type.capitalize()} ({TEAM_LABELS.get(active.team, active.team)})"
+                if active:
+                    label = f"Ходит: {active.unit_type.capitalize()} ({TEAM_LABELS.get(active.team, active.team)})"
         elif hasattr(self, 'initiative_queue') and self.initiative_queue:
             active = self.initiative_queue[self.current_initiative_index]
             label = f"Ходит: {active.unit_type.capitalize()} ({TEAM_LABELS.get(active.team, active.team)})"
@@ -1561,10 +1605,15 @@ class Game:
         icon_y = toggle_y1 + btn_h + gap
         icon_x = hero_panel_x1 + hero_panel_w//2 - icon_size//2
         
-        # Рисуем иконку героя выбранной расы или дефолтную
+        # Рисуем иконку героя выбранной расы и класса
         if self.player1_race:
             try:
-                hero_icon = load_image(f'hero_{self.player1_race}')
+                # Используем класс героя если выбран, иначе дефолтный
+                hero_class = self.player1_hero_class if self.player1_hero_class else None
+                if hero_class:
+                    hero_icon = load_image(f'hero_{self.player1_race}_{hero_class}')
+                else:
+                    hero_icon = load_image(f"hero_{self.player1_race}")
                 hero_icon = pygame.transform.scale(hero_icon, (icon_size, icon_size))
                 self.screen.blit(hero_icon, (icon_x, icon_y))
             except:
@@ -1614,6 +1663,62 @@ class Game:
         
         self.player1_race_rects = p1_race_rects
         
+        # Выпадающий список выбора класса героя для игрока 1 (справа от иконки, ниже кнопки бот/человек)
+        if self.player1_race:
+            dropdown_x = icon_x + icon_size + 10  # Справа от иконки
+            dropdown_y = toggle_y1 + btn_h + 10  # Ниже кнопки бот/человек
+            dropdown_w = 110
+            dropdown_h = 28
+            
+            class_options = [('warrior', 'Воин'), ('archer', 'Лучник'), ('mage', 'Маг')]
+            class_names = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
+            
+            # Основная кнопка выпадающего списка
+            current_class = self.player1_hero_class if self.player1_hero_class else 'warrior'
+            current_class_name = class_names.get(current_class, current_class)
+            
+            dropdown_rect = pygame.Rect(dropdown_x, dropdown_y, dropdown_w, dropdown_h)
+            hovered = dropdown_rect.collidepoint(pygame.mouse.get_pos())
+            
+            bg_color = (70, 90, 110) if hovered else (60, 70, 90)
+            pygame.draw.rect(self.screen, bg_color, dropdown_rect, border_radius=5)
+            pygame.draw.rect(self.screen, (180, 180, 200), dropdown_rect, 2, border_radius=5)
+            
+            # Текст кнопки
+            class_text = pygame.font.Font(None, 20).render(current_class_name, True, (255, 255, 255))
+            self.screen.blit(class_text, (dropdown_rect.x + 5, dropdown_rect.y + 7))
+            
+            # Стрелка вниз
+            arrow_points = [
+                (dropdown_rect.right - 15, dropdown_rect.centery - 3),
+                (dropdown_rect.right - 10, dropdown_rect.centery + 3),
+                (dropdown_rect.right - 5, dropdown_rect.centery - 3)
+            ]
+            pygame.draw.polygon(self.screen, (200, 200, 200), arrow_points)
+            
+            self.player1_class_dropdown_rect = dropdown_rect
+            
+            # Выпадающий список (если открыт)
+            if getattr(self, 'player1_class_dropdown_open', False):
+                self.player1_class_rects = []
+                for idx, (class_key, class_label_text) in enumerate(class_options):
+                    opt_rect = pygame.Rect(dropdown_x, dropdown_y + dropdown_h + idx * dropdown_h, dropdown_w, dropdown_h)
+                    opt_hovered = opt_rect.collidepoint(pygame.mouse.get_pos())
+                    
+                    opt_bg = (80, 100, 120) if opt_hovered else (50, 60, 80)
+                    pygame.draw.rect(self.screen, opt_bg, opt_rect)
+                    pygame.draw.rect(self.screen, (150, 150, 170), opt_rect, 1)
+                    
+                    opt_text = pygame.font.Font(None, 20).render(class_label_text, True, (255, 255, 255))
+                    self.screen.blit(opt_text, (opt_rect.x + 5, opt_rect.y + 7))
+                    
+                    self.player1_class_rects.append((opt_rect, class_key))
+            else:
+                self.player1_class_rects = []
+        else:
+            self.player1_class_dropdown_rect = None
+            self.player1_class_rects = []
+        
         # === ИГРОК 2 ===
         p2_bg = pygame.Rect(hero_panel_x2, hero_panel_y, hero_panel_w, hero_panel_h)
         pygame.draw.rect(self.screen, (50, 50, 80), p2_bg, border_radius=12)
@@ -1656,7 +1761,12 @@ class Game:
         
         if self.player2_race:
             try:
-                hero_icon2 = load_image(f'hero_{self.player2_race}')
+                # Используем класс героя если выбран, иначе дефолтный
+                hero_class2 = self.player2_hero_class if self.player2_hero_class else None
+                if hero_class2:
+                    hero_icon2 = load_image(f'hero_{self.player2_race}_{hero_class2}')
+                else:
+                    hero_icon2 = load_image(f"hero_{self.player2_race}")
                 hero_icon2 = pygame.transform.scale(hero_icon2, (icon_size, icon_size))
                 self.screen.blit(hero_icon2, (icon_x2, icon_y2))
             except:
@@ -1705,6 +1815,62 @@ class Game:
             p2_race_rects.append((rect, key))
         
         self.player2_race_rects = p2_race_rects
+        
+        # Выпадающий список выбора класса героя для игрока 2 (справа от иконки, ниже кнопки бот/человек)
+        if self.player2_race:
+            dropdown_x2 = icon_x2 + icon_size + 10  # Справа от иконки
+            dropdown_y2 = toggle_y2 + btn_h + 10  # Ниже кнопки бот/человек
+            dropdown_w2 = 110
+            dropdown_h2 = 28
+            
+            class_options = [('warrior', 'Воин'), ('archer', 'Лучник'), ('mage', 'Маг')]
+            class_names = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
+            
+            # Основная кнопка выпадающего списка
+            current_class2 = self.player2_hero_class if self.player2_hero_class else 'warrior'
+            current_class_name2 = class_names.get(current_class2, current_class2)
+            
+            dropdown_rect2 = pygame.Rect(dropdown_x2, dropdown_y2, dropdown_w2, dropdown_h2)
+            hovered2 = dropdown_rect2.collidepoint(pygame.mouse.get_pos())
+            
+            bg_color2 = (70, 90, 110) if hovered2 else (60, 70, 90)
+            pygame.draw.rect(self.screen, bg_color2, dropdown_rect2, border_radius=5)
+            pygame.draw.rect(self.screen, (180, 180, 200), dropdown_rect2, 2, border_radius=5)
+            
+            # Текст кнопки
+            class_text2 = pygame.font.Font(None, 20).render(current_class_name2, True, (255, 255, 255))
+            self.screen.blit(class_text2, (dropdown_rect2.x + 5, dropdown_rect2.y + 7))
+            
+            # Стрелка вниз
+            arrow_points2 = [
+                (dropdown_rect2.right - 15, dropdown_rect2.centery - 3),
+                (dropdown_rect2.right - 10, dropdown_rect2.centery + 3),
+                (dropdown_rect2.right - 5, dropdown_rect2.centery - 3)
+            ]
+            pygame.draw.polygon(self.screen, (200, 200, 200), arrow_points2)
+            
+            self.player2_class_dropdown_rect = dropdown_rect2
+            
+            # Выпадающий список (если открыт)
+            if getattr(self, 'player2_class_dropdown_open', False):
+                self.player2_class_rects = []
+                for idx, (class_key, class_label_text) in enumerate(class_options):
+                    opt_rect2 = pygame.Rect(dropdown_x2, dropdown_y2 + dropdown_h2 + idx * dropdown_h2, dropdown_w2, dropdown_h2)
+                    opt_hovered2 = opt_rect2.collidepoint(pygame.mouse.get_pos())
+                    
+                    opt_bg2 = (80, 100, 120) if opt_hovered2 else (50, 60, 80)
+                    pygame.draw.rect(self.screen, opt_bg2, opt_rect2)
+                    pygame.draw.rect(self.screen, (150, 150, 170), opt_rect2, 1)
+                    
+                    opt_text2 = pygame.font.Font(None, 20).render(class_label_text, True, (255, 255, 255))
+                    self.screen.blit(opt_text2, (opt_rect2.x + 5, opt_rect2.y + 7))
+                    
+                    self.player2_class_rects.append((opt_rect2, class_key))
+            else:
+                self.player2_class_rects = []
+        else:
+            self.player2_class_dropdown_rect = None
+            self.player2_class_rects = []
         
         # Кнопка "Начать бой"
         start_btn_w, start_btn_h = 200, 50
@@ -2052,12 +2218,22 @@ class Game:
             print(f"Ошибка сохранения параметров юнитов: {e}")
 
     def _apply_unit_overrides_to_instance(self, unit):
-        # Для героев используем ключ вида Hero_<race>, чтобы настраивать по расам
+        # Для героев используем ключ вида Hero_<race>_<class>, чтобы настраивать по расам и классам
         data = None
         try:
             from .units import Hero as _Hero
             if isinstance(unit, _Hero):
-                data = self.unit_overrides.get(f"Hero_{getattr(unit, 'team', '')}") or self.unit_overrides.get('Hero')
+                team = getattr(unit, 'team', '')
+                hero_class = getattr(unit, 'hero_class', '')
+                # Пытаемся найти специфичный оверрайд для race+class
+                if team and hero_class:
+                    data = self.unit_overrides.get(f"Hero_{team}_{hero_class}")
+                # Если не нашли, ищем по расе
+                if not data and team:
+                    data = self.unit_overrides.get(f"Hero_{team}")
+                # Если и это не нашли, используем общий Hero
+                if not data:
+                    data = self.unit_overrides.get('Hero')
         except Exception:
             pass
         if data is None:
@@ -2071,12 +2247,37 @@ class Game:
             except Exception:
                 pass
         for key in ['max_health','health','attack','defense','speed','initiative','attack_range','is_ranged',
-                    'knowledge','spell_power','mana','max_mana','mana_regen']:
+                    'knowledge','spell_power','mana','max_mana','mana_regen',
+                    'phys_attack','magic_attack','phys_defense','magic_defense','magic_resist','attack_type','hero_class']:
             if key in data:
                 try:
                     setattr(unit, key, data[key])
                 except Exception:
                     pass
+        # Синхронизируем is_ranged с hero_class для героев (если hero_class был изменен)
+        try:
+            from .units import Hero as _Hero
+            if isinstance(unit, _Hero) and 'hero_class' in data:
+                hero_class = getattr(unit, 'hero_class', None)
+                if hero_class == 'archer' or hero_class == 'mage':
+                    unit.is_ranged = True
+                    if hero_class == 'archer':
+                        unit.attack_type = 'physical'
+                    else:  # mage
+                        unit.attack_type = 'magical'
+                else:  # warrior
+                    unit.is_ranged = False
+                    unit.attack_type = 'physical'
+                # Обновляем изображение героя с новым классом
+                team = getattr(unit, 'team', 'human')
+                image_name = f'hero_{team}_{hero_class}'
+                try:
+                    unit.image = load_image(image_name)
+                except:
+                    # Если изображения для класса нет, используем стандартное
+                    unit.image = load_image(f'hero_{team}')
+        except Exception:
+            pass
         # Корректируем здоровье в рамках max_health
         if hasattr(unit, 'max_health') and hasattr(unit, 'health'):
             try:
@@ -2332,6 +2533,22 @@ class Game:
                 max_scroll = max(0, len(unit_pool) - visible_count)
                 self.creative_units_scroll = int(max(0, min(max_scroll, getattr(self, 'creative_units_scroll', 0) - y_delta)))
                 return
+        # Unit editor: скролл параметров
+        if self.state == 'unit_editor':
+            param_area_rect = pygame.Rect(420, 80, 340, SCREEN_HEIGHT - 200)
+            if param_area_rect.collidepoint(mx, my):
+                unit_key = getattr(self, '_unit_editor_selected_unit', None)
+                if unit_key:
+                    if unit_key == 'Hero' or unit_key.startswith('Hero_'):
+                        params_count = 6  # hero_class, attack, defense, knowledge, spell_power, max_mana
+                    else:
+                        params_count = 11  # health, max_health, phys_attack, magic_attack, phys_defense, magic_defense, magic_resist, speed, initiative, attack_range, attack_type
+                    visible_params = (SCREEN_HEIGHT - 200) // 40
+                    max_scroll = max(0, params_count - visible_params)
+                    if not hasattr(self, '_unit_editor_scroll'):
+                        self._unit_editor_scroll = 0
+                    self._unit_editor_scroll = int(max(0, min(max_scroll, self._unit_editor_scroll - y_delta)))
+                return
         # Spellbook: доступные
         if self.state == 'spellbook_editor':
             panel_x = 20
@@ -2464,7 +2681,13 @@ class Game:
             if ctor:
                 # Особый случай героя
                 if ctor is Hero:
-                    unit = Hero(gx, gy, self.creative_selected_team)
+                    # Извлекаем hero_class из имени, если оно в формате Hero_race_class
+                    hero_class = None
+                    if self.creative_selected_unit.startswith('Hero_'):
+                        parts = self.creative_selected_unit.split('_')
+                        if len(parts) == 3:  # Hero_race_class
+                            hero_class = parts[2]
+                    unit = Hero(gx, gy, self.creative_selected_team, hero_class=hero_class)
                 else:
                     unit = ctor(gx, gy, self.creative_selected_team)
                 self._apply_unit_overrides_to_instance(unit)
@@ -2510,10 +2733,12 @@ class Game:
             self.screen.blit(font.render(label, True, (255,255,255)), (rect.x+10, rect.y+6))
             self.unit_editor_race_rects.append((rect, r))
             y += 42
-        # Список юнитов по расе (+ герой этой расы)
+        # Список юнитов по расе (+ все классы героев этой расы)
         self.unit_editor_unit_rects = []
         pool = list(self.creative_units_by_race.get(self._unit_editor_selected_race, []))
-        pool.append((f"Hero_{self._unit_editor_selected_race}", Hero))
+        # Добавляем все три класса героев для выбранной расы
+        for hero_class in ['warrior', 'archer', 'mage']:
+            pool.append((f"Hero_{self._unit_editor_selected_race}_{hero_class}", Hero))
         x = 200
         y = 80
         for name, _ in pool:
@@ -2523,8 +2748,16 @@ class Game:
             pygame.draw.rect(self.screen, (180,180,200), rect, 2, border_radius=6)
             label = name
             if name.startswith('Hero_'):
-                race = name.split('_',1)[1]
-                label = f"Герой ({TEAM_LABELS.get(race, race)})"
+                parts = name.split('_')
+                if len(parts) == 3:  # Hero_race_class
+                    race = parts[1]
+                    hero_class = parts[2]
+                    class_names = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
+                    class_name = class_names.get(hero_class, hero_class)
+                    label = f"{class_name} ({TEAM_LABELS.get(race, race)})"
+                else:  # Hero_race
+                    race = parts[1]
+                    label = f"Герой ({TEAM_LABELS.get(race, race)})"
             self.screen.blit(font.render(label, True, (240,240,255)), (rect.x+8, rect.y+5))
             self.unit_editor_unit_rects.append((rect, name))
             y += 36
@@ -2534,7 +2767,7 @@ class Game:
         if unit_key == 'Hero' or unit_key.startswith('Hero_'):
             params = ['attack','defense','knowledge','spell_power','max_mana']
         else:
-            params = ['health','max_health','attack','defense','speed','initiative','attack_range','is_ranged']
+            params = ['health','max_health','phys_attack','magic_attack','phys_defense','magic_defense','magic_resist','speed','initiative','attack_range','attack_type']
         x = 420
         y = 80
         overrides = self.unit_overrides.get(unit_key, {})
@@ -2552,11 +2785,19 @@ class Game:
             if not unit_cls and (unit_key == 'Hero' or unit_key.startswith('Hero_')):
                 unit_cls = Hero
             if unit_cls:
-                # Для ключа Hero_<race> подставляем соответствующую расу
+                # Для ключа Hero_<race>_<class> подставляем расу и класс
                 tmp_team = 'human'
+                tmp_class = None
                 if unit_key.startswith('Hero_'):
-                    tmp_team = unit_key.split('_',1)[1]
-                tmp = unit_cls(0, 0, tmp_team) if unit_cls is not Hero else Hero(0,0,tmp_team)
+                    parts = unit_key.split('_')
+                    if len(parts) >= 2:
+                        tmp_team = parts[1]
+                    if len(parts) >= 3:
+                        tmp_class = parts[2]
+                if unit_cls is Hero:
+                    tmp = Hero(0, 0, tmp_team, hero_class=tmp_class)
+                else:
+                    tmp = unit_cls(0, 0, tmp_team)
                 base_val = {
                     'health': getattr(tmp, 'health', 0),
                     'max_health': getattr(tmp, 'max_health', 0),
@@ -2572,36 +2813,72 @@ class Game:
                     'mana': getattr(tmp, 'mana', 0),
                     'max_mana': getattr(tmp, 'max_mana', 0),
                     'mana_regen': getattr(tmp, 'mana_regen', 0),
+                    'hero_class': getattr(tmp, 'hero_class', 'warrior'),
+                    # Новые параметры
+                    'phys_attack': getattr(tmp, 'phys_attack', 0),
+                    'magic_attack': getattr(tmp, 'magic_attack', 0),
+                    'phys_defense': getattr(tmp, 'phys_defense', 0),
+                    'magic_defense': getattr(tmp, 'magic_defense', 0),
+                    'magic_resist': getattr(tmp, 'magic_resist', 0),
+                    'attack_type': getattr(tmp, 'attack_type', 'physical'),
                 }
         except Exception:
             base_val = {}
+        # Инициализируем скролл если его нет
+        if not hasattr(self, '_unit_editor_scroll'):
+            self._unit_editor_scroll = 0
+        
+        # Максимальная высота для параметров (до кнопки сохранить)
+        max_param_height = SCREEN_HEIGHT - 200
+        param_height_per_item = 40
+        visible_params = max_param_height // param_height_per_item
+        
+        # Применяем скролл
+        start_idx = self._unit_editor_scroll
+        end_idx = min(len(params), start_idx + visible_params)
+        visible_params_list = params[start_idx:end_idx]
+        
         self.unit_editor_param_controls = []
-        for p in params:
-            pygame.draw.rect(self.screen, (40,50,70), (x, y, 340, 36), border_radius=8)
-            self.screen.blit(font.render(p, True, (220,220,240)), (x+10, y+6))
+        param_y = y
+        for idx, p in enumerate(visible_params_list):
+            pygame.draw.rect(self.screen, (40,50,70), (x, param_y, 340, 36), border_radius=8)
+            self.screen.blit(font.render(p, True, (220,220,240)), (x+10, param_y+6))
             if p == 'is_ranged':
                 val = bool(overrides.get(p, base_val.get(p, False)))
-                rect = pygame.Rect(x+220, y+4, 100, 28)
+                rect = pygame.Rect(x+220, param_y+4, 100, 28)
                 pygame.draw.rect(self.screen, (90,130,90) if val else (120,80,80), rect, border_radius=8)
                 pygame.draw.rect(self.screen, (220,220,220), rect, 2, border_radius=8)
                 self.screen.blit(font.render('Да' if val else 'Нет', True, (255,255,255)), (rect.x+30, rect.y+4))
                 self.unit_editor_param_controls.append((p, 'toggle', rect))
+            elif p == 'attack_type' or p == 'hero_class':
+                # Выпадающий список для типа атаки и класса героя
+                cur = overrides.get(p, base_val.get(p, 'physical' if p == 'attack_type' else 'warrior'))
+                if p == 'attack_type':
+                    options = ['physical', 'magical']
+                else:  # hero_class
+                    options = ['warrior', 'archer', 'mage']
+                rect = pygame.Rect(x+220, param_y+4, 100, 28)
+                pygame.draw.rect(self.screen, (60,70,90), rect, border_radius=6)
+                pygame.draw.rect(self.screen, (180,180,200), rect, 2, border_radius=6)
+                display_text = str(cur)[:8]  # Сокращаем длинные значения
+                self.screen.blit(font.render(display_text, True, (240,240,255)), (rect.x+6, rect.y+4))
+                self.unit_editor_param_controls.append((p, 'cycle', rect, options))
             else:
-                minus = pygame.Rect(x+220, y+4, 28, 28)
-                plus = pygame.Rect(x+330, y+4, 28, 28)
+                minus = pygame.Rect(x+220, param_y+4, 28, 28)
+                plus = pygame.Rect(x+330, param_y+4, 28, 28)
                 pygame.draw.rect(self.screen, (80,80,120), minus, border_radius=6)
                 pygame.draw.rect(self.screen, (80,80,120), plus, border_radius=6)
                 self.screen.blit(font.render('-', True, (255,255,255)), (minus.x+7, minus.y+3))
                 self.screen.blit(font.render('+', True, (255,255,255)), (plus.x+7, plus.y+3))
                 cur = overrides.get(p, base_val.get(p, 0))
-                value_rect = pygame.Rect(x+256, y+4, 66, 28)
+                value_rect = pygame.Rect(x+256, param_y+4, 66, 28)
                 pygame.draw.rect(self.screen, (30,40,60), value_rect, border_radius=6)
                 pygame.draw.rect(self.screen, (120,140,180), value_rect, 1, border_radius=6)
                 self.screen.blit(font.render(str(cur), True, (240,240,255)), (value_rect.x+6, value_rect.y+4))
                 self.unit_editor_param_controls.append((p, 'step', minus, plus))
                 # Для двойного клика по значению — сохранить прямоугольник
                 self.unit_editor_param_controls.append((p, 'value', value_rect))
-            y += 44
+            param_y += 44
         # Кнопки действия
         self.unit_editor_save_rect = pygame.Rect(SCREEN_WIDTH-220, SCREEN_HEIGHT-60, 200, 40)
         self.unit_editor_back_rect = pygame.Rect(20, SCREEN_HEIGHT-60, 180, 40)
@@ -2705,6 +2982,14 @@ class Game:
                         cur = bool(self.unit_overrides[key].get(p, False))
                         self.unit_overrides[key][p] = not cur
                         return
+                elif item[1] == 'cycle':
+                    p, _, rect, options = item
+                    if rect.collidepoint(pos):
+                        cur = self.unit_overrides[key].get(p, options[0])
+                        cur_idx = options.index(cur) if cur in options else 0
+                        next_idx = (cur_idx + 1) % len(options)
+                        self.unit_overrides[key][p] = options[next_idx]
+                        return
                 elif item[1] == 'step':
                     p, _, minus, plus = item
                     if minus.collidepoint(pos):
@@ -2807,7 +3092,49 @@ class Game:
         button_rect = button_text.get_rect(center=(center_x, SCREEN_HEIGHT - 80))
         self.screen.blit(button_text, button_rect)
 
-    def draw(self):
+    def create_corpse(self, unit):
+        """Создает труп из юнита и добавляет его в список трупов."""
+        corpse = {
+            'x': unit.x,
+            'y': unit.y,
+            'team': unit.team,
+            'unit_type': unit.unit_type,
+            'image': unit.image,  # Сохраняем оригинальное изображение
+            'max_health': getattr(unit, 'max_health', 100)
+        }
+        self.corpses.append(corpse)
+    
+    def kill_unit(self, unit):
+        """Убивает юнита, создает труп и удаляет из списков."""
+        # Создаем труп
+        self.create_corpse(unit)
+        # Удаляем из списка юнитов
+        if unit in self.units:
+            self.units.remove(unit)
+        # Удаляем из очереди хода
+        if hasattr(self, 'turn_queue'):
+            self.turn_queue = [u for u in self.turn_queue if u != unit]
+    
+    def draw_corpses(self):
+        """Отрисовывает трупы как серые полупрозрачные модели."""
+        for corpse in self.corpses:
+            # Создаем серую копию изображения
+            gray_surface = pygame.Surface(corpse['image'].get_size(), pygame.SRCALPHA)
+            for x in range(corpse['image'].get_width()):
+                for y in range(corpse['image'].get_height()):
+                    pixel = corpse['image'].get_at((x, y))
+                    if pixel.a > 0:  # Если пиксель не прозрачный
+                        # Преобразуем в оттенки серого
+                        gray = int(0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b)
+                        gray_surface.set_at((x, y), (gray, gray, gray, 128))  # Полупрозрачность
+            # Рисуем серый труп
+            self.screen.blit(gray_surface, (corpse['x'] * CELL_SIZE, corpse['y'] * CELL_SIZE))
+
+    def draw(self, hide_unit_at=None):
+        """
+        Отрисовка игры.
+        hide_unit_at: (x, y) координаты юнита, которого НЕ нужно рисовать (для анимаций)
+        """
         if self.state == 'menu':
             self.draw_menu()
             pygame.display.flip()
@@ -2844,7 +3171,12 @@ class Game:
         t = pygame.time.get_ticks() / 1000.0
         draw_animated_grass(self.screen, t)
         self.draw_grid()
+        # Отрисовка трупов перед юнитами
+        self.draw_corpses()
         for unit in self.units:
+            # Пропускаем отрисовку юнита, если он скрыт
+            if hide_unit_at and unit.x == hide_unit_at[0] and unit.y == hide_unit_at[1]:
+                continue
             unit.draw(self.screen)
         # Предпросмотр зоны для area-заклинаний
         # Автоматически сбрасываем флаг dismiss при наличии выбранного area-заклинания
@@ -3290,7 +3622,7 @@ class Game:
             pygame.display.flip()
             pygame.time.delay(18)
 
-    def animate_fire_shield_cast(self, target):
+    def animate_fire_shield_cast(self, target, hide_unit_at=None):
         # Кратковременное появление огненного купола на цели
         cx = target.x*CELL_SIZE+CELL_SIZE//2
         cy = target.y*CELL_SIZE+CELL_SIZE//2
@@ -3298,7 +3630,7 @@ class Game:
         frames = 12
         for i in range(frames):
             pygame.event.pump()
-            self.draw()
+            self.draw(hide_unit_at=hide_unit_at)
             s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             r = int(max_r * (i+1) / frames)
             alpha = max(60, 220 - int(200 * i / frames))
@@ -3308,40 +3640,9 @@ class Game:
             pygame.display.flip()
             pygame.time.delay(16)
 
-    def animate_fire_shield_burst(self, defender, attacker):
-        # Реакция щита: только появление и пульсация щита на защитнике без снарядов
-        sx = defender.x*CELL_SIZE+CELL_SIZE//2
-        sy = defender.y*CELL_SIZE+CELL_SIZE//2
-        steps = 14
-        for i in range(steps):
-            pygame.event.pump()
-            self.draw()
-            s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            rr = 8 + i*3
-            aa = max(0, 220 - i*14)
-            # Внешнее пламя
-            pygame.draw.circle(s, (255, 140, 60, aa), (sx, sy), rr, 4)
-            # Внутренняя жаркая кромка
-            pygame.draw.circle(s, (255, 210, 140, max(0, aa-60)), (sx, sy), max(2, rr-7), 2)
-            # Искры вокруг
-            for k in range(6):
-                ang = (i*0.6 + k) * 0.9
-                rad = 6 + i*2
-                ex = sx + int(math.cos(ang) * rad)
-                ey = sy + int(math.sin(ang) * rad)
-                pygame.draw.circle(s, (255, 120, 60, max(0, aa-80)), (ex, ey), 3)
-            self.screen.blit(s, (0,0))
-            pygame.display.flip()
-            pygame.time.delay(18)
-        # Финальный жаркий импульс на защитнике
-        for i in range(6):
-            pygame.event.pump()
-            self.draw()
-            s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            pygame.draw.circle(s, (255, 180, 90, 160 - i*20), (sx, sy), 10 + i*4, 3)
-            self.screen.blit(s, (0,0))
-            pygame.display.flip()
-            pygame.time.delay(18)
+    def animate_fire_shield_burst(self, defender, attacker, hide_unit_at=None):
+        # Анимация срабатывания щита - такая же пылающая аура, как при касте
+        self.animate_fire_shield_cast(defender, hide_unit_at=hide_unit_at)
 
     def start_new_game(self):
         """Сброс в главное меню выбора рас."""
@@ -3370,6 +3671,7 @@ class Game:
         self.spectator_mode = False
         self.is_paused = False
         self.units = []
+        self.corpses = []  # Очищаем трупы
         self.turn_queue = []
         self.state = 'battle_setup'
 
@@ -3417,25 +3719,22 @@ class Game:
                 # Вне игры - тоггл простого меню
                 self.menu_open = not self.menu_open
 
-    def perform_counterattack(self, attacker, defender, is_melee, target_is_melee_unit):
+    def perform_counterattack(self, attacker, defender, is_melee, target_is_melee_unit, skip_initial_redraw=False, hide_unit_at=None):
         """Реакции на атаку (огненный щит), затем стандартная контратака (если ближний бой)."""
         # 1) Реактивный урон огненного щита (не считается контратакой) - ТОЛЬКО для ближних атак
         if is_melee and defender and attacker and getattr(defender, 'fire_shield_turns', 0) > 0 and defender.health > 0:
             try:
-                self.animate_fire_shield_burst(defender, attacker)
+                self.animate_fire_shield_burst(defender, attacker, hide_unit_at=hide_unit_at)
             except Exception:
                 pass
-            # 35% от полученного урона (если известен), минимум 1
-            received = int(getattr(defender, 'last_damage_received', 0) or 0)
-            pct = float(getattr(defender, 'fire_shield_pct', 0.35) or 0.35)
-            shield_damage = max(1, int(round(received * pct)))
+            # Новая формула: 15% от макс HP + сила магии кастера
+            max_hp = getattr(defender, 'max_health', 100)
+            spell_power = getattr(defender, 'fire_shield_spell_power', 0)
+            shield_damage = max(1, int(max_hp * 0.15) + spell_power)
             if shield_damage > 0:
-                if attacker.take_damage(shield_damage):
-                    if attacker in self.units:
-                        self.units.remove(attacker)
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != attacker]
-                        self.animate_queue_fade(attacker)
+                if attacker.take_damage(shield_damage, attack_type='magical'):
+                    self.kill_unit(attacker)
+                    self.animate_queue_fade(attacker)
                     self.add_event(f"{defender.unit_type.capitalize()} обжёг {attacker.unit_type} огненным щитом")
                     self.check_game_over()
                     # Если атакующий погиб — контратаки не будет
@@ -3444,14 +3743,20 @@ class Game:
                     self.add_event(f"{defender.unit_type.capitalize()} обжёг {attacker.unit_type} огненным щитом")
 
         # 2) Стандартная логика контратаки - только для ближнего боя
+        # Герои не получают и не наносят контратаки
+        from .units import Hero
+        if isinstance(attacker, Hero) or isinstance(defender, Hero):
+            return False
+        
         if not (is_melee and defender.health > 0 and not (hasattr(defender, 'has_counterattacked') and defender.has_counterattacked)):
             return False
         
         # Ждем завершения первой атаки (урон и звук)
-        # Обновляем экран, чтобы показать урон
-        self.draw()
-        pygame.display.flip()
-        pygame.time.delay(400)  # Задержка для первой атаки
+        # Обновляем экран, чтобы показать урон (пропускаем, если идет анимация воина)
+        if not skip_initial_redraw:
+            self.draw()
+            pygame.display.flip()
+            pygame.time.delay(400)  # Задержка для первой атаки только если есть перерисовка
         
         # Теперь выполняем контратаку
         # Дальнобойные в ближнем бою бьют вполсилы
@@ -3459,16 +3764,38 @@ class Game:
             counter_damage = max(1, defender.get_current_attack() // 2)
         else:
             counter_damage = defender.get_current_attack()
-        if attacker.take_damage(counter_damage):
-            if attacker in self.units:
-                self.units.remove(attacker)
-                if hasattr(self, 'turn_queue'):
-                    self.turn_queue = [u for u in self.turn_queue if u != attacker]
-                self.animate_queue_fade(attacker)
+        
+        # Передаем тип атаки защитника
+        defender_attack_type = getattr(defender, 'attack_type', 'physical')
+        attacker_died = attacker.take_damage(counter_damage, attack_type=defender_attack_type)
+        
+        if attacker_died:
+            self.kill_unit(attacker)
+            self.animate_queue_fade(attacker)
             self.add_event(f"{defender.unit_type.capitalize()} контратаковал и убил {attacker.unit_type.capitalize()}")
             self.check_game_over()
         else:
             self.add_event(f"{defender.unit_type.capitalize()} контратаковал {attacker.unit_type.capitalize()}")
+            
+            # 3) Проверяем огненный щит АТАКУЮЩЕГО после получения урона от контратаки
+            # Это ближний бой (контратака), поэтому щит срабатывает
+            if attacker and attacker.health > 0 and getattr(attacker, 'fire_shield_turns', 0) > 0 and defender.health > 0:
+                try:
+                    self.animate_fire_shield_burst(attacker, defender)
+                except Exception:
+                    pass
+                # Новая формула: 15% от макс HP + сила магии кастера
+                max_hp = getattr(attacker, 'max_health', 100)
+                spell_power = getattr(attacker, 'fire_shield_spell_power', 0)
+                shield_damage = max(1, int(max_hp * 0.15) + spell_power)
+                if shield_damage > 0:
+                    if defender.take_damage(shield_damage, attack_type='magical'):
+                        self.kill_unit(defender)
+                        self.animate_queue_fade(defender)
+                        self.add_event(f"{attacker.unit_type.capitalize()} обжёг {defender.unit_type} огненным щитом")
+                        self.check_game_over()
+                    else:
+                        self.add_event(f"{attacker.unit_type.capitalize()} обжёг {defender.unit_type} огненным щитом")
         
         # Помечаем, что цель контратаковала
         defender.has_counterattacked = True
@@ -3826,6 +4153,37 @@ class Game:
                         if self.button_click_sound:
                             self.button_click_sound.play()
                         self.player1_race = race_key
+                        # Устанавливаем дефолтный класс при смене расы
+                        default_classes = {
+                            'human': 'warrior',
+                            'elf': 'archer',
+                            'undead': 'mage',
+                            'demon': 'warrior',
+                            'dwarf': 'warrior',
+                            'shadow': 'mage'
+                        }
+                        self.player1_hero_class = default_classes.get(race_key, 'warrior')
+                        return
+            
+            # Выпадающий список класса для игрока 1
+            if hasattr(self, 'player1_class_dropdown_rect') and self.player1_class_dropdown_rect:
+                if self.player1_class_dropdown_rect.collidepoint(pos):
+                    if self.button_click_sound:
+                        self.button_click_sound.play()
+                    # Переключаем состояние выпадающего списка
+                    self.player1_class_dropdown_open = not getattr(self, 'player1_class_dropdown_open', False)
+                    # Закрываем другой список если открыт
+                    self.player2_class_dropdown_open = False
+                    return
+            
+            # Выбор класса из выпадающего списка игрока 1
+            if hasattr(self, 'player1_class_rects') and getattr(self, 'player1_class_dropdown_open', False):
+                for rect, class_key in self.player1_class_rects:
+                    if rect.collidepoint(pos):
+                        if self.button_click_sound:
+                            self.button_click_sound.play()
+                        self.player1_hero_class = class_key
+                        self.player1_class_dropdown_open = False
                         return
             
             # Выбор расы для игрока 2
@@ -3836,6 +4194,37 @@ class Game:
                         if self.button_click_sound:
                             self.button_click_sound.play()
                         self.player2_race = race_key
+                        # Устанавливаем дефолтный класс при смене расы
+                        default_classes = {
+                            'human': 'warrior',
+                            'elf': 'archer',
+                            'undead': 'mage',
+                            'demon': 'warrior',
+                            'dwarf': 'warrior',
+                            'shadow': 'mage'
+                        }
+                        self.player2_hero_class = default_classes.get(race_key, 'warrior')
+                        return
+            
+            # Выпадающий список класса для игрока 2
+            if hasattr(self, 'player2_class_dropdown_rect') and self.player2_class_dropdown_rect:
+                if self.player2_class_dropdown_rect.collidepoint(pos):
+                    if self.button_click_sound:
+                        self.button_click_sound.play()
+                    # Переключаем состояние выпадающего списка
+                    self.player2_class_dropdown_open = not getattr(self, 'player2_class_dropdown_open', False)
+                    # Закрываем другой список если открыт
+                    self.player1_class_dropdown_open = False
+                    return
+            
+            # Выбор класса из выпадающего списка игрока 2
+            if hasattr(self, 'player2_class_rects') and getattr(self, 'player2_class_dropdown_open', False):
+                for rect, class_key in self.player2_class_rects:
+                    if rect.collidepoint(pos):
+                        if self.button_click_sound:
+                            self.button_click_sound.play()
+                        self.player2_hero_class = class_key
+                        self.player2_class_dropdown_open = False
                         return
             
             # Кнопка "Начать бой"
@@ -4069,6 +4458,60 @@ class Game:
                 # Разрешаем Снятие чар по врагу для развеивания баффов
                 if target and target.team != caster.team and not (hasattr(spell, 'icon') and spell.icon == 'dispel'):
                     return
+                # Специальная логика для raise_undead: воскрешение трупов или лечение живых
+                if hasattr(spell, 'icon') and spell.icon == 'raise_undead' and caster.mana >= spell.mana_cost:
+                    # Получаем координаты клика
+                    mx, my = pos[0] // CELL_SIZE, pos[1] // CELL_SIZE
+                    # Ищем труп нежити на этой клетке
+                    corpse_found = None
+                    for corpse in self.corpses:
+                        if corpse['x'] == mx and corpse['y'] == my and corpse['team'] == 'undead':
+                            corpse_found = corpse
+                            break
+                    
+                    if corpse_found:
+                        # Воскрешаем труп
+                        from .units import Skeleton, Zombie, Ghost, Vampire, Lich
+                        unit_map = {
+                            'skeleton': Skeleton,
+                            'zombie': Zombie,
+                            'ghost': Ghost,
+                            'vampire': Vampire,
+                            'lich': Lich
+                        }
+                        unit_class = unit_map.get(corpse_found['unit_type'])
+                        if unit_class:
+                            # Создаем нового юнита
+                            new_unit = unit_class(corpse_found['x'], corpse_found['y'], 'undead')
+                            # Здоровье = 25 HP
+                            heal = 25
+                            new_unit.health = min(new_unit.max_health, heal)
+                            # Добавляем в игру
+                            self.units.append(new_unit)
+                            # Удаляем труп
+                            self.corpses.remove(corpse_found)
+                            # Анимация
+                            self.animate_undead_heal_cast(new_unit)
+                            # Сообщение
+                            self.add_event(f"Герой воскресил {new_unit.unit_type}")
+                            # Тратим ману и заканчиваем ход
+                            caster.mana = max(0, caster.mana - spell.mana_cost)
+                            caster.selected_spell = None
+                            caster.used_spell_this_round = True
+                            self.area_preview_dismiss = True
+                            self.next_turn()
+                            return
+                    
+                    # Если трупа нет, проверяем живую нежить
+                    if target and getattr(target, 'team', None) == 'undead':
+                        current_hp = getattr(target, 'health', 0)
+                        max_hp = getattr(target, 'max_health', 0)
+                        if current_hp >= max_hp:
+                            return  # Уже полное здоровье, не тратим ману
+                        # Лечим живую нежить (обычная логика ниже)
+                    else:
+                        return  # Нет ни трупа, ни живой нежити
+                
                 if target and target.team == caster.team and caster.mana >= spell.mana_cost:
                     self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
                     # --- Анимация для благословения и снятия чар ---
@@ -4090,6 +4533,12 @@ class Game:
                         animate_air_haste_spell(self.screen, target_px, target_px, redraw_callback=self.draw)
                     elif hasattr(spell, 'icon') and spell.icon == 'stone_skin':
                         animate_stone_skin(self.screen, target_px, redraw_callback=self.draw)
+                    elif hasattr(spell, 'icon') and spell.icon == 'fire_shield':
+                        # Анимация огненного щита
+                        self.animate_fire_shield_cast(target)
+                    elif hasattr(spell, 'icon') and spell.icon == 'raise_undead':
+                        # Анимация поднятия мёртвых
+                        self.animate_undead_heal_cast(target)
                     # Применение союзных баффов/эффектов и завершение хода
                     spell.apply(target, caster=caster)
                     caster.mana = max(0, caster.mana - spell.mana_cost)
@@ -4149,6 +4598,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -4169,9 +4619,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -4211,33 +4683,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -4359,17 +4876,17 @@ class Game:
                         if current_hp >= max_hp:
                             return  # Уже полное здоровье, не тратим ману
                     
-                    self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
-                    # --- Анимация каста ---
-                    if spell_icon == 'bless':
+                self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
+                # --- Анимация каста ---
+                if spell_icon == 'bless':
                         self.animate_water_bless(target)
-                    elif spell_icon == 'dispel':
+                elif spell_icon == 'dispel':
                         self.animate_spell_flash(target, (80,180,255))
-                    elif spell_icon == 'fire_shield':
-                        self.animate_fire_shield_cast(target)
-                    elif spell_icon == 'raise_undead':
-                        self.animate_undead_heal_cast(target)
-                    
+                elif spell_icon == 'fire_shield':
+                    self.animate_fire_shield_cast(target)
+                elif spell_icon == 'raise_undead':
+                    self.animate_undead_heal_cast(target)
+                
                     spell.apply(target, caster=self.selected_unit)
                     self.selected_unit.mana -= spell.mana_cost
                     self.selected_unit.selected_spell = None
@@ -4415,6 +4932,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -4435,9 +4953,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -4477,33 +5017,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -4658,6 +5243,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -4678,9 +5264,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -4720,33 +5328,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -4901,6 +5554,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -4921,9 +5575,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -4963,33 +5639,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -5144,6 +5865,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -5164,9 +5886,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -5206,33 +5950,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -5387,6 +6176,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -5407,9 +6197,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -5449,33 +6261,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -5630,6 +6487,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -5650,9 +6508,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -5692,33 +6572,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -5873,6 +6798,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -5893,9 +6819,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -5935,33 +6883,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -6116,6 +7109,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -6136,9 +7130,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -6178,33 +7194,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -6359,6 +7420,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -6379,9 +7441,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -6421,33 +7505,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -6602,6 +7731,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -6622,9 +7752,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -6664,33 +7816,78 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                    
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        # Звук ближнего боя в зависимости от типа юнита
+                        if self.selected_unit.team in ['human', 'elf']:
+                            if self.human_melee_sounds:
+                                random.choice(self.human_melee_sounds).play()
+                        else:
+                            if self.monster_melee_sounds:
+                                random.choice(self.monster_melee_sounds).play()
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
+                # Применяем урон только если он еще не был применен (не для воина)
+                if not damage_already_applied and clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical')):
+                    self.kill_unit(clicked_unit)
+                    self.animate_queue_fade(clicked_unit)
                     self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
                     self.check_game_over()
                 else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
+                    if not damage_already_applied:
+                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                        
+                        # Контратака (не для воина, у него контратака в callback)
+                        self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
                 
                 self.selected_unit.has_attacked = True
                 self.next_turn()
@@ -6845,6 +8042,7 @@ class Game:
                 # Проверяем расстояние для определения типа атаки
                 distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
                 is_melee = (distance == 1)
+                damage_already_applied = False  # Флаг для отслеживания применения урона
                 
                 if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
                     # Лучники и дальнобойные юниты
@@ -6865,9 +8063,31 @@ class Game:
                         target_is_melee_unit = False  # Дальняя атака, контратаки нет
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
+                        
+                        # Проверяем, является ли атакующий героем
+                        is_hero = isinstance(self.selected_unit, Hero)
+                        hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
+                        
+                        # Определяем тип снаряда в зависимости от юнита/героя
+                        if is_hero and hero_class == 'archer':
+                            # Герой-лучник: стреляет стрелами
+                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
+                                self.selected_unit.bow_draw_sound.play()
+                            pygame.time.delay(150)
+                            if self.shot_sound and self.shot2_sound:
+                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
+                                shot_sound.play()
+                            elif self.shot_sound:
+                                self.shot_sound.play()
+                            elif self.shot2_sound:
+                                self.shot2_sound.play()
+                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
+                                self.selected_unit.arrow_shot_sound.play()
+                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
+                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
+                                self.selected_unit.arrow_hit_sound.play()
+                        elif self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
+                            # Обычные лучники стреляют стрелами - воспроизводим звуки
                             # Звук натяжения лука
                             if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
                                 self.selected_unit.bow_draw_sound.play()
@@ -6907,192 +8127,55 @@ class Game:
                         pygame.display.flip()
                         damage = self.selected_unit.ranged_damage(x, y)
                 else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
-                    else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
-                
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
-                    self.check_game_over()
-                else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                    # Обычные ближние бойцы и герои-воины
+                    # Проверяем героя-воина - у него особая анимация
+                    is_hero = isinstance(self.selected_unit, Hero)
+                    hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
                     
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
-                
-                self.selected_unit.has_attacked = True
-                self.next_turn()
-                return
-            else:
-                print('can_attack вернул False!')
-        else:
-            print('Клик по своему юниту — ничего не делаем')
-        
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
-        # --- Только после обработки интерфейса ---
-        if not self.selected_unit or self.selected_unit.has_attacked:
-            return
-        
-        # Если герой выбрал заклинание - не обрабатываем обычные атаки и перемещения
-        if isinstance(self.selected_unit, Hero) and self.selected_unit.selected_spell is not None:
-            # Обработка применения заклинания (вся логика ниже)
-            x = pos[0] // CELL_SIZE
-            y = pos[1] // CELL_SIZE
-            spell = self.selected_unit.spells[self.selected_unit.selected_spell]
-            # Найти цель
-            target = None
-            for unit in self.units:
-                if unit.x == x and unit.y == y:
-                    target = unit
-                    break
-            # Проверить условия применения (например, цель — враг/союзник)
-            if spell.target_type == 'enemy' and target and target.team != self.selected_unit.team and self.selected_unit.mana >= spell.mana_cost:
-                self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
-                # Визуальный эффект для атакующих заклинаний
-                if hasattr(spell, 'icon') and spell.icon == 'firearrow':
-                    self.animate_firearrow(self.selected_unit, target)
-                else:
-                    # Маги и герои стреляют магическими снарядами с разными цветами
-                    if self.selected_unit.unit_type == 'succubus':
-                        color = (255, 80, 120)  # красный
-                    elif self.selected_unit.unit_type == 'gog':
-                        color = (255, 120, 40)  # оранжевый
-                    elif self.selected_unit.unit_type == 'lich':
-                        color = (80, 255, 80)   # зеленый
+                    if is_hero and hero_class == 'warrior':
+                        # Герой-воин: телепортация к цели
+                        damage = self.selected_unit.get_current_attack()
+                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
+                        
+                        # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
+                        def apply_warrior_damage():
+                            nonlocal damage_already_applied
+                            damage_already_applied = True
+                            # Просто наносим урон, не вызывая ничего с перерисовкой
+                            clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                        
+                        # Вычисляем позицию рядом с целью
+                        dx = clicked_unit.x - self.selected_unit.x
+                        dy = clicked_unit.y - self.selected_unit.y
+                        # Позиция рядом с целью (смещение в направлении атакующего)
+                        if abs(dx) > abs(dy):
+                            attack_x = clicked_unit.x - (1 if dx > 0 else -1)
+                            attack_y = clicked_unit.y
+                        else:
+                            attack_x = clicked_unit.x
+                            attack_y = clicked_unit.y - (1 if dy > 0 else -1)
+                        
+                        # Запускаем анимацию телепортации
+                        animate_warrior_teleport(self.screen, 
+                                                (self.selected_unit.x * CELL_SIZE, self.selected_unit.y * CELL_SIZE),
+                                                (attack_x * CELL_SIZE, attack_y * CELL_SIZE),
+                                                self.selected_unit.image,
+                                                redraw_callback=self.draw,
+                                                attack_sound_callback=lambda: (random.choice(self.human_melee_sounds).play() if self.human_melee_sounds else None) if self.selected_unit.team in ['human', 'elf', 'dwarf'] else (random.choice(self.monster_melee_sounds).play() if self.monster_melee_sounds else None),
+                                                damage_callback=apply_warrior_damage,
+                                                hide_attacker_pos=(self.selected_unit.x, self.selected_unit.y))
+                        
+                        # ПОСЛЕ анимации обрабатываем последствия
+                        if clicked_unit.health <= 0:
+                            self.kill_unit(clicked_unit)
+                            self.animate_queue_fade(clicked_unit)
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
+                            self.check_game_over()
+                        else:
+                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
+                            # Контратака происходит ПОСЛЕ анимации
+                            self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
-                        color = (120, 180, 255)  # синий для остальных
-                    # Воспроизводим звук выстрела магов
-                    if self.magic_shot_sound:
-                        self.magic_shot_sound.play()
-                    animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2),
-                                     (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
-                                     color=color, redraw_callback=self.draw)
-                spell.apply(target, caster=self.selected_unit)
-                self.selected_unit.mana -= spell.mana_cost
-                self.selected_unit.selected_spell = None
-                self.selected_unit.used_spell_this_round = True
-                # Герой передает ход после использования заклинания
-                self.next_turn()
-                return
-            elif spell.target_type == 'ally':
-                # Если клик по врагу — ничего не делаем
-                if target and target.team != self.selected_unit.team:
-                    return
-                if target and target.team == self.selected_unit.team and self.selected_unit.mana >= spell.mana_cost:
-                    self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
-                    # --- Анимация для благословения и снятия чар ---
-                    if hasattr(spell, 'icon') and spell.icon == 'bless':
-                        self.animate_water_bless(target)
-                    elif hasattr(spell, 'icon') and spell.icon == 'dispel':
-                        self.animate_spell_flash(target, (80,180,255))
-                    spell.apply(target, caster=self.selected_unit)
-                    self.selected_unit.mana -= spell.mana_cost
-                    self.selected_unit.selected_spell = None
-                    self.selected_unit.used_spell_this_round = True
-                    # Герой передает ход после использования заклинания
-                    self.next_turn()
-                    return
-            # Если заклинание не может быть применено — ничего не делаем
-            return
-        
-        x = pos[0] // CELL_SIZE
-        y = pos[1] // CELL_SIZE
-        clicked_unit = None
-        for unit in self.units:
-            if unit.x == x and unit.y == y:
-                clicked_unit = unit
-                break
-        if clicked_unit is None:
-            # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units):
-                path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
-                if path_len <= self.selected_unit.move_points_left:
-                    self.selected_unit.x = x
-                    self.selected_unit.y = y
-                    self.selected_unit.move_points_left -= path_len
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} переместился на ({x},{y})")
-                    if (self.selected_unit.move_points_left <= 0 and not self.can_attack_any(self.selected_unit)):
-                        self.next_turn()
-                    return
-                else:
-                    print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
-            # Если выбран неатакующий spell — не атаковать
-            if (isinstance(self.selected_unit, Hero)
-                and self.selected_unit.selected_spell is not None):
-                spell = self.selected_unit.spells[self.selected_unit.selected_spell]
-                if getattr(spell, 'target_type', None) == 'ally':
-                    return
-            # Вражеский юнит — попытка атаки (герои не могут быть целью)
-            if isinstance(clicked_unit, Hero):
-                print('Нельзя атаковать героев!')
-                return
-            if self.selected_unit.can_attack(x, y, self.units):
-                # Проверяем расстояние для определения типа атаки
-                distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
-                is_melee = (distance == 1)
-                
-                if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
-                    # Лучники и дальнобойные юниты
-                    if is_melee:
-                        # Ближний бой для лучников - только ближний бой, без стрел
                         # Звук ближнего боя в зависимости от типа юнита
                         if self.selected_unit.team in ['human', 'elf']:
                             if self.human_melee_sounds:
@@ -7100,449 +8183,7 @@ class Game:
                         else:
                             if self.monster_melee_sounds:
                                 random.choice(self.monster_melee_sounds).play()
-                        damage = max(1, self.selected_unit.get_current_attack() // 2)  # Половина урона
-                        # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
+                        damage = self.selected_unit.get_current_attack()
+                        # Запоминаем параметры для контратаки
                         target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
-                    else:
-                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
-                        target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
-                            # Звук натяжения лука
-                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
-                                self.selected_unit.bow_draw_sound.play()
-                            # Небольшая задержка для звука натяжения
-                            pygame.time.delay(150)
-                            # Звук выстрела - используем новые звуки выстрелов (случайный выбор)
-                            if self.shot_sound and self.shot2_sound:
-                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
-                                shot_sound.play()
-                            elif self.shot_sound:
-                                self.shot_sound.play()
-                            elif self.shot2_sound:
-                                self.shot2_sound.play()
-                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
-                                self.selected_unit.arrow_shot_sound.play()
-                            # Анимация полета стрелы
-                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
-                            # Звук попадания
-                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
-                                self.selected_unit.arrow_hit_sound.play()
-                        else:
-                            # Маги и герои стреляют магическими снарядами с разными цветами
-                            if self.selected_unit.unit_type == 'succubus':
-                                color = (255, 80, 120)  # красный
-                            elif self.selected_unit.unit_type == 'gog':
-                                color = (255, 120, 40)  # оранжевый
-                            elif self.selected_unit.unit_type == 'lich':
-                                color = (80, 255, 80)   # зеленый
-                            else:
-                                color = (120, 180, 255)  # синий для остальных
-                            # Воспроизводим звук выстрела магов
-                            if self.magic_shot_sound:
-                                self.magic_shot_sound.play()
-                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                        # Перерисовываем экран, чтобы убрать снаряд
-                        self.draw()
-                        pygame.display.flip()
-                        damage = self.selected_unit.ranged_damage(x, y)
-                else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
-                    else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
                 
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
-                    self.check_game_over()
-                else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
-                
-                self.selected_unit.has_attacked = True
-                self.next_turn()
-                return
-            else:
-                print('can_attack вернул False!')
-        else:
-            print('Клик по своему юниту — ничего не делаем')
-        
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
-        # --- Только после обработки интерфейса ---
-        if not self.selected_unit or self.selected_unit.has_attacked:
-            return
-        
-        # Если герой выбрал заклинание - не обрабатываем обычные атаки и перемещения
-        if isinstance(self.selected_unit, Hero) and self.selected_unit.selected_spell is not None:
-            # Обработка применения заклинания (вся логика ниже)
-            x = pos[0] // CELL_SIZE
-            y = pos[1] // CELL_SIZE
-            spell = self.selected_unit.spells[self.selected_unit.selected_spell]
-            # Найти цель
-            target = None
-            for unit in self.units:
-                if unit.x == x and unit.y == y:
-                    target = unit
-                    break
-            # Проверить условия применения (например, цель — враг/союзник)
-            if spell.target_type == 'enemy' and target and target.team != self.selected_unit.team and self.selected_unit.mana >= spell.mana_cost:
-                self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
-                # Визуальный эффект для атакующих заклинаний
-                if hasattr(spell, 'icon') and spell.icon == 'firearrow':
-                    self.animate_firearrow(self.selected_unit, target)
-                else:
-                    # Маги и герои стреляют магическими снарядами с разными цветами
-                    if self.selected_unit.unit_type == 'succubus':
-                        color = (255, 80, 120)  # красный
-                    elif self.selected_unit.unit_type == 'gog':
-                        color = (255, 120, 40)  # оранжевый
-                    elif self.selected_unit.unit_type == 'lich':
-                        color = (80, 255, 80)   # зеленый
-                    else:
-                        color = (120, 180, 255)  # синий для остальных
-                    # Воспроизводим звук выстрела магов
-                    if self.magic_shot_sound:
-                        self.magic_shot_sound.play()
-                    animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2),
-                                     (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
-                                     color=color, redraw_callback=self.draw)
-                spell.apply(target, caster=self.selected_unit)
-                self.selected_unit.mana -= spell.mana_cost
-                self.selected_unit.selected_spell = None
-                self.selected_unit.used_spell_this_round = True
-                # Герой передает ход после использования заклинания
-                self.next_turn()
-                return
-            elif spell.target_type == 'ally':
-                # Если клик по врагу — ничего не делаем
-                if target and target.team != self.selected_unit.team:
-                    return
-                if target and target.team == self.selected_unit.team and self.selected_unit.mana >= spell.mana_cost:
-                    self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
-                    # --- Анимация для благословения и снятия чар ---
-                    if hasattr(spell, 'icon') and spell.icon == 'bless':
-                        self.animate_water_bless(target)
-                    elif hasattr(spell, 'icon') and spell.icon == 'dispel':
-                        self.animate_spell_flash(target, (80,180,255))
-                    spell.apply(target, caster=self.selected_unit)
-                    self.selected_unit.mana -= spell.mana_cost
-                    self.selected_unit.selected_spell = None
-                    self.selected_unit.used_spell_this_round = True
-                    # Герой передает ход после использования заклинания
-                    self.next_turn()
-                    return
-            # Если заклинание не может быть применено — ничего не делаем
-            return
-        
-        x = pos[0] // CELL_SIZE
-        y = pos[1] // CELL_SIZE
-        clicked_unit = None
-        for unit in self.units:
-            if unit.x == x and unit.y == y:
-                clicked_unit = unit
-                break
-        if clicked_unit is None:
-            # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units):
-                path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
-                if path_len <= self.selected_unit.move_points_left:
-                    self.selected_unit.x = x
-                    self.selected_unit.y = y
-                    self.selected_unit.move_points_left -= path_len
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} переместился на ({x},{y})")
-                    if (self.selected_unit.move_points_left <= 0 and not self.can_attack_any(self.selected_unit)):
-                        self.next_turn()
-                    return
-                else:
-                    print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
-            # Если выбран неатакующий spell — не атаковать
-            if (isinstance(self.selected_unit, Hero)
-                and self.selected_unit.selected_spell is not None):
-                spell = self.selected_unit.spells[self.selected_unit.selected_spell]
-                if getattr(spell, 'target_type', None) == 'ally':
-                    return
-            # Вражеский юнит — попытка атаки (герои не могут быть целью)
-            if isinstance(clicked_unit, Hero):
-                print('Нельзя атаковать героев!')
-                return
-            if self.selected_unit.can_attack(x, y, self.units):
-                # Проверяем расстояние для определения типа атаки
-                distance = abs(self.selected_unit.x - x) + abs(self.selected_unit.y - y)
-                is_melee = (distance == 1)
-                
-                if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged:
-                    # Лучники и дальнобойные юниты
-                    if is_melee:
-                        # Ближний бой для лучников - только ближний бой, без стрел
-                        # Звук ближнего боя в зависимости от типа юнита
-                        if self.selected_unit.team in ['human', 'elf']:
-                            if self.human_melee_sounds:
-                                random.choice(self.human_melee_sounds).play()
-                        else:
-                            if self.monster_melee_sounds:
-                                random.choice(self.monster_melee_sounds).play()
-                        damage = max(1, self.selected_unit.get_current_attack() // 2)  # Половина урона
-                        # Запоминаем параметры для контратаки (даже для лучников в ближнем бою)
-                        target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
-                    else:
-                        # Дальняя атака - стреляем стрелами/снарядами, контратаки нет
-                        target_is_melee_unit = False  # Дальняя атака, контратаки нет
-                        start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
-                        # Определяем тип снаряда в зависимости от юнита
-                        if self.selected_unit.unit_type in ['crossbowman', 'elf_archer']:
-                            # Лучники стреляют стрелами - воспроизводим звуки
-                            # Звук натяжения лука
-                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
-                                self.selected_unit.bow_draw_sound.play()
-                            # Небольшая задержка для звука натяжения
-                            pygame.time.delay(150)
-                            # Звук выстрела - используем новые звуки выстрелов (случайный выбор)
-                            if self.shot_sound and self.shot2_sound:
-                                shot_sound = random.choice([self.shot_sound, self.shot2_sound])
-                                shot_sound.play()
-                            elif self.shot_sound:
-                                self.shot_sound.play()
-                            elif self.shot2_sound:
-                                self.shot2_sound.play()
-                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
-                                self.selected_unit.arrow_shot_sound.play()
-                            # Анимация полета стрелы
-                            animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
-                            # Звук попадания
-                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
-                                self.selected_unit.arrow_hit_sound.play()
-                        else:
-                            # Маги и герои стреляют магическими снарядами с разными цветами
-                            if self.selected_unit.unit_type == 'succubus':
-                                color = (255, 80, 120)  # красный
-                            elif self.selected_unit.unit_type == 'gog':
-                                color = (255, 120, 40)  # оранжевый
-                            elif self.selected_unit.unit_type == 'lich':
-                                color = (80, 255, 80)   # зеленый
-                            else:
-                                color = (120, 180, 255)  # синий для остальных
-                            # Воспроизводим звук выстрела магов
-                            if self.magic_shot_sound:
-                                self.magic_shot_sound.play()
-                            animate_magic_fly(self.screen, start, end, color=color, redraw_callback=self.draw)
-                        # Перерисовываем экран, чтобы убрать снаряд
-                        self.draw()
-                        pygame.display.flip()
-                        damage = self.selected_unit.ranged_damage(x, y)
-                else:
-                    # Обычные ближние бойцы
-                    # Звук ближнего боя в зависимости от типа юнита
-                    if self.selected_unit.team in ['human', 'elf']:
-                        if self.human_melee_sounds:
-                            random.choice(self.human_melee_sounds).play()
-                    else:
-                        if self.monster_melee_sounds:
-                            random.choice(self.monster_melee_sounds).play()
-                    damage = self.selected_unit.get_current_attack()
-                    # Запоминаем параметры для контратаки
-                    target_is_melee_unit = not (hasattr(clicked_unit, 'is_ranged') and clicked_unit.is_ranged)
-                
-                if clicked_unit.take_damage(damage):
-                    if clicked_unit in self.units:
-                        self.units.remove(clicked_unit)
-                        # Remove all occurrences from the turn queue
-                        if hasattr(self, 'turn_queue'):
-                            self.turn_queue = [u for u in self.turn_queue if u != clicked_unit]
-                        # Анимация исчезновения иконки из очереди
-                        self.animate_queue_fade(clicked_unit)
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type}")
-                    self.check_game_over()
-                else:
-                    self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type}")
-                    
-                    # Контратака
-                    self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
-                
-                self.selected_unit.has_attacked = True
-                self.next_turn()
-                return
-            else:
-                print('can_attack вернул False!')
-        else:
-            print('Клик по своему юниту — ничего не делаем')
-        
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
-        # --- Только после обработки интерфейса ---
-        if not self.selected_unit or self.selected_unit.has_attacked:
-            return
-        
-        # Если герой выбрал заклинание - не обрабатываем обычные атаки и перемещения
-        if isinstance(self.selected_unit, Hero) and self.selected_unit.selected_spell is not None:
-            # Обработка применения заклинания (вся логика ниже)
-            x = pos[0] // CELL_SIZE
-            y = pos[1] // CELL_SIZE
-            spell = self.selected_unit.spells[self.selected_unit.selected_spell]
-            # Найти цель
-            target = None
-            for unit in self.units:
-                if unit.x == x and unit.y == y:
-                    target = unit
-                    break
-            # Проверить условия применения (например, цель — враг/союзник)
-            if spell.target_type == 'enemy' and target and target.team != self.selected_unit.team and self.selected_unit.mana >= spell.mana_cost:
-                self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
-                # Визуальный эффект для атакующих заклинаний
-                if hasattr(spell, 'icon') and spell.icon == 'firearrow':
-                    self.animate_firearrow(self.selected_unit, target)
-                else:
-                    # Маги и герои стреляют магическими снарядами с разными цветами
-                    if self.selected_unit.unit_type == 'succubus':
-                        color = (255, 80, 120)  # красный
-                    elif self.selected_unit.unit_type == 'gog':
-                        color = (255, 120, 40)  # оранжевый
-                    elif self.selected_unit.unit_type == 'lich':
-                        color = (80, 255, 80)   # зеленый
-                    else:
-                        color = (120, 180, 255)  # синий для остальных
-                    # Воспроизводим звук выстрела магов
-                    if self.magic_shot_sound:
-                        self.magic_shot_sound.play()
-                    animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2),
-                                     (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
-                                     color=color, redraw_callback=self.draw)
-                spell.apply(target, caster=self.selected_unit)
-                self.selected_unit.mana -= spell.mana_cost
-                self.selected_unit.selected_spell = None
-                self.selected_unit.used_spell_this_round = True
-                # Герой передает ход после использования заклинания
-                self.next_turn()
-                return
-            elif spell.target_type == 'ally':
-                # Если клик по врагу — ничего не делаем
-                if target and target.team != self.selected_unit.team:
-                    return
-                if target and target.team == self.selected_unit.team and self.selected_unit.mana >= spell.mana_cost:
-                    self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
-                    # --- Анимация для благословения и снятия чар ---
-                    if hasattr(spell, 'icon') and spell.icon == 'bless':
-                        self.animate_water_bless(target)
-                    elif hasattr(spell, 'icon') and spell.icon == 'dispel':
-                        self.animate_spell_flash(target, (80,180,255))
-                    spell.apply(target, caster=self.selected_unit)
-                    self.selected_unit.mana -= spell.mana_cost
-                    self.selected_unit.selected_spell = None
-                    self.selected_unit.used_spell_this_round = True
-                    # Герой передает ход после использования заклинания
-                    self.next_turn()
-                    return
-            # Если заклинание не может быть применено — ничего не делаем
-            return
-        
-        x = pos[0] // CELL_SIZE
-        y = pos[1] // CELL_SIZE
-        clicked_unit = None
-        for unit in self.units:
-            if unit.x == x and unit.y == y:
-                clicked_unit = unit
-                break
-            pygame.time.delay(14)

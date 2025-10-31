@@ -20,8 +20,16 @@ class Unit:
         self.unit_type = unit_type
         self.health = 100
         self.max_health = 100
-        self.attack = 10
-        self.defense = 5
+        self.attack = 10  # Старый параметр (для совместимости)
+        self.defense = 5  # Старый параметр (для совместимости)
+        # Новая система атаки и защиты (будет переопределена после __init__)
+        self.phys_attack = 10  # Физическая атака
+        self.magic_attack = 0   # Магическая атака
+        self.phys_defense = 5   # Физическая защита
+        self.magic_defense = 5  # Магическая защита
+        self.magic_resist = 0   # Сопротивление магии (%)
+        self.attack_type = 'physical'  # 'physical' или 'magical'
+        self._needs_stat_conversion = True  # Флаг для конвертации старых значений
         self.speed = 2  # Только перемещение
         self.initiative = 10  # Новое поле
         self.is_ranged = False  # Новое поле
@@ -51,14 +59,64 @@ class Unit:
         self.last_tooltip_update = time.time()
         self.base_defense = 15 if unit_type == 'hero' else 5
         self.rune_shield_turns = 0  # Только руна защиты
+        
+        # ВАЖНО: Конвертация должна вызываться ПОСЛЕ того, как подкласс установит свои значения
+        # Поэтому мы НЕ вызываем её здесь, а будем вызывать в конце __init__ каждого подкласса
+        # Но для удобства создадим helper-метод
+    
+    def convert_old_stats_to_new(self):
+        """Автоматически конвертирует старые значения attack/defense в новую систему."""
+        if not getattr(self, '_needs_stat_conversion', False):
+            return
+        
+        # Определяем магических юнитов (атакуют магией)
+        magical_units = [
+            'lich', 'gog', 'succubus', 'runemage', 'witch',  # Маги
+            'pixie', 'dryad', 'ghost'  # Магические существа
+        ]
+        
+        # Устанавливаем тип атаки
+        if self.unit_type in magical_units:
+            self.attack_type = 'magical'
+            self.magic_attack = self.attack
+            self.phys_attack = 0
+        else:
+            self.attack_type = 'physical'
+            self.phys_attack = self.attack
+            self.magic_attack = 0
+        
+        # Устанавливаем защиты (базово равные)
+        self.phys_defense = self.defense
+        self.magic_defense = self.defense
+        
+        # Магические юниты имеют повышенное сопротивление магии
+        if self.unit_type in magical_units:
+            self.magic_resist = 25  # 25% сопротивление
+        else:
+            self.magic_resist = 0
+        
+        self._needs_stat_conversion = False
 
     def get_current_attack(self):
-        atk = self.attack
+        # Возвращаем атаку в зависимости от типа атаки юнита
+        if self.attack_type == 'magical':
+            atk = self.magic_attack
+        else:
+            atk = self.phys_attack
+        
+        # Применяем баффы/дебаффы
         if self.attack_buff_turns > 0:
             atk = int(atk * 1.25)
         if self.attack_debuff_turns > 0:
             atk = int(atk * 0.75)
         return atk
+    
+    def get_defense_against(self, attack_type):
+        """Возвращает защиту против определенного типа атаки."""
+        if attack_type == 'magical':
+            return self.magic_defense
+        else:
+            return self.phys_defense
 
     def apply_attack_buff(self, turns=2):
         self.attack_buff_turns = turns
@@ -118,13 +176,15 @@ class Unit:
         # Учитываем каменную кожу в текущей защите
         if hasattr(self, 'stone_skin_turns') and getattr(self, 'stone_skin_turns', 0) > 0:
             current_def += getattr(self, 'stone_skin_bonus', 0)
+        # Определяем тип атаки для отображения
+        attack_type_text = "Физ." if self.attack_type == 'physical' else "Маг."
         tooltip_text = [
             (f"Тип: {self.unit_type}", (255,255,255)),
             (f"Здоровье: {self.health}/{self.max_health}", fade_color(self.fade_health)),
-            (f"Базовая атака: {base_atk}" + (f" ({base_atk_with_bonus})" if atk_bonus else ""), (180,255,180)),
-            (f"Текущая атака: {current_atk}", fade_color(self.fade_attack)),
-            (f"Базовая защита: {base_def}" + (f" ({base_def_with_bonus})" if def_bonus else ""), (180,180,180)),
-            (f"Текущая защита: {current_def}", fade_color(self.fade_defense)),
+            (f"{attack_type_text} атака: {self.phys_attack if self.attack_type == 'physical' else self.magic_attack}", (255,180,180)),
+            (f"Физ. защита: {self.phys_defense}", (180,180,255)),
+            (f"Маг. защита: {self.magic_defense}", (200,180,255)),
+            (f"Сопр. магии: {self.magic_resist}%", (255,200,255)),
             (f"Скорость: {self.speed}", (120,120,255) if hasattr(self, 'slow_turns') and getattr(self, 'slow_turns', 0) > 0 else fade_color(self.fade_speed)),
             (f"Инициатива: {self.initiative}", (255,220,120)),
         ]
@@ -176,8 +236,22 @@ class Unit:
         self.prev_defense = self.defense
         self.prev_speed = self.speed
 
-    def take_damage(self, damage):
-        actual = max(1, damage - self.defense)
+    def take_damage(self, damage, attack_type='physical'):
+        """
+        Получить урон с учетом типа атаки и соответствующей защиты.
+        attack_type: 'physical' или 'magical'
+        """
+        # Выбираем подходящую защиту
+        defense = self.get_defense_against(attack_type)
+        
+        # Вычисляем урон после защиты
+        actual = max(1, damage - defense)
+        
+        # Применяем сопротивление магии (только для магического урона)
+        if attack_type == 'magical' and self.magic_resist > 0:
+            resist_mult = (100 - self.magic_resist) / 100.0
+            actual = max(1, int(actual * resist_mult))
+        
         self.health -= actual
         try:
             self.last_damage_received = actual
@@ -241,9 +315,11 @@ class Unit:
         if hasattr(self, 'stone_skin_turns') and self.stone_skin_turns > 0:
             self.stone_skin_turns -= 1
             if self.stone_skin_turns == 0:
-                # Вернуть бонус
-                self.defense -= getattr(self, 'stone_skin_bonus', 0)
-                self.stone_skin_bonus = 0
+                # Вернуть бонусы обеих защит
+                self.phys_defense -= getattr(self, 'stone_skin_phys_bonus', 0)
+                self.magic_defense -= getattr(self, 'stone_skin_magic_bonus', 0)
+                self.stone_skin_phys_bonus = 0
+                self.stone_skin_magic_bonus = 0
                 print(f'Снимаем Каменную кожу с {self.unit_type} ({self.x},{self.y})')
         if self.curse_turns > 0:
             self.curse_turns -= 1
@@ -394,6 +470,7 @@ class Peasant(Unit):
         self.initiative = 8
         self.attack_range = 1
         self.base_defense = 2
+        self.convert_old_stats_to_new()
 
 class Spearman(Unit):
     def __init__(self, x, y, team):
@@ -406,6 +483,7 @@ class Spearman(Unit):
         self.initiative = 10
         self.attack_range = 1
         self.base_defense = 4
+        self.convert_old_stats_to_new()
 
 class Crossbowman(Unit):
     def __init__(self, x, y, team):
@@ -419,6 +497,7 @@ class Crossbowman(Unit):
         self.is_ranged = True
         self.attack_range = 3
         self.base_defense = 2
+        self.convert_old_stats_to_new()
         self.bow_draw_sound = load_sound('bow_draw')
         self.arrow_shot_sound = load_sound('arrow_shot')
         self.arrow_hit_sound = load_sound('arrow_hit')
@@ -434,6 +513,7 @@ class Swordsman(Unit):
         self.initiative = 11
         self.attack_range = 1
         self.base_defense = 8
+        self.convert_old_stats_to_new()
 
 class Gryphon(Unit):
     def __init__(self, x, y, team):
@@ -446,6 +526,7 @@ class Gryphon(Unit):
         self.initiative = 14
         self.attack_range = 1
         self.base_defense = 10
+        self.convert_old_stats_to_new()
 
 # --- Юниты нежити ---
 class Skeleton(Unit):
@@ -459,6 +540,7 @@ class Skeleton(Unit):
         self.initiative = 9
         self.attack_range = 1
         self.base_defense = 2
+        self.convert_old_stats_to_new()
 
     # Используем базовый рендер через спрайт self.image
 
@@ -473,6 +555,7 @@ class Zombie(Unit):
         self.initiative = 6
         self.attack_range = 1
         self.base_defense = 7
+        self.convert_old_stats_to_new()
 
     # Используем базовый рендер через спрайт self.image
 
@@ -487,6 +570,7 @@ class Ghost(Unit):
         self.initiative = 15
         self.attack_range = 1
         self.base_defense = 2
+        self.convert_old_stats_to_new()
 
     # Используем базовый рендер через спрайт self.image
 
@@ -501,6 +585,7 @@ class Vampire(Unit):
         self.initiative = 12
         self.attack_range = 1
         self.base_defense = 5
+        self.convert_old_stats_to_new()
 
     # Используем базовый рендер через спрайт self.image
 
@@ -516,6 +601,7 @@ class Lich(Unit):
         self.is_ranged = True
         self.attack_range = 4
         self.base_defense = 4
+        self.convert_old_stats_to_new()
 
     # Используем базовый рендер через спрайт self.image
 
@@ -524,8 +610,22 @@ class Lich(Unit):
 # Старые классы Warrior, Archer, Knight больше не нужны 
 
 class Hero(Unit):
-    def __init__(self, x, y, team, spells=None, attack=0, defense=0, knowledge=3, spell_power=1):
+    def __init__(self, x, y, team, spells=None, attack=0, defense=0, knowledge=3, spell_power=1, hero_class=None):
         super().__init__(x, y, team, 'hero')
+        
+        # Определяем класс героя по умолчанию для каждой расы
+        if hero_class is None:
+            default_classes = {
+                'human': 'warrior',
+                'elf': 'archer',
+                'undead': 'mage',
+                'demon': 'warrior',
+                'dwarf': 'warrior',
+                'shadow': 'mage'
+            }
+            hero_class = default_classes.get(team, 'warrior')
+        
+        self.hero_class = hero_class
         self.attack = attack
         self.defense = defense
         self.knowledge = knowledge
@@ -536,13 +636,31 @@ class Hero(Unit):
         self.spells = spells if spells is not None else []
         self.selected_spell = None
         self.used_spell_this_round = False
-        self.image = load_image(f'hero_{team}')
+        
+        # Загружаем изображение в зависимости от класса
+        image_name = f'hero_{team}_{hero_class}'
+        try:
+            self.image = load_image(image_name)
+        except:
+            # Если изображения для класса нет, используем стандартное
+            self.image = load_image(f'hero_{team}')
+        
         self.hover_time = 0
         self.show_tooltip = False
         self.last_tooltip_update = time.time()
         self.game_ref = None
-        # Герой может атаковать дальнобойно
-        self.is_ranged = True
+        
+        # Устанавливаем тип атаки и дальность в зависимости от класса
+        if hero_class == 'archer':
+            self.is_ranged = True
+            self.attack_type = 'physical'
+        elif hero_class == 'mage':
+            self.is_ranged = True
+            self.attack_type = 'magical'
+        else:  # warrior
+            self.is_ranged = False
+            self.attack_type = 'physical'
+        
         self.has_attacked = False
 
     def draw(self, surface):
@@ -559,8 +677,15 @@ class Hero(Unit):
         dt = now - getattr(self, 'last_tooltip_update', now)
         self.last_tooltip_update = now
         font = pygame.font.Font(None, 24)
+        # Названия классов на русском
+        class_names = {
+            'warrior': 'Воин',
+            'archer': 'Лучник',
+            'mage': 'Маг'
+        }
+        class_name = class_names.get(self.hero_class, self.hero_class)
         tooltip_text = [
-            (f"Герой ({TEAM_LABELS.get(self.team, self.team)})", (255,255,255)),
+            (f"Герой - {class_name} ({TEAM_LABELS.get(self.team, self.team)})", (255,255,255)),
             (f"Атака: {self.attack}", (255,220,120)),
             (f"Дальнобойная атака: {self.attack * 3 + 1}", (255,180,120)),
             (f"Защита: {self.defense}", (180,180,255)),
@@ -602,7 +727,7 @@ class Hero(Unit):
         # Герой наносит фиксированный урон: attack*3+1
         return self.attack * 3 + 1
 
-    def take_damage(self, damage):
+    def take_damage(self, damage, attack_type='physical'):
         # Герой не получает урон, но фиксируем полученный урон для реактивных эффектов (огненный щит)
         try:
             self.last_damage_received = max(1, int(damage))
@@ -651,6 +776,7 @@ class Pixie(Unit):
         self.initiative = 16
         self.attack_range = 1
         self.base_defense = 1
+        self.convert_old_stats_to_new()
 
 class ElfScout(Unit):
     def __init__(self, x, y, team):
@@ -663,6 +789,7 @@ class ElfScout(Unit):
         self.initiative = 13
         self.attack_range = 1
         self.base_defense = 2
+        self.convert_old_stats_to_new()
 
 class ElfArcher(Unit):
     def __init__(self, x, y, team):
@@ -676,6 +803,7 @@ class ElfArcher(Unit):
         self.is_ranged = True
         self.attack_range = 4
         self.base_defense = 2
+        self.convert_old_stats_to_new()
         self.bow_draw_sound = load_sound('bow_draw')
         self.arrow_shot_sound = load_sound('arrow_shot')
         self.arrow_hit_sound = load_sound('arrow_hit')
@@ -691,6 +819,7 @@ class Dryad(Unit):
         self.initiative = 10
         self.attack_range = 1
         self.base_defense = 4
+        self.convert_old_stats_to_new()
 
 class Ent(Unit):
     def __init__(self, x, y, team):
@@ -703,6 +832,7 @@ class Ent(Unit):
         self.initiative = 7
         self.attack_range = 1
         self.base_defense = 12
+        self.convert_old_stats_to_new()
 
 class Imp(Unit):
     def __init__(self, x, y, team):
@@ -715,6 +845,7 @@ class Imp(Unit):
         self.initiative = 15
         self.attack_range = 1
         self.base_defense = 2
+        self.convert_old_stats_to_new()
 
 class Gog(Unit):
     def __init__(self, x, y, team):
@@ -728,6 +859,7 @@ class Gog(Unit):
         self.is_ranged = True
         self.attack_range = 3
         self.base_defense = 2
+        self.convert_old_stats_to_new()
 
 class Demon(Unit):
     def __init__(self, x, y, team):
@@ -740,6 +872,7 @@ class Demon(Unit):
         self.initiative = 11
         self.attack_range = 1
         self.base_defense = 6
+        self.convert_old_stats_to_new()
 
 class Cerberus(Unit):
     def __init__(self, x, y, team):
@@ -752,6 +885,7 @@ class Cerberus(Unit):
         self.initiative = 14
         self.attack_range = 1
         self.base_defense = 5
+        self.convert_old_stats_to_new()
 
 class Succubus(Unit):
     def __init__(self, x, y, team):
@@ -765,6 +899,7 @@ class Succubus(Unit):
         self.is_ranged = True
         self.attack_range = 4
         self.base_defense = 3
+        self.convert_old_stats_to_new()
 
 # --- Гномы ---
 class Miner(Unit):
@@ -778,6 +913,7 @@ class Miner(Unit):
         self.initiative = 7
         self.attack_range = 1
         self.base_defense = 3
+        self.convert_old_stats_to_new()
 
 class Spearthrower(Unit):
     def __init__(self, x, y, team):
@@ -791,6 +927,7 @@ class Spearthrower(Unit):
         self.is_ranged = True
         self.attack_range = 3
         self.base_defense = 2
+        self.convert_old_stats_to_new()
 
 class BearRider(Unit):
     def __init__(self, x, y, team):
@@ -803,6 +940,7 @@ class BearRider(Unit):
         self.initiative = 10
         self.attack_range = 1
         self.base_defense = 4
+        self.convert_old_stats_to_new()
 
 class RuneMage(Unit):
     def __init__(self, x, y, team):
@@ -816,6 +954,7 @@ class RuneMage(Unit):
         self.is_ranged = True
         self.attack_range = 4
         self.base_defense = 2
+        self.convert_old_stats_to_new()
 
 class Jarl(Unit):
     def __init__(self, x, y, team):
@@ -828,6 +967,7 @@ class Jarl(Unit):
         self.initiative = 11
         self.attack_range = 1
         self.base_defense = 6
+        self.convert_old_stats_to_new()
 
 # --- Лига теней ---
 class Scout(Unit):
@@ -841,6 +981,7 @@ class Scout(Unit):
         self.initiative = 10
         self.attack_range = 1
         self.base_defense = 2
+        self.convert_old_stats_to_new()
 
 class Beast(Unit):
     def __init__(self, x, y, team):
@@ -853,6 +994,7 @@ class Beast(Unit):
         self.initiative = 11
         self.attack_range = 1
         self.base_defense = 3
+        self.convert_old_stats_to_new()
 
 class Minotaur(Unit):
     def __init__(self, x, y, team):
@@ -865,6 +1007,7 @@ class Minotaur(Unit):
         self.initiative = 12
         self.attack_range = 1
         self.base_defense = 5
+        self.convert_old_stats_to_new()
 
 class Witch(Unit):
     def __init__(self, x, y, team):
@@ -878,6 +1021,7 @@ class Witch(Unit):
         self.is_ranged = True
         self.attack_range = 3
         self.base_defense = 2
+        self.convert_old_stats_to_new()
 
 class LizardRider(Unit):
     def __init__(self, x, y, team):
@@ -890,3 +1034,30 @@ class LizardRider(Unit):
         self.initiative = 12
         self.attack_range = 1
         self.base_defense = 4
+        self.convert_old_stats_to_new()
+
+class Corpse:
+    """Труп юнита - остаётся на поле после смерти, юниты могут проходить сквозь него"""
+    def __init__(self, x, y, team, unit_type, max_health):
+        self.x = x
+        self.y = y
+        self.team = team
+        self.unit_type = unit_type
+        self.max_health = max_health
+        self.is_corpse = True
+        # Загружаем изображение юнита для отображения в сером цвете
+        try:
+            self.original_image = load_image(f'{unit_type}_{team}')
+        except:
+            self.original_image = None
+    
+    def draw(self, screen):
+        """Отрисовка трупа серым цветом"""
+        if self.original_image:
+            # Создаём серую версию изображения
+            gray_surface = pygame.Surface(self.original_image.get_size())
+            gray_surface.fill((128, 128, 128))  # Серый цвет
+            gray_surface.blit(self.original_image, (0, 0), special_flags=pygame.BLEND_MULT)
+            # Делаем полупрозрачным
+            gray_surface.set_alpha(150)
+            screen.blit(gray_surface, (self.x * CELL_SIZE, self.y * CELL_SIZE))

@@ -5,7 +5,22 @@ from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT, GRID_WIDTH, GRID_HEI
 
 def load_image(name, scale=1):
     image = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-    unit, team = name.rsplit('_', 1)
+    # Разделяем имя на части
+    parts = name.split('_')
+    if len(parts) >= 3 and parts[0] == 'hero':
+        # Формат: hero_team_class
+        unit = 'hero'
+        team = parts[1]
+        hero_class = parts[2]
+    elif len(parts) >= 2:
+        # Обычный формат: unit_team
+        unit = '_'.join(parts[:-1])
+        team = parts[-1]
+        hero_class = None
+    else:
+        unit = name
+        team = 'human'
+        hero_class = None
     # Цветовые схемы
     if team == 'human':
         main_color = (180, 160, 100)
@@ -23,72 +38,198 @@ def load_image(name, scale=1):
         cloth = (80, 60, 120)
     # Герой
     if unit == 'hero':
-        if team == 'elf':
-            image.fill((60, 180, 80))  # зелёный фон
-            # Плащ
-            pygame.draw.rect(image, (120, 220, 120), (8, 20, 24, 18))
-            # Лицо
-            pygame.draw.ellipse(image, (220, 255, 200), (10, 8, 20, 18))
-            # Корона/венец
-            pygame.draw.polygon(image, (255, 220, 80), [(12, 12), (16, 4), (20, 12), (24, 4), (28, 12)])
-            # Глаза
-            pygame.draw.circle(image, (0,80,0), (16, 16), 2)
-            pygame.draw.circle(image, (0,80,0), (24, 16), 2)
-            # Уши
-            pygame.draw.polygon(image, (220, 255, 200), [(10, 16), (4, 10), (12, 12)])
-            pygame.draw.polygon(image, (220, 255, 200), [(30, 16), (36, 10), (28, 12)])
-            # Золотая брошь
-            pygame.draw.circle(image, (255, 220, 80), (20, 28), 4)
-        elif team == 'demon':
-            image.fill((120, 40, 20))  # тёмно-красный фон
-            # Плащ
-            pygame.draw.rect(image, (180, 60, 40), (8, 20, 24, 18))
-            # Лицо
-            pygame.draw.ellipse(image, (255, 180, 120), (10, 8, 20, 18))
-            # Рога
-            pygame.draw.polygon(image, (180, 60, 40), [(12, 12), (8, 2), (16, 8)])
-            pygame.draw.polygon(image, (180, 60, 40), [(28, 12), (32, 2), (24, 8)])
-            # Глаза
-            pygame.draw.circle(image, (200,0,0), (16, 16), 2)
-            pygame.draw.circle(image, (200,0,0), (24, 16), 2)
-            # Клыки
-            pygame.draw.polygon(image, (255,255,255), [(16, 24), (18, 28), (20, 24)])
-            pygame.draw.polygon(image, (255,255,255), [(24, 24), (22, 28), (20, 24)])
-            # Огненный шар
-            pygame.draw.circle(image, (255, 80, 20), (20, 32), 5)
-        elif team == 'human':
-            image.fill(main_color)
-            # Мантия
-            pygame.draw.rect(image, cloth, (8, 20, 24, 18))
-            # Лицо
-            pygame.draw.ellipse(image, skin, (10, 8, 20, 18))
-            # Корона
-            pygame.draw.polygon(image, gold, [(12, 12), (16, 4), (20, 12), (24, 4), (28, 12)])
-            # Глаза
-            pygame.draw.circle(image, (0,0,0), (16, 16), 2)
-            pygame.draw.circle(image, (0,0,0), (24, 16), 2)
-            # Плащ
-            pygame.draw.arc(image, accent, (6, 18, 28, 18), 3.14, 0, 3)
+        # Рисуем героя в зависимости от расы и класса
+        if team == 'human':
+            if hero_class == 'warrior':
+                # Воин-человек: рыцарь в доспехах
+                image.fill((180, 160, 100))
+                pygame.draw.rect(image, (200,200,220), (10, 16, 20, 20))  # Латы
+                pygame.draw.ellipse(image, (200,200,220), (10, 6, 20, 14))  # Шлем
+                pygame.draw.ellipse(image, skin, (14, 10, 12, 8))  # Лицо
+                pygame.draw.circle(image, (0,0,0), (18, 14), 1)
+                pygame.draw.circle(image, (0,0,0), (22, 14), 1)
+                pygame.draw.rect(image, gold, (14, 8, 12, 4))  # Корона на шлеме
+                pygame.draw.rect(image, (220,220,240), (28, 24, 6, 14))  # Меч
+                pygame.draw.rect(image, gold, (26, 22, 10, 4))  # Гарда
+                pygame.draw.ellipse(image, accent, (2, 22, 12, 18))  # Щит
+            elif hero_class == 'archer':
+                # Лучник-человек
+                image.fill((140, 160, 120))
+                pygame.draw.rect(image, (120,140,80), (14, 20, 12, 16))  # Туника
+                pygame.draw.ellipse(image, skin, (14, 8, 12, 12))  # Лицо
+                pygame.draw.ellipse(image, (100,120,60), (12, 4, 16, 10))  # Капюшон
+                pygame.draw.circle(image, (0,0,0), (18, 14), 1)
+                pygame.draw.circle(image, (0,0,0), (22, 14), 1)
+                pygame.draw.arc(image, (140,100,60), (4, 10, 24, 24), 0.7, 2.4, 3)  # Лук
+                pygame.draw.line(image, (200,200,200), (16, 22), (26, 14), 2)  # Стрела
+                pygame.draw.rect(image, (100,80,40), (26, 18, 4, 12))  # Колчан
+            else:  # mage
+                # Маг-человек
+                image.fill((160, 140, 180))
+                pygame.draw.rect(image, (100,120,200), (10, 20, 20, 16))  # Мантия
+                pygame.draw.ellipse(image, skin, (12, 8, 16, 14))  # Лицо
+                pygame.draw.polygon(image, (80,100,180), [(14,10),(20,4),(26,10)])  # Остроконечная шляпа
+                pygame.draw.circle(image, (0,0,0), (17, 15), 1)
+                pygame.draw.circle(image, (0,0,0), (23, 15), 1)
+                pygame.draw.line(image, (140,120,80), (28, 12), (28, 30), 3)  # Посох
+                pygame.draw.circle(image, (100,180,255), (28, 12), 4)  # Кристалл
+                pygame.draw.circle(image, (120,200,255), (28, 12), 2)
+        
+        elif team == 'elf':
+            if hero_class == 'archer':  # Лучник по умолчанию
+                image.fill((60, 180, 80))
+                pygame.draw.rect(image, (100, 200, 100), (12, 20, 16, 16))  # Одежда
+                pygame.draw.ellipse(image, (220, 255, 200), (12, 8, 16, 16))  # Лицо
+                pygame.draw.polygon(image, (220, 255, 200), [(10, 14), (4, 8), (12, 10)])  # Ухо
+                pygame.draw.polygon(image, (220, 255, 200), [(30, 14), (36, 8), (28, 10)])  # Ухо
+                pygame.draw.circle(image, (0,100,0), (17, 14), 2)
+                pygame.draw.circle(image, (0,100,0), (23, 14), 2)
+                pygame.draw.polygon(image, (200,180,60), [(14,12),(20,6),(26,12)])  # Венец
+                pygame.draw.arc(image, (80,140,40), (2, 8, 28, 28), 0.5, 2.6, 3)  # Длинный лук
+                pygame.draw.line(image, (220,220,220), (14, 20), (30, 12), 2)  # Стрела
+            elif hero_class == 'warrior':
+                image.fill((60, 180, 80))
+                pygame.draw.rect(image, (120,200,120), (10, 18, 20, 18))  # Лёгкие доспехи
+                pygame.draw.ellipse(image, (220, 255, 200), (12, 8, 16, 14))  # Лицо
+                pygame.draw.polygon(image, (220, 255, 200), [(10, 14), (4, 8), (12, 10)])
+                pygame.draw.polygon(image, (220, 255, 200), [(30, 14), (36, 8), (28, 10)])
+                pygame.draw.circle(image, (0,100,0), (17, 14), 2)
+                pygame.draw.circle(image, (0,100,0), (23, 14), 2)
+                pygame.draw.polygon(image, (200,180,60), [(14,10),(20,4),(26,10)])
+                pygame.draw.rect(image, (220,240,220), (28, 22, 5, 14))  # Эльфийский клинок
+                pygame.draw.rect(image, (180,160,60), (26, 20, 9, 4))
+            else:  # mage
+                image.fill((60, 180, 80))
+                pygame.draw.rect(image, (80,160,140), (10, 20, 20, 16))  # Мантия природы
+                pygame.draw.ellipse(image, (220, 255, 200), (12, 8, 16, 14))
+                pygame.draw.polygon(image, (220, 255, 200), [(10, 14), (4, 8), (12, 10)])
+                pygame.draw.polygon(image, (220, 255, 200), [(30, 14), (36, 8), (28, 10)])
+                pygame.draw.circle(image, (0,100,0), (17, 14), 2)
+                pygame.draw.circle(image, (0,100,0), (23, 14), 2)
+                pygame.draw.line(image, (100,140,60), (30, 10), (30, 32), 3)  # Посох друида
+                pygame.draw.circle(image, (120,255,120), (30, 10), 4)  # Зелёный кристалл
+        
         elif team == 'undead':
-            image.fill(main_color)
-            pygame.draw.ellipse(image, (220,220,220), (10, 8, 20, 18))
-            pygame.draw.polygon(image, gold, [(12, 12), (16, 4), (20, 12), (24, 4), (28, 12)])
-            pygame.draw.arc(image, accent, (6, 18, 28, 18), 3.14, 0, 3)
-            pygame.draw.circle(image, (80,40,120), (16, 16), 2)
-            pygame.draw.circle(image, (80,40,120), (24, 16), 2)
+            if hero_class == 'mage':  # Маг по умолчанию (лич)
+                image.fill((120, 100, 180))
+                pygame.draw.rect(image, (80,60,120), (10, 20, 20, 16))  # Тёмная мантия
+                pygame.draw.ellipse(image, (220,220,220), (12, 8, 16, 16))  # Череп
+                pygame.draw.polygon(image, (180,120,255), [(14,10),(20,2),(26,10)])  # Корона мёртвых
+                pygame.draw.circle(image, (180,40,220), (17, 15), 3)  # Светящиеся глаза
+                pygame.draw.circle(image, (180,40,220), (23, 15), 3)
+                pygame.draw.line(image, (100,80,60), (28, 10), (28, 34), 3)  # Посох некроманта
+                pygame.draw.circle(image, (140,40,180), (28, 10), 5)  # Тёмный кристалл
+            elif hero_class == 'warrior':
+                image.fill((120, 100, 180))
+                pygame.draw.rect(image, (100,100,120), (10, 16, 20, 20))  # Древняя броня
+                pygame.draw.ellipse(image, (220,220,220), (12, 8, 16, 14))  # Череп в шлеме
+                pygame.draw.rect(image, (80,80,100), (10, 6, 20, 8))  # Шлем
+                pygame.draw.circle(image, (180,40,220), (17, 14), 2)
+                pygame.draw.circle(image, (180,40,220), (23, 14), 2)
+                pygame.draw.rect(image, (180,180,200), (28, 22, 6, 14))  # Проклятый меч
+                pygame.draw.rect(image, (140,40,180), (26, 20, 10, 4))
+            else:  # archer
+                image.fill((120, 100, 180))
+                pygame.draw.rect(image, (100,80,140), (12, 20, 16, 16))  # Плащ
+                pygame.draw.ellipse(image, (220,220,220), (12, 8, 16, 14))  # Череп
+                pygame.draw.circle(image, (180,40,220), (17, 14), 2)
+                pygame.draw.circle(image, (180,40,220), (23, 14), 2)
+                pygame.draw.arc(image, (60,40,80), (4, 10, 24, 24), 0.6, 2.5, 3)  # Костяной лук
+                pygame.draw.line(image, (200,200,200), (16, 22), (28, 14), 2)
+        
+        elif team == 'demon':
+            if hero_class == 'warrior':  # Воин по умолчанию
+                image.fill((140, 40, 20))
+                pygame.draw.rect(image, (200,60,40), (10, 18, 20, 18))  # Адская броня
+                pygame.draw.ellipse(image, (240,120,80), (12, 8, 16, 14))  # Лицо
+                pygame.draw.polygon(image, (180,40,20), [(12, 12), (8, 2), (16, 8)])  # Рог
+                pygame.draw.polygon(image, (180,40,20), [(28, 12), (32, 2), (24, 8)])  # Рог
+                pygame.draw.circle(image, (255,40,0), (17, 14), 2)  # Огненные глаза
+                pygame.draw.circle(image, (255,40,0), (23, 14), 2)
+                pygame.draw.rect(image, (255,100,60), (28, 22, 6, 14))  # Огненный меч
+                pygame.draw.rect(image, (200,40,20), (26, 20, 10, 4))
+            elif hero_class == 'mage':
+                image.fill((140, 40, 20))
+                pygame.draw.rect(image, (160,40,80), (10, 20, 20, 16))  # Мантия
+                pygame.draw.ellipse(image, (240,120,80), (12, 8, 16, 14))
+                pygame.draw.polygon(image, (180,40,20), [(12, 12), (8, 2), (16, 8)])
+                pygame.draw.polygon(image, (180,40,20), [(28, 12), (32, 2), (24, 8)])
+                pygame.draw.circle(image, (255,40,0), (17, 14), 2)
+                pygame.draw.circle(image, (255,40,0), (23, 14), 2)
+                pygame.draw.line(image, (120,60,40), (30, 10), (30, 32), 3)  # Посох демона
+                pygame.draw.circle(image, (255,80,20), (30, 10), 5)  # Огненный шар
+                pygame.draw.circle(image, (255,140,60), (30, 10), 3)
+            else:  # archer
+                image.fill((140, 40, 20))
+                pygame.draw.rect(image, (180,60,40), (12, 20, 16, 16))
+                pygame.draw.ellipse(image, (240,120,80), (12, 8, 16, 14))
+                pygame.draw.polygon(image, (180,40,20), [(12, 12), (8, 2), (16, 8)])
+                pygame.draw.polygon(image, (180,40,20), [(28, 12), (32, 2), (24, 8)])
+                pygame.draw.circle(image, (255,40,0), (17, 14), 2)
+                pygame.draw.circle(image, (255,40,0), (23, 14), 2)
+                pygame.draw.arc(image, (140,40,20), (4, 10, 24, 24), 0.6, 2.5, 3)
+                pygame.draw.line(image, (255,120,60), (16, 22), (28, 14), 2)  # Огненная стрела
+        
         elif team == 'dwarf':
-            image.fill((100, 120, 160))
-            pygame.draw.rect(image, (180,180,200), (8, 20, 24, 18)) # броня
-            pygame.draw.ellipse(image, (220,200,120), (10, 8, 20, 18)) # лицо
-            pygame.draw.rect(image, (120,120,160), (8, 28, 24, 10)) # пояс
-            pygame.draw.polygon(image, (255,215,0), [(12,12),(16,4),(20,12),(24,4),(28,12)]) # шлем
-            pygame.draw.circle(image, (80,80,100), (20, 28), 6) # борода
+            if hero_class == 'warrior':  # Воин по умолчанию
+                image.fill((100, 120, 160))
+                pygame.draw.rect(image, (200,200,220), (10, 18, 20, 18))  # Тяжёлая броня
+                pygame.draw.ellipse(image, (220,180,120), (12, 10, 16, 12))  # Лицо
+                pygame.draw.ellipse(image, (200,200,220), (10, 6, 20, 10))  # Шлем
+                pygame.draw.rect(image, gold, (14, 8, 12, 4))  # Рунический узор
+                pygame.draw.circle(image, (60,40,20), (18, 16), 1)
+                pygame.draw.circle(image, (60,40,20), (22, 16), 1)
+                pygame.draw.rect(image, (140,100,60), (10, 24, 20, 8))  # Борода
+                pygame.draw.rect(image, (220,220,240), (28, 20, 7, 16))  # Топор (рукоять)
+                pygame.draw.polygon(image, (200,200,220), [(28,20),(28,16),(36,18)])  # Лезвие топора
+            elif hero_class == 'archer':
+                image.fill((100, 120, 160))
+                pygame.draw.rect(image, (160,160,180), (12, 20, 16, 16))
+                pygame.draw.ellipse(image, (220,180,120), (12, 10, 16, 12))
+                pygame.draw.circle(image, (60,40,20), (18, 16), 1)
+                pygame.draw.circle(image, (60,40,20), (22, 16), 1)
+                pygame.draw.rect(image, (140,100,60), (12, 22, 16, 8))  # Борода
+                pygame.draw.arc(image, (120,80,40), (2, 8, 28, 28), 0.5, 2.6, 3)  # Арбалет
+                pygame.draw.line(image, (200,200,200), (14, 20), (30, 12), 2)
+            else:  # mage
+                image.fill((100, 120, 160))
+                pygame.draw.rect(image, (120,140,180), (10, 20, 20, 16))  # Рунная мантия
+                pygame.draw.ellipse(image, (220,180,120), (12, 10, 16, 12))
+                pygame.draw.circle(image, (60,40,20), (18, 16), 1)
+                pygame.draw.circle(image, (60,40,20), (22, 16), 1)
+                pygame.draw.rect(image, (140,100,60), (12, 22, 16, 6))  # Борода
+                pygame.draw.line(image, (180,140,80), (30, 10), (30, 32), 4)  # Рунный посох
+                pygame.draw.circle(image, (200,180,80), (30, 10), 5)  # Руна
+                for i in range(3):
+                    pygame.draw.circle(image, gold, (30, 16+i*6), 2)  # Руны на посохе
+        
         elif team == 'shadow':
-            image.fill((40,0,60))
-            pygame.draw.rect(image, (80,0,120), (8, 20, 24, 18)) # плащ
-            pygame.draw.ellipse(image, (220,200,40), (10, 8, 20, 18)) # лицо
-            pygame.draw.polygon(image, (255,215,0), [(12,12),(16,4),(20,12),(24,4),(28,12)]) # маска/корона
-            pygame.draw.circle(image, (40,40,40), (20, 28), 6) # тень
+            if hero_class == 'mage':  # Маг по умолчанию (чернокнижник)
+                image.fill((40,0,60))
+                pygame.draw.rect(image, (80,0,120), (10, 20, 20, 16))  # Тёмный плащ
+                pygame.draw.ellipse(image, (200,180,120), (12, 8, 16, 14))  # Лицо
+                pygame.draw.polygon(image, (120,0,180), [(12,8),(20,0),(28,8)])  # Капюшон
+                pygame.draw.circle(image, (120,0,180), (17, 14), 2)  # Тёмные глаза
+                pygame.draw.circle(image, (120,0,180), (23, 14), 2)
+                pygame.draw.line(image, (60,40,80), (30, 10), (30, 34), 3)  # Посох теней
+                pygame.draw.circle(image, (140,0,200), (30, 10), 5)  # Фиолетовый кристалл
+            elif hero_class == 'warrior':
+                image.fill((40,0,60))
+                pygame.draw.rect(image, (60,0,90), (10, 18, 20, 18))  # Теневая броня
+                pygame.draw.ellipse(image, (200,180,120), (12, 10, 16, 12))
+                pygame.draw.rect(image, (40,0,60), (10, 8, 20, 8))  # Шлем
+                pygame.draw.circle(image, (140,0,200), (17, 15), 2)
+                pygame.draw.circle(image, (140,0,200), (23, 15), 2)
+                pygame.draw.rect(image, (100,0,140), (28, 22, 6, 14))  # Теневой клинок
+                pygame.draw.rect(image, (80,0,120), (26, 20, 10, 4))
+            else:  # archer
+                image.fill((40,0,60))
+                pygame.draw.rect(image, (60,0,90), (12, 20, 16, 16))
+                pygame.draw.ellipse(image, (200,180,120), (12, 10, 16, 12))
+                pygame.draw.circle(image, (140,0,200), (17, 15), 2)
+                pygame.draw.circle(image, (140,0,200), (23, 15), 2)
+                pygame.draw.arc(image, (80,0,120), (4, 10, 24, 24), 0.6, 2.5, 3)
+                pygame.draw.line(image, (140,0,200), (16, 22), (28, 14), 2)  # Теневая стрела
     # Воин
     elif unit == 'warrior':
         image.fill(main_color)

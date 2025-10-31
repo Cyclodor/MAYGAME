@@ -557,9 +557,13 @@ class StoneSkinSpell(Spell):
             return
         knowledge = getattr(caster, 'knowledge', 0) if caster else 0
         percent = 0.15 + knowledge / 100.0
-        bonus = int(max(1, target.defense * percent))
-        target.defense += bonus
-        target.stone_skin_bonus = bonus
+        # Повышаем обе защиты
+        phys_bonus = int(max(1, target.phys_defense * percent))
+        magic_bonus = int(max(1, target.magic_defense * percent))
+        target.phys_defense += phys_bonus
+        target.magic_defense += magic_bonus
+        target.stone_skin_phys_bonus = phys_bonus
+        target.stone_skin_magic_bonus = magic_bonus
         # Длительность: базово 2 + сила магии героя
         turns = 2 + (getattr(caster, 'spell_power', 0) if caster else 0)
         target.stone_skin_turns = turns
@@ -584,4 +588,5 @@ class FireShieldSpell(Spell):
             turns += caster.spell_power
         # Бафф: процент отражения урона
         target.fire_shield_turns = turns
-        target.fire_shield_pct = 0.35
+        # Сохраняем силу магии кастера для расчета урона
+        target.fire_shield_spell_power = getattr(caster, 'spell_power', 0) if caster else 0
