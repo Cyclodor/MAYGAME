@@ -171,8 +171,7 @@ class Unit:
             current_atk = int(current_atk * 1.25)
         if self.attack_debuff_turns > 0:
             current_atk = int(current_atk * 0.75)
-        if getattr(self, 'rune_shield_turns', 0) > 0:
-            current_def += 15
+        # Руна защиты теперь влияет на обе защиты напрямую, не на общую
         # Учитываем каменную кожу в текущей защите
         if hasattr(self, 'stone_skin_turns') and getattr(self, 'stone_skin_turns', 0) > 0:
             current_def += getattr(self, 'stone_skin_bonus', 0)
@@ -202,6 +201,15 @@ class Unit:
         # Огненный щит
         if hasattr(self, 'fire_shield_turns') and getattr(self, 'fire_shield_turns', 0) > 0:
             tooltip_text.append((f"Огненный щит: {self.fire_shield_turns} хода", (255,180,120)))
+        # Ледяной щит
+        if hasattr(self, 'ice_shield_turns') and getattr(self, 'ice_shield_turns', 0) > 0:
+            tooltip_text.append((f"Ледяной щит: {self.ice_shield_turns} хода", (150,220,255)))
+        # Контрудар
+        if hasattr(self, 'counterstrike_turns') and getattr(self, 'counterstrike_turns', 0) > 0:
+            tooltip_text.append((f"Контрудар: {self.counterstrike_turns} хода", (200,200,255)))
+        # Слабость
+        if hasattr(self, 'weakness_turns') and getattr(self, 'weakness_turns', 0) > 0:
+            tooltip_text.append((f"Слабость: {self.weakness_turns} хода", (150,100,150)))
         # Ускорение (обычное заклинание)
         if hasattr(self, 'haste_turns') and getattr(self, 'haste_turns', 0) > 0:
             tooltip_text.append((f"Ускорение: {self.haste_turns} хода", (255,255,255)))
@@ -252,6 +260,12 @@ class Unit:
             resist_mult = (100 - self.magic_resist) / 100.0
             actual = max(1, int(actual * resist_mult))
         
+        # Ледяной щит поглощает 35% физического урона
+        if attack_type == 'physical' and hasattr(self, 'ice_shield_turns') and self.ice_shield_turns > 0:
+            absorption = getattr(self, 'ice_shield_absorption', 0.35)
+            absorbed = int(actual * absorption)
+            actual = max(1, actual - absorbed)
+        
         self.health -= actual
         try:
             self.last_damage_received = actual
@@ -259,17 +273,14 @@ class Unit:
             pass
         return self.health <= 0
 
-    def reset_turn(self):
-        self.has_moved = False
-        self.has_attacked = False
-        self.has_counterattacked = False  # Сброс флага контратаки в новом раунде
-        self.move_points_left = self.speed
-        # Забвение: пропуск хода
+    def end_turn_effects(self):
+        """Уменьшает длительность эффектов в КОНЦЕ хода юнита"""
+        # Забвение: уменьшаем счетчик
         if hasattr(self, 'forget_turns') and self.forget_turns > 0:
             self.forget_turns -= 1
-            self.has_moved = True
-            self.has_attacked = True
-            print(f'Забвение: {self.unit_type} пропускает ход ({self.x},{self.y})')
+            if self.forget_turns > 0:
+                # Устанавливаем флаг для анимации в game на следующий ход
+                self.skipped_turn_due_to_forget = True
         
         # Руна скорости: тикаем отдельный таймер
         if getattr(self, 'rune_haste_turns', 0) > 0:
@@ -321,6 +332,16 @@ class Unit:
                 self.stone_skin_phys_bonus = 0
                 self.stone_skin_magic_bonus = 0
                 print(f'Снимаем Каменную кожу с {self.unit_type} ({self.x},{self.y})')
+        # Ледяной щит
+        if hasattr(self, 'ice_shield_turns') and self.ice_shield_turns > 0:
+            self.ice_shield_turns -= 1
+            if self.ice_shield_turns == 0:
+                # Снимаем бонусы защиты
+                self.phys_defense -= getattr(self, 'ice_shield_phys_bonus', 0)
+                self.ice_shield_phys_bonus = 0
+                self.ice_shield_hp_bonus = 0
+                self.ice_shield_absorption = 0
+                print(f'Ледяной щит рассеялся у {self.unit_type} ({self.x},{self.y})')
         if self.curse_turns > 0:
             self.curse_turns -= 1
             if self.curse_turns == 0:
@@ -347,6 +368,44 @@ class Unit:
             if self.fire_shield_turns <= 0:
                 self.fire_shield_turns = 0
                 self.fire_shield_damage = 0
+        # Руна защиты: тикаем длительность
+        if getattr(self, 'rune_shield_turns', 0) > 0:
+            self.rune_shield_turns -= 1
+            if self.rune_shield_turns == 0:
+                # Снимаем бонусы обеих защит
+                self.phys_defense -= getattr(self, 'rune_shield_phys_bonus', 0)
+                self.magic_defense -= getattr(self, 'rune_shield_magic_bonus', 0)
+                self.rune_shield_phys_bonus = 0
+                self.rune_shield_magic_bonus = 0
+                print(f'Руна защиты рассеялась у {self.unit_type} ({self.x},{self.y})')
+        # Контрудар: тикаем длительность
+        if hasattr(self, 'counterstrike_turns') and self.counterstrike_turns > 0:
+            self.counterstrike_turns -= 1
+            if self.counterstrike_turns == 0:
+                print(f'Контрудар закончился у {self.unit_type} ({self.x},{self.y})')
+        # Слабость: тикаем длительность
+        if hasattr(self, 'weakness_turns') and self.weakness_turns > 0:
+            self.weakness_turns -= 1
+            if self.weakness_turns == 0:
+                # Восстанавливаем атаки
+                self.phys_attack += getattr(self, 'weakness_phys_penalty', 0)
+                self.magic_attack += getattr(self, 'weakness_magic_penalty', 0)
+                self.weakness_phys_penalty = 0
+                self.weakness_magic_penalty = 0
+                print(f'Слабость рассеялась у {self.unit_type} ({self.x},{self.y})')
+
+    def reset_turn(self):
+        """Сбрасывает флаги действий в НАЧАЛЕ хода юнита"""
+        self.has_moved = False
+        self.has_attacked = False
+        self.has_counterattacked = False
+        self.move_points_left = self.speed
+        
+        # Если юнит под забвением - блокируем его действия
+        if hasattr(self, 'forget_turns') and self.forget_turns > 0:
+            self.has_moved = True
+            self.has_attacked = True
+            self.skipped_turn_due_to_forget = True
 
     def can_attack(self, target_x, target_y, units=None):
         if hasattr(self, 'forget_turns') and getattr(self, 'forget_turns', 0) > 0:
@@ -406,7 +465,7 @@ class Unit:
             distance = abs(self.x - target_x) + abs(self.y - target_y)
             return distance == 1
 
-    def can_move(self, target_x, target_y, units):
+    def can_move(self, target_x, target_y, units, barriers=None):
         if hasattr(self, 'forget_turns') and getattr(self, 'forget_turns', 0) > 0:
             return False
         from collections import deque
@@ -416,6 +475,14 @@ class Unit:
         max_y = (SCREEN_HEIGHT - panel_height) // CELL_SIZE - 1
         if target_y > max_y or target_y < 0 or target_x < 0 or target_x >= SCREEN_WIDTH // CELL_SIZE:
             return False
+        
+        # Получаем список барьеров
+        if barriers is None:
+            if hasattr(self, 'game_ref') and self.game_ref and hasattr(self.game_ref, 'barriers'):
+                barriers = self.game_ref.barriers
+            else:
+                barriers = []
+        
         visited = set()
         queue = deque()
         queue.append((self.x, self.y, 0))
@@ -429,7 +496,11 @@ class Unit:
             for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]:
                 nx, ny = cx+dx, cy+dy
                 if (nx, ny) not in visited and 0 <= nx < SCREEN_WIDTH // CELL_SIZE and 0 <= ny <= max_y:
-                    if not any(u.x == nx and u.y == ny for u in units):
+                    # Проверяем, что клетка свободна от юнитов и барьеров
+                    has_unit = any(u.x == nx and u.y == ny for u in units)
+                    has_barrier = any(b['x'] == nx and b['y'] == ny for b in barriers)
+                    
+                    if not has_unit and not has_barrier:
                         visited.add((nx, ny))
                         queue.append((nx, ny, dist+1))
         return False
@@ -684,10 +755,17 @@ class Hero(Unit):
             'mage': 'Маг'
         }
         class_name = class_names.get(self.hero_class, self.hero_class)
+        
+        # Вычисляем базовую атаку в зависимости от класса
+        if self.hero_class == 'mage':
+            base_attack = 5 + self.spell_power
+        else:  # warrior или archer
+            base_attack = 5 + self.attack
+        
         tooltip_text = [
             (f"Герой - {class_name} ({TEAM_LABELS.get(self.team, self.team)})", (255,255,255)),
             (f"Атака: {self.attack}", (255,220,120)),
-            (f"Дальнобойная атака: {self.attack * 3 + 1}", (255,180,120)),
+            (f"Базовая атака: {base_attack}", (255,180,120)),
             (f"Защита: {self.defense}", (180,180,255)),
             (f"Знания: {self.knowledge}", (120,255,255)),
             (f"Сила магии: {self.spell_power}", (180,120,255)),
@@ -740,7 +818,7 @@ class Hero(Unit):
         self.used_spell_this_round = False
         self.has_attacked = False
 
-    def can_move(self, target_x, target_y, units):
+    def can_move(self, target_x, target_y, units, barriers=None):
         return False
 
     def update_hover(self, mouse_pos):

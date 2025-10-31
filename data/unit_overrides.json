@@ -1,6 +1,9 @@
 {
   "Pixie": {
-    "health": 14
+    "health": 25,
+    "magic_attack": 8,
+    "phys_defense": 2,
+    "magic_defense": 3
   },
   "Ent": {
     "health": 20
@@ -52,6 +55,17 @@
     "hero_class": "mage"
   },
   "Hero_elf_mage": {
-    "hero_class": "mage"
+    "hero_class": "mage",
+    "max_health": 70
+  },
+  "Miner": {},
+  "Dryad": {
+    "max_health": 70,
+    "health": 70
+  },
+  "Hero_human_mage": {
+    "knowledge": 5,
+    "spell_power": 5,
+    "max_mana": 80
   }
 }

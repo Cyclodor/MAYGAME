@@ -1270,7 +1270,84 @@ def animate_arrow_fly(screen, start, end, redraw_callback=None):
     return animate_arrow(screen, start, end, redraw_callback=redraw_callback, style='normal')
 
 def animate_fire_arrow_fly(screen, start, end, redraw_callback=None):
-    return animate_arrow(screen, start, end, redraw_callback=redraw_callback, style='fire')
+    """Улучшенная анимация полета огненной стрелы с детальными эффектами"""
+    frames = 18
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    angle = math.atan2(dy, dx)
+    
+    for i in range(frames):
+        pygame.event.pump()
+        if redraw_callback:
+            redraw_callback()
+        
+        t = i / (frames-1)
+        x = int(start[0] * (1-t) + end[0] * t)
+        y = int(start[1] * (1-t) + end[1] * t)
+        
+        # Создаем слой эффектов
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        
+        # Длинный огненный шлейф за стрелой
+        trail_length = 50
+        for j in range(20):
+            trail_t = j / 20.0
+            trail_x = x - int(trail_length * trail_t * math.cos(angle))
+            trail_y = y - int(trail_length * trail_t * math.sin(angle))
+            trail_r = max(2, int(8 * (1 - trail_t * 0.85)))
+            
+            # Градиент от яркого оранжевого к темному красному
+            if trail_t < 0.3:
+                color = (255, 200, 80, int(220 * (1 - trail_t)))
+            elif trail_t < 0.6:
+                color = (255, 140, 40, int(200 * (1 - trail_t)))
+            else:
+                color = (220, 80, 30, int(160 * (1 - trail_t)))
+            
+            pygame.draw.circle(overlay, color, (trail_x, trail_y), trail_r)
+            
+            # Огненные искры по бокам шлейфа
+            if j % 3 == 0:
+                for side in [-1, 1]:
+                    spark_x = trail_x + int(8 * math.cos(angle + math.pi/2 * side))
+                    spark_y = trail_y + int(8 * math.sin(angle + math.pi/2 * side))
+                    pygame.draw.circle(overlay, (255, 220, 100, int(180 * (1 - trail_t))), 
+                                     (spark_x, spark_y), max(1, 3 - int(trail_t * 2)))
+        
+        # Сама стрела (древко и наконечник)
+        arrow_len = 20
+        tail_x = x - int(arrow_len * math.cos(angle))
+        tail_y = y - int(arrow_len * math.sin(angle))
+        
+        # Древко (деревянное с огнём)
+        pygame.draw.line(overlay, (140, 100, 60), (tail_x, tail_y), (x, y), 4)
+        pygame.draw.line(overlay, (200, 150, 80), (tail_x, tail_y), (x, y), 2)
+        
+        # Огненный наконечник
+        tip_len = 8
+        tip_x = x + int(tip_len * math.cos(angle))
+        tip_y = y + int(tip_len * math.sin(angle))
+        
+        # Металлический наконечник с огненным свечением
+        pygame.draw.line(overlay, (255, 180, 60), (x, y), (tip_x, tip_y), 5)
+        pygame.draw.line(overlay, (255, 220, 120), (x, y), (tip_x, tip_y), 3)
+        
+        # Пульсирующее огненное свечение вокруг стрелы
+        glow_r = int(12 + 4 * math.sin(i * 0.8))
+        pygame.draw.circle(overlay, (255, 120, 40, 80), (x, y), glow_r)
+        pygame.draw.circle(overlay, (255, 200, 100, 60), (x, y), int(glow_r * 1.3))
+        
+        # Летящие искры впереди стрелы
+        for k in range(5):
+            spark_angle = angle + (random.random() - 0.5) * 0.5
+            spark_dist = 10 + random.randint(0, 15)
+            spark_x = x + int(spark_dist * math.cos(spark_angle))
+            spark_y = y + int(spark_dist * math.sin(spark_angle))
+            pygame.draw.circle(overlay, (255, 200, 80, 200), (spark_x, spark_y), 2)
+        
+        screen.blit(overlay, (0, 0))
+        pygame.display.flip()
+        pygame.time.delay(26)
 
 def animate_magic_projectile(screen, start, end, color=(120,40,180)):
     frames = 12
@@ -1323,21 +1400,23 @@ def animate_stone_skin(screen, target_px, redraw_callback=None):
         pygame.time.delay(24)
 
 def animate_curse_voodoo(screen, target_px, redraw_callback=None):
-    # Проклятие: юнита посыпают вороньими перьями
-    frames = 16
+    """Улучшенная анимация проклятия с темной магией и вороньими перьями"""
+    frames = 24
     cx, cy = target_px
+    
     # Массив перьев, которые падают на юнит
     feathers = []
-    for _ in range(20):  # 20 перьев
+    for _ in range(35):  # Больше перьев для насыщенности
         # Позиция начала падения (над юнитом)
-        start_x = cx + (random.random() - 0.5) * 60
-        start_y = cy - CELL_SIZE - random.random() * 40
+        start_x = cx + (random.random() - 0.5) * 80
+        start_y = cy - CELL_SIZE - random.random() * 60
         # Скорость падения
-        vel_x = (random.random() - 0.5) * 2
-        vel_y = random.random() * 1.5 + 0.8
+        vel_x = (random.random() - 0.5) * 2.5
+        vel_y = random.random() * 2.0 + 1.0
         # Размер и угол поворота
-        size = random.random() * 4 + 3
+        size = random.random() * 5 + 3
         angle = random.random() * 2 * math.pi
+        rotation_speed = (random.random() - 0.5) * 0.3
         feathers.append({
             'x': start_x,
             'y': start_y,
@@ -1345,7 +1424,8 @@ def animate_curse_voodoo(screen, target_px, redraw_callback=None):
             'vel_y': vel_y,
             'size': size,
             'angle': angle,
-            'alpha': 200
+            'rotation_speed': rotation_speed,
+            'alpha': 230
         })
     
     for i in range(frames):
@@ -1355,17 +1435,43 @@ def animate_curse_voodoo(screen, target_px, redraw_callback=None):
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         t = i / (frames - 1)
         
+        # Темная магическая аура вокруг цели
+        aura_alpha = int(140 * math.sin(t * math.pi))
+        for aura_ring in range(3):
+            aura_r = int(25 + aura_ring * 12 + 10 * math.sin(i * 0.3 + aura_ring))
+            pygame.draw.circle(overlay, (80, 0, 80, aura_alpha // (aura_ring + 1)), 
+                             (cx, cy), aura_r, 3)
+        
+        # Темные энергетические спирали
+        for spiral in range(8):
+            spiral_angle = (spiral * 2 * math.pi / 8) + t * 3
+            spiral_r = int(30 + 15 * t)
+            spiral_x = cx + int(spiral_r * math.cos(spiral_angle))
+            spiral_y = cy + int(spiral_r * math.sin(spiral_angle))
+            spiral_alpha = int(180 * (1 - t * 0.7))
+            
+            # Темная частица
+            pygame.draw.circle(overlay, (120, 0, 120, spiral_alpha), (spiral_x, spiral_y), 3)
+            pygame.draw.circle(overlay, (180, 0, 180, spiral_alpha), (spiral_x, spiral_y), 2)
+            
+            # След за спиралью
+            trail_r = spiral_r - 8
+            trail_x = cx + int(trail_r * math.cos(spiral_angle))
+            trail_y = cy + int(trail_r * math.sin(spiral_angle))
+            pygame.draw.line(overlay, (100, 0, 100, spiral_alpha // 2), 
+                           (trail_x, trail_y), (spiral_x, spiral_y), 2)
+        
         # Обновляем позиции перьев
         for feather in feathers:
             feather['x'] += feather['vel_x']
             feather['y'] += feather['vel_y']
-            feather['angle'] += 0.2  # Вращение
+            feather['angle'] += feather['rotation_speed']  # Вращение
             # Замедление по мере падения
             if feather['y'] > cy - CELL_SIZE//2:
-                feather['vel_y'] *= 0.95
-                feather['alpha'] = max(80, feather['alpha'] - 10)
+                feather['vel_y'] *= 0.93
+                feather['alpha'] = max(60, feather['alpha'] - 8)
             else:
-                feather['alpha'] = min(220, feather['alpha'] + 5)
+                feather['alpha'] = min(230, feather['alpha'] + 8)
         
         # Рисуем перья
         for feather in feathers:
@@ -1404,13 +1510,33 @@ def animate_curse_voodoo(screen, target_px, redraw_callback=None):
                                        (barb_x + int(barb_length * math.cos(barb_angle)),
                                         barb_y + int(barb_length * math.sin(barb_angle))), 1)
         
+        # Темное свечение от центра проклятия
+        glow_alpha = int(100 * math.sin(t * math.pi))
+        for glow_layer in range(4):
+            glow_r = int(20 + glow_layer * 8)
+            pygame.draw.circle(overlay, (60, 0, 60, glow_alpha // (glow_layer + 1)), 
+                             (cx, cy), glow_r)
+        
+        # Искры проклятия разлетаются
+        if t > 0.3:
+            spark_t = (t - 0.3) / 0.7
+            for k in range(12):
+                spark_angle = k * (2 * math.pi / 12) + spark_t * 0.5
+                spark_dist = int(10 + 30 * spark_t)
+                spark_x = cx + int(spark_dist * math.cos(spark_angle))
+                spark_y = cy + int(spark_dist * math.sin(spark_angle))
+                spark_alpha = int(200 * (1 - spark_t))
+                
+                pygame.draw.circle(overlay, (150, 0, 150, spark_alpha), (spark_x, spark_y), 3)
+                pygame.draw.circle(overlay, (200, 50, 200, spark_alpha), (spark_x, spark_y), 2)
+        
         # Дополнительные перья, которые появляются сверху
-        if i < 10 and i % 2 == 0:
-            new_x = cx + (random.random() - 0.5) * 40
-            new_y = cy - CELL_SIZE - 20 - random.random() * 30
+        if i < 15 and i % 2 == 0:
+            new_x = cx + (random.random() - 0.5) * 60
+            new_y = cy - CELL_SIZE - 25 - random.random() * 40
             # Рисуем одно новое перо
-            alpha = 180
-            size = random.random() * 3 + 2
+            alpha = 200
+            size = random.random() * 4 + 3
             angle = random.random() * 2 * math.pi
             px, py = int(new_x), int(new_y)
             cos_a = math.cos(angle)
@@ -1423,6 +1549,14 @@ def animate_curse_voodoo(screen, target_px, redraw_callback=None):
             pygame.draw.line(overlay, (40, 40, 40, alpha),
                            (px - int(size * cos_a), py - int(size * sin_a)),
                            (px + int(size * cos_a), py + int(size * sin_a)), 2)
+        
+        # Темные дымные частицы поднимаются вверх
+        for k in range(10):
+            smoke_x = cx + random.randint(-20, 20)
+            smoke_y = cy - int(10 * t) + random.randint(-10, 10)
+            smoke_alpha = int(120 * (1 - t) * random.random())
+            smoke_r = random.randint(2, 4)
+            pygame.draw.circle(overlay, (40, 0, 40, smoke_alpha), (smoke_x, smoke_y), smoke_r)
         
         screen.blit(overlay, (0,0))
         pygame.display.flip()
@@ -1654,29 +1788,86 @@ def animate_raise_dead(screen, center_px, redraw_callback=None):
         pygame.time.delay(28)
 
 def animate_fire_explosion(screen, x, y):
-    # Небольшой взрыв с искрами — компактный эффект для стрелы
-    frames = 8
+    """Улучшенный взрыв с детальными огненными эффектами"""
+    frames = 14
     for i in range(frames):
         pygame.event.pump()
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         t = i / (frames - 1)
-        # Малое огненное кольцо
-        r1 = int(6 + 12 * t)
-        alpha = max(0, 200 - int(200 * t))
-        pygame.draw.circle(overlay, (255, 140, 50, alpha), (x, y), r1, 3)
-        # Небольшое ядро
-        core_alpha = max(0, 220 - int(260 * t))
-        pygame.draw.circle(overlay, (255, 200, 80, core_alpha), (x, y), max(1, 6 - i))
-        # Несколько искр
-        for k in range(6):
-            ang = (k * (2*math.pi / 6.0)) + t * 1.5
-            dist = 4 + int(14 * t)
+        
+        # Множественные расходящиеся огненные кольца
+        for ring in range(4):
+            r = int(8 + (18 + ring * 8) * t)
+            alpha = max(0, int((200 - ring * 30) * (1 - t)))
+            # Внешнее кольцо - оранжевое
+            pygame.draw.circle(overlay, (255, 140, 50, alpha), (x, y), r, 4)
+            # Внутреннее кольцо - желтое
+            if ring < 2:
+                pygame.draw.circle(overlay, (255, 200, 80, min(255, alpha + 40)), (x, y), max(1, r - 3), 2)
+        
+        # Яркое белое ядро взрыва
+        core_r = max(2, int(12 * (1 - t)))
+        pygame.draw.circle(overlay, (255, 255, 255, int(255 * (1 - t * 0.7))), (x, y), core_r)
+        pygame.draw.circle(overlay, (255, 240, 180, int(220 * (1 - t))), (x, y), core_r + 3)
+        pygame.draw.circle(overlay, (255, 180, 100, int(180 * (1 - t))), (x, y), core_r + 6)
+        
+        # Множество разлетающихся искр
+        for k in range(16):
+            ang = (k * (2*math.pi / 16.0)) + t * 0.8 + k * 0.3
+            # Искры разлетаются с разной скоростью
+            base_dist = 8 + (k % 3) * 5
+            dist = base_dist + int(30 * t)
             sx = x + int(dist * math.cos(ang))
             sy = y + int(dist * math.sin(ang))
-            pygame.draw.circle(overlay, (255, 120, 40, int(180*(1-t))), (sx, sy), 2)
+            
+            spark_alpha = int(220 * (1 - t * 0.9))
+            spark_size = max(1, 4 - int(3 * t))
+            
+            # Градиент цвета искр
+            if k % 3 == 0:
+                color = (255, 220, 100, spark_alpha)  # Желтые
+            elif k % 3 == 1:
+                color = (255, 160, 60, spark_alpha)   # Оранжевые
+            else:
+                color = (255, 100, 40, spark_alpha)   # Красные
+            
+            pygame.draw.circle(overlay, color, (sx, sy), spark_size)
+            
+            # След за искрой
+            if t < 0.6:
+                trail_x = x + int((dist - 8) * math.cos(ang))
+                trail_y = y + int((dist - 8) * math.sin(ang))
+                pygame.draw.line(overlay, (*color[:3], spark_alpha // 2), 
+                               (trail_x, trail_y), (sx, sy), 2)
+        
+        # Дополнительные мелкие искры между основными
+        for k in range(24):
+            ang = random.uniform(0, 2 * math.pi)
+            dist = random.randint(5, int(15 + 35 * t))
+            sx = x + int(dist * math.cos(ang))
+            sy = y + int(dist * math.sin(ang))
+            alpha = int(random.randint(150, 220) * (1 - t))
+            pygame.draw.circle(overlay, (255, 200, 120, alpha), (sx, sy), 1)
+        
+        # Огненное свечение вокруг взрыва
+        glow_r = int(20 + 35 * t)
+        pygame.draw.circle(overlay, (255, 140, 40, int(60 * (1 - t))), (x, y), glow_r)
+        
+        # Дым начинает появляться в конце
+        if t > 0.5:
+            smoke_t = (t - 0.5) / 0.5
+            for k in range(8):
+                smoke_ang = k * (2*math.pi / 8.0) + smoke_t * 0.5
+                smoke_dist = int(15 + 25 * smoke_t)
+                smoke_x = x + int(smoke_dist * math.cos(smoke_ang))
+                smoke_y = y + int(smoke_dist * math.sin(smoke_ang)) - int(10 * smoke_t)
+                smoke_r = int(5 + 8 * smoke_t)
+                smoke_alpha = int(120 * (1 - smoke_t * 0.7))
+                pygame.draw.circle(overlay, (60, 50, 45, smoke_alpha), (smoke_x, smoke_y), smoke_r)
+        
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(18)
+        pygame.time.delay(22)
 
 def animate_forget_spell(screen, start, end, redraw_callback=None):
     """Максимально насыщенная анимация заклинания Забвение с темно-фиолетовыми эффектами"""
@@ -1832,34 +2023,113 @@ def animate_forget_spell(screen, start, end, redraw_callback=None):
         pygame.time.delay(35)
 
 def animate_frost_ring(screen, center, radius_cells=1, redraw_callback=None):
-    """Кольцо холода: трещины на земле, прозрачный розовый радиус"""
+    """Улучшенное Кольцо холода: детальная заморозка с ледяными кристаллами и туманом"""
     cx, cy = center
-    ring_px = pygame.Surface((CELL_SIZE*3, CELL_SIZE*3), pygame.SRCALPHA)
-    ring_center = (CELL_SIZE*1.5, CELL_SIZE*1.5)
-    frames = 16
+    frames = 22
+    
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
-        ring_px.fill((0,0,0,0))
-        # Трещины льда на земле
-        crack_alpha = 120
-        for k in range(6):
-            ang = k * (2*math.pi/6) + i*0.1
-            for seg in range(3):
-                r1 = CELL_SIZE//4 + seg*CELL_SIZE//6
-                r2 = r1 + CELL_SIZE//8
+        
+        t = i / (frames - 1)
+        ring_px = pygame.Surface((CELL_SIZE*4, CELL_SIZE*4), pygame.SRCALPHA)
+        ring_center = (CELL_SIZE*2, CELL_SIZE*2)
+        
+        # Морозное расширяющееся кольцо
+        expand_r = int(CELL_SIZE * 1.5 * t)
+        
+        # Ледяной туман расползается от центра
+        for fog_ring in range(5):
+            fog_r = int((10 + fog_ring * 15) * t)
+            fog_alpha = int(80 * (1 - fog_ring * 0.15) * (1 - t * 0.5))
+            pygame.draw.circle(ring_px, (200, 230, 255, fog_alpha), ring_center, fog_r)
+        
+        # Множественные ледяные кольца
+        for ring in range(4):
+            ring_r = int(expand_r - ring * 8)
+            if ring_r > 5:
+                ring_alpha = int(180 - ring * 30)
+                # Основное голубое кольцо
+                pygame.draw.circle(ring_px, (180, 220, 255, ring_alpha), ring_center, ring_r, 3)
+                # Белое свечение по краю
+                pygame.draw.circle(ring_px, (230, 245, 255, min(255, ring_alpha + 40)), ring_center, ring_r, 1)
+        
+        # Ледяные трещины растут от центра
+        num_cracks = 12
+        for k in range(num_cracks):
+            ang = k * (2*math.pi/num_cracks) + i*0.05
+            crack_len = int(expand_r * 0.9)
+            
+            # Рисуем разветвляющуюся трещину
+            for seg in range(4):
+                seg_t = seg / 4.0
+                if seg_t > t:
+                    break
+                    
+                r1 = int(crack_len * seg_t)
+                r2 = int(crack_len * min(1.0, seg_t + 0.25))
+                
                 x1 = int(ring_center[0] + r1 * math.cos(ang))
                 y1 = int(ring_center[1] + r1 * math.sin(ang))
-                x2 = int(ring_center[0] + r2 * math.cos(ang+0.1))
-                y2 = int(ring_center[1] + r2 * math.sin(ang+0.1))
-                pygame.draw.line(ring_px, (200, 220, 255, crack_alpha), (x1, y1), (x2, y2), 1)
-        # Прозрачное розовое кольцо радиуса 1 клетки
-        pygame.draw.circle(ring_px, (255, 120, 200, 90), ring_center, CELL_SIZE, 4)
+                x2 = int(ring_center[0] + r2 * math.cos(ang + random.uniform(-0.2, 0.2)))
+                y2 = int(ring_center[1] + r2 * math.sin(ang + random.uniform(-0.2, 0.2)))
+                
+                crack_alpha = int(220 * (1 - seg_t * 0.5))
+                pygame.draw.line(ring_px, (200, 230, 255, crack_alpha), (x1, y1), (x2, y2), 2)
+                pygame.draw.line(ring_px, (240, 250, 255, crack_alpha), (x1, y1), (x2, y2), 1)
+                
+                # Боковые ответвления трещин
+                if seg % 2 == 0:
+                    for side in [-1, 1]:
+                        branch_ang = ang + side * 0.5
+                        branch_len = int((r2 - r1) * 0.6)
+                        bx = int(x2 + branch_len * math.cos(branch_ang))
+                        by = int(y2 + branch_len * math.sin(branch_ang))
+                        pygame.draw.line(ring_px, (210, 235, 255, crack_alpha // 2), (x2, y2), (bx, by), 1)
+        
+        # Ледяные кристаллы появляются вдоль трещин
+        if t > 0.3:
+            crystal_t = (t - 0.3) / 0.7
+            for k in range(num_cracks * 2):
+                ang = k * (math.pi/num_cracks) + crystal_t * 0.3
+                r = int(expand_r * random.uniform(0.4, 0.9))
+                x = int(ring_center[0] + r * math.cos(ang))
+                y = int(ring_center[1] + r * math.sin(ang))
+                
+                # Рисуем кристалл (ромб)
+                size = random.randint(3, 6)
+                crystal_alpha = int(230 * (1 - crystal_t * 0.5))
+                
+                crystal_points = [
+                    (x, y - size),
+                    (x + size//2, y),
+                    (x, y + size),
+                    (x - size//2, y)
+                ]
+                pygame.draw.polygon(ring_px, (220, 240, 255, crystal_alpha), crystal_points)
+                pygame.draw.polygon(ring_px, (240, 250, 255, crystal_alpha), crystal_points, 1)
+        
+        # Ледяные искры разлетаются от центра
+        for k in range(20):
+            spark_ang = k * (2*math.pi/20) + t * 2
+            spark_r = int(15 + 40 * t + random.randint(-5, 5))
+            spark_x = int(ring_center[0] + spark_r * math.cos(spark_ang))
+            spark_y = int(ring_center[1] + spark_r * math.sin(spark_ang))
+            spark_alpha = int(200 * (1 - t * 0.8))
+            
+            pygame.draw.circle(ring_px, (220, 240, 255, spark_alpha), (spark_x, spark_y), 2)
+            pygame.draw.circle(ring_px, (240, 250, 255, spark_alpha), (spark_x, spark_y), 1)
+        
+        # Центральная ледяная вспышка
+        core_alpha = int(220 * (1 - t))
+        pygame.draw.circle(ring_px, (240, 250, 255, core_alpha), ring_center, int(12 * (1 - t * 0.7)))
+        pygame.draw.circle(ring_px, (200, 230, 255, core_alpha), ring_center, int(18 * (1 - t * 0.5)))
+        
         # Применяем поверх
-        screen.blit(ring_px, (cx - CELL_SIZE*1.5, cy - CELL_SIZE*1.5))
+        screen.blit(ring_px, (cx - CELL_SIZE*2, cy - CELL_SIZE*2))
         pygame.display.flip()
-        pygame.time.delay(24)
+        pygame.time.delay(26)
 
 def animate_frost_impact(screen, center, redraw_callback=None):
     """Анимация морозного удара: ледяные шипы растут из земли и разбиваются"""
@@ -2396,42 +2666,94 @@ def animate_dispel_spell_fly(screen, start, end, redraw_callback=None):
         pygame.display.flip()
         pygame.time.delay(25)
 
-# Новая анимация: ускорение воздуха вокруг цели — струи ветра обтекают юнита
+# Улучшенная анимация: ускорение воздуха с детальными эффектами ветра
 def animate_air_haste_spell(screen, start, end, redraw_callback=None):
-    frames = 22
+    """Улучшенное ускорение с мощными потоками ветра и воздушными эффектами"""
+    frames = 28
     tx, ty = end
+    
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
+        
         t = i / (frames - 1)
-        layer = pygame.Surface((CELL_SIZE*2, CELL_SIZE*2), pygame.SRCALPHA)
-        cx, cy = CELL_SIZE, CELL_SIZE
-        # Динамические «струи» ветра — дуги и линии, огибающие контур
-        for k in range(8):
-            phase = t * 2.8 + k * 0.4
-            radius = int(CELL_SIZE * (0.5 + 0.2 * math.sin(phase)))
-            start_ang = math.radians(210 + 20 * math.sin(phase * 1.3))
-            end_ang = math.radians(330 + 18 * math.cos(phase * 1.1))
-            color = (180, 220, 255, 140 + int(60 * math.sin(phase)))
-            pygame.draw.arc(layer, color, (cx - radius, cy - radius, radius*2, radius*2), start_ang, end_ang, 3)
-        # Тонкие линии потока
-        for k in range(12):
-            ang = 2 * math.pi * (k / 12.0) + t * 1.7
-            r1 = int(CELL_SIZE * 0.6)
-            r2 = r1 + 10 + int(6 * math.sin(t*3 + k))
+        layer = pygame.Surface((CELL_SIZE*3, CELL_SIZE*3), pygame.SRCALPHA)
+        cx, cy = CELL_SIZE*1.5, CELL_SIZE*1.5
+        
+        # Мощные вихри ветра, закручивающиеся вокруг цели
+        for vortex in range(3):
+            vortex_phase = t * 4 + vortex * (2 * math.pi / 3)
+            vortex_r = int(30 + vortex * 8 + 8 * math.sin(vortex_phase))
+            vortex_alpha = int(180 - vortex * 40)
+            
+            # Основной вихрь
+            for arc_seg in range(6):
+                arc_start = vortex_phase + arc_seg * (math.pi / 3)
+                arc_end = arc_start + (math.pi / 4)
+                pygame.draw.arc(layer, (180, 230, 255, vortex_alpha), 
+                              (cx - vortex_r, cy - vortex_r, vortex_r * 2, vortex_r * 2),
+                              arc_start, arc_end, 4)
+                pygame.draw.arc(layer, (220, 245, 255, vortex_alpha), 
+                              (cx - vortex_r + 2, cy - vortex_r + 2, vortex_r * 2 - 4, vortex_r * 2 - 4),
+                              arc_start, arc_end, 2)
+        
+        # Быстрые линии потока ветра (более детализированные)
+        for k in range(20):
+            ang = 2 * math.pi * (k / 20.0) + t * 3.5
+            r1 = int(CELL_SIZE * 0.7)
+            r2 = r1 + 15 + int(10 * math.sin(t * 4 + k * 0.3))
             x1 = cx + int(r1 * math.cos(ang))
             y1 = cy + int(r1 * math.sin(ang))
-            x2 = cx + int(r2 * math.cos(ang + 0.25))
-            y2 = cy + int(r2 * math.sin(ang + 0.25))
-            col = (160, 210, 255, 120)
-            pygame.draw.line(layer, col, (x1, y1), (x2, y2), 2)
-        # Лёгкая голубая пульсация под юнитом
-        pulse_r = 10 + int(6 * math.sin(t * 6))
-        pygame.draw.circle(layer, (180, 220, 255, 70), (cx, cy), pulse_r, 2)
-        screen.blit(layer, (tx - CELL_SIZE, ty - CELL_SIZE))
+            x2 = cx + int(r2 * math.cos(ang + 0.35))
+            y2 = cy + int(r2 * math.sin(ang + 0.35))
+            
+            # Градиент линий
+            stream_alpha = int(160 - abs(k % 10 - 5) * 15)
+            pygame.draw.line(layer, (160, 215, 255, stream_alpha), (x1, y1), (x2, y2), 3)
+            pygame.draw.line(layer, (200, 235, 255, stream_alpha), (x1, y1), (x2, y2), 1)
+            
+            # Искры ветра на концах линий
+            pygame.draw.circle(layer, (220, 240, 255, stream_alpha), (x2, y2), 2)
+        
+        # Воздушные частицы, кружащиеся вокруг
+        for particle in range(30):
+            particle_ang = (particle * 2 * math.pi / 30) + t * 5
+            particle_r = int(20 + 25 * math.sin(t * 2 + particle * 0.2))
+            particle_x = cx + int(particle_r * math.cos(particle_ang))
+            particle_y = cy + int(particle_r * math.sin(particle_ang))
+            particle_alpha = int(200 * (0.7 + 0.3 * math.sin(t * 3 + particle)))
+            
+            pygame.draw.circle(layer, (200, 230, 255, particle_alpha), (particle_x, particle_y), 3)
+            pygame.draw.circle(layer, (240, 250, 255, particle_alpha), (particle_x, particle_y), 2)
+        
+        # Пульсирующие кольца ускорения
+        for ring in range(4):
+            pulse_r = int(12 + ring * 6 + 8 * math.sin(t * 6 + ring * 0.5))
+            ring_alpha = int(120 - ring * 25)
+            pygame.draw.circle(layer, (180, 220, 255, ring_alpha), (cx, cy), pulse_r, 2)
+        
+        # Центральное яркое свечение
+        core_alpha = int(180 * (0.6 + 0.4 * math.sin(t * 8)))
+        pygame.draw.circle(layer, (220, 240, 255, core_alpha), (cx, cy), 8)
+        pygame.draw.circle(layer, (240, 250, 255, core_alpha), (cx, cy), 5)
+        
+        # Спиральные потоки воздуха
+        for spiral in range(2):
+            spiral_dir = 1 if spiral == 0 else -1
+            for j in range(15):
+                spiral_t = j / 15.0
+                spiral_ang = (spiral_t * 4 * math.pi + t * 6) * spiral_dir
+                spiral_r = int(10 + spiral_t * 40)
+                spiral_x = cx + int(spiral_r * math.cos(spiral_ang))
+                spiral_y = cy + int(spiral_r * math.sin(spiral_ang))
+                spiral_alpha = int(150 * (1 - spiral_t * 0.7))
+                
+                pygame.draw.circle(layer, (190, 225, 255, spiral_alpha), (spiral_x, spiral_y), 2)
+        
+        screen.blit(layer, (tx - CELL_SIZE*1.5, ty - CELL_SIZE*1.5))
         pygame.display.flip()
-        pygame.time.delay(22)
+        pygame.time.delay(24)
 
 def animate_rune_shield_spell(screen, start, end, redraw_callback=None):
     """Анимация руны защиты: насыщенный глиф над целью с мерцанием и исчезновением"""
