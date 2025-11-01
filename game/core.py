@@ -3204,9 +3204,9 @@ class Game:
         if hasattr(self, 'creative_spellbook_rect') and self.creative_spellbook_rect.collidepoint(pos):
             if self.button_click_sound:
                 self.button_click_sound.play()
-            # Берём только героев с карты (макс 2)
-            heroes = [u for u in self.units if isinstance(u, Hero)][:2]
-            # Если героев нет на карте, не открываем редактор
+            # Берём только героев с карты (которые размещены в Creative Mode)
+            heroes = [u for u in self.units if isinstance(u, Hero)]
+            # Если героев нет - не открываем (нужно сначала разместить героев)
             if not heroes:
                 return
             self._spellbook_heroes = heroes
