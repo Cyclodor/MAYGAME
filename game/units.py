@@ -127,14 +127,14 @@ class Unit:
         self.fade_debuff = 1.0
 
     def draw(self, surface):
-        # Полоска здоровья (сначала фон и значение, затем спрайт юнита, чтобы полоска не перекрывалась спрайтами соседей)
+        # Рисуем текстуру юнита сначала
+        surface.blit(self.image, (self.x * CELL_SIZE, self.y * CELL_SIZE))
+        # Полоска здоровья поверх текстуры юнита
         health_ratio = 0 if self.max_health <= 0 else max(0.0, min(1.0, self.health / self.max_health))
         back_rect = (self.x * CELL_SIZE, self.y * CELL_SIZE - 6, CELL_SIZE, 5)
         value_rect = (self.x * CELL_SIZE, self.y * CELL_SIZE - 6, int(CELL_SIZE * health_ratio), 5)
         pygame.draw.rect(surface, RED, back_rect)
         pygame.draw.rect(surface, GREEN, value_rect)
-        # Рисуем текстуру юнита
-        surface.blit(self.image, (self.x * CELL_SIZE, self.y * CELL_SIZE))
         # Типтул только при наведении
         if getattr(self, 'show_tooltip', False):
             mouse_pos = pygame.mouse.get_pos()
@@ -190,6 +190,9 @@ class Unit:
         # Эффект Каменной кожи (показываем только длительность; защита уже учтена в текущем значении)
         if hasattr(self, 'stone_skin_turns') and getattr(self, 'stone_skin_turns', 0) > 0:
             tooltip_text.append((f"Каменная кожа: {self.stone_skin_turns} хода", (200,200,200)))
+        # Защита (stance)
+        if hasattr(self, '_defend_this_round') and getattr(self, '_defend_this_round', False):
+            tooltip_text.append((f"В защите: +20% к защите", (100,180,255)))
         # --- Эффекты ---
         if self.attack_buff_turns > 0:
             tooltip_text.append((f"Благословение: {self.attack_buff_turns} хода", (80,255,80)))

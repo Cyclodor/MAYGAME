@@ -48,6 +48,9 @@ class BattleManager:
             self.game.turn_queue.pop(0)
             self.game.round_number += 1
             self.game.add_event(f"--- Раунд {self.game.round_number} ---")
+            # Логируем начало раунда
+            if hasattr(self.game, 'anim_logger'):
+                self.game.anim_logger.log_round_start(self.game.round_number)
             # Сброс эффектов на всех юнитах
             for unit in self.game.units:
                 if isinstance(unit, Hero):
@@ -60,8 +63,37 @@ class BattleManager:
                     unit.move_points_left = unit.speed
                     # Сброс флага защиты (бонус действует только 1 раунд)
                     if getattr(unit, '_defend_this_round', False):
-                        unit.defense = int(unit.defense / 1.3)
+                        # Логируем сброс защиты ДО изменений
+                        if hasattr(self.game, 'anim_logger'):
+                            old_phys = getattr(unit, 'phys_defense', 0)
+                            old_mag = getattr(unit, 'magic_defense', 0)
+                            old_res = getattr(unit, 'magic_resist', 0)
+                            
+                        # Восстанавливаем оригинальные значения (если они были сохранены)
+                        if hasattr(unit, '_original_phys_defense'):
+                            unit.phys_defense = unit._original_phys_defense
+                            delattr(unit, '_original_phys_defense')
+                        elif hasattr(unit, 'phys_defense'):
+                            unit.phys_defense = int(unit.phys_defense / 1.2)
+                        
+                        if hasattr(unit, '_original_magic_defense'):
+                            unit.magic_defense = unit._original_magic_defense
+                            delattr(unit, '_original_magic_defense')
+                        elif hasattr(unit, 'magic_defense'):
+                            unit.magic_defense = int(unit.magic_defense / 1.2)
+                        
+                        if hasattr(unit, '_original_magic_resist'):
+                            unit.magic_resist = unit._original_magic_resist
+                            delattr(unit, '_original_magic_resist')
+                        elif hasattr(unit, 'magic_resist'):
+                            unit.magic_resist = int(unit.magic_resist / 1.2)
+                        
                         unit._defend_this_round = False
+                        
+                        # Логируем результат сброса ПОСЛЕ изменений
+                        if hasattr(self.game, 'anim_logger'):
+                            details = f"{unit.unit_type}: Физ.защ {old_phys}->{getattr(unit, 'phys_defense', 0)}, Маг.защ {old_mag}->{getattr(unit, 'magic_defense', 0)}, Сопр.маг {old_res}->{getattr(unit, 'magic_resist', 0)}"
+                            self.game.anim_logger.log("DEFENSE_RESET", details)
                     # Уменьшаем счётчики эффектов
                     if hasattr(unit, 'curse_turns') and unit.curse_turns > 0:
                         unit.curse_turns -= 1

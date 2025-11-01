@@ -121,7 +121,7 @@ class FireArrowSpell(Spell):
             game.kill_unit(target)
             game.animation_manager.animate_queue_fade(target)
             game.add_event(f"Огненная стрела убила {target.unit_type} (урон: {actual_damage})")
-            game.battle_manager.check_game_over()
+            game.check_game_over()
         elif hasattr(caster, 'game_ref'):
             game = caster.game_ref
             game.add_event(f"Огненная стрела ранила {target.unit_type} (урон: {actual_damage}, осталось: {target.health}/{target.max_health})")
@@ -403,7 +403,7 @@ class FrostRingSpell(Spell):
                 game.kill_unit(unit)
                 game.animation_manager.animate_queue_fade(unit)
                 game.add_event(f"Кольцо холода заморозило {unit.unit_type} (урон: {actual_damage})")
-                game.battle_manager.check_game_over()
+                game.check_game_over()
             else:
                 game.add_event(f"Кольцо холода ранило {unit.unit_type} (урон: {actual_damage}, осталось: {unit.health}/{unit.max_health})")
         
@@ -601,7 +601,7 @@ class FireballSpell(Spell):
                 game.kill_unit(unit)
                 game.animation_manager.animate_queue_fade(unit)
                 game.add_event(f"Огненный шар убил {unit.unit_type} (урон: {actual_damage})")
-                game.battle_manager.check_game_over()
+                game.check_game_over()
             else:
                 game.add_event(f"Огненный шар поджёг {unit.unit_type} (урон: {actual_damage}, осталось: {unit.health}/{unit.max_health})")
         
@@ -1090,7 +1090,7 @@ class LightningSpell(Spell):
                     game.kill_unit(target)
                     game.animation_manager.animate_queue_fade(target)
                     game.add_event(f"Молния убила {target.unit_type} (урон: {actual_damage})")
-                    game.battle_manager.check_game_over()
+                    game.check_game_over()
                 else:
                     game.add_event(f"Молния ударила {target.unit_type} (урон: {actual_damage}, осталось: {target.health}/{target.max_health})")
             except Exception:
@@ -1102,7 +1102,7 @@ class LightningSpell(Spell):
                 game.kill_unit(target)
                 game.animation_manager.animate_queue_fade(target)
                 game.add_event(f"Молния убила {target.unit_type} (урон: {actual_damage})")
-                game.battle_manager.check_game_over()
+                game.check_game_over()
         
         return True  # Успешное применение
 

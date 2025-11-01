@@ -1,5 +1,9 @@
 import pygame
 import os
+import sys
+# Добавляем родительскую директорию в путь для импорта логгера
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from animation_logger import get_logger
 from .config import *
 from .units import Hero, Peasant, Spearman, Crossbowman, Swordsman, Gryphon, Skeleton, Zombie, Ghost, Vampire, Lich, Pixie, ElfScout, ElfArcher, Dryad, Ent, Imp, Gog, Demon, Cerberus, Succubus, Miner, Spearthrower, BearRider, RuneMage, Jarl, Scout, Beast, Minotaur, Witch, LizardRider
 from .graphics import (
@@ -55,6 +59,9 @@ def toggle_debug_mode():
 class Game:
     def __init__(self, screen):
         self.screen = screen
+        # Инициализируем логгер анимаций
+        self.anim_logger = get_logger()
+        self.anim_logger.log("GAME_INIT", "Игра инициализирована")
         self.units = []
         self.corpses = []  # Список трупов на поле боя
         self.barriers = []  # Список магических барьеров
@@ -422,40 +429,76 @@ class Game:
         self.skip_button_rect.y = button_y
         self.defend_button_rect.y = button_y
         self.book_button_rect.y = button_y
-        wait_button_rect = pygame.Rect(self.skip_button_rect.x - 70, button_y, 48, 48)
         # В режиме наблюдения не рисуем кнопки управления, только тултипы
         if not self.spectator_mode:
-            # Кнопка защиты (defend)
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                pygame.draw.rect(self.screen, (120, 180, 220), self.skip_button_rect, border_radius=8)
-                pygame.draw.ellipse(self.screen, (180,180,220), (self.skip_button_rect.x+8, self.skip_button_rect.y+12, 32, 24))
-                pygame.draw.rect(self.screen, (120,180,220), (self.skip_button_rect.x+20, self.skip_button_rect.y+24, 8, 16))
-            else:
-                pygame.draw.rect(self.screen, (80, 80, 80), self.skip_button_rect, border_radius=8)
-                pygame.draw.ellipse(self.screen, (120,120,120), (self.skip_button_rect.x+8, self.skip_button_rect.y+12, 32, 24))
-                pygame.draw.rect(self.screen, (120,120,120), (self.skip_button_rect.x+20, self.skip_button_rect.y+24, 8, 16))
-            # Кнопка ждать (wait)
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                pygame.draw.rect(self.screen, (120, 180, 120), wait_button_rect, border_radius=8)
-                pygame.draw.ellipse(self.screen, (200,200,120), (wait_button_rect.x+12, wait_button_rect.y+8, 24, 12))
-                pygame.draw.rect(self.screen, (200,200,120), (wait_button_rect.x+20, wait_button_rect.y+20, 8, 16))
-                pygame.draw.ellipse(self.screen, (200,200,120), (wait_button_rect.x+12, wait_button_rect.y+32, 24, 12))
-            else:
-                pygame.draw.rect(self.screen, (80, 80, 80), wait_button_rect, border_radius=8)
-                pygame.draw.ellipse(self.screen, (120,120,120), (wait_button_rect.x+12, wait_button_rect.y+8, 24, 12))
-                pygame.draw.rect(self.screen, (120,120,120), (wait_button_rect.x+20, wait_button_rect.y+20, 8, 16))
-                pygame.draw.ellipse(self.screen, (120,120,120), (wait_button_rect.x+12, wait_button_rect.y+32, 24, 12))
-            # Кнопка книги заклинаний
+            # Кнопка книги заклинаний (самая левая)
             is_hero = isinstance(self.selected_unit, Hero)
             can_cast = is_hero and self.selected_unit.spells and not getattr(self.selected_unit, 'used_spell_this_round', False)
             if can_cast:
                 pygame.draw.rect(self.screen, (180, 120, 60), self.book_button_rect, border_radius=8)
-                pygame.draw.rect(self.screen, (220, 200, 120), (self.book_button_rect.x+8, self.book_button_rect.y+12, 32, 24), border_radius=6)
-                pygame.draw.line(self.screen, (120,80,40), (self.book_button_rect.x+16, self.book_button_rect.y+12), (self.book_button_rect.x+16, self.book_button_rect.y+36), 2)
+                # Красивая книга
+                pygame.draw.rect(self.screen, (220, 200, 120), (self.book_button_rect.x+6, self.book_button_rect.y+10, 36, 28), border_radius=4)
+                pygame.draw.line(self.screen, (120,80,40), (self.book_button_rect.x+24, self.book_button_rect.y+10), (self.book_button_rect.x+24, self.book_button_rect.y+38), 3)
+                # Страницы
+                for i in range(3):
+                    pygame.draw.line(self.screen, (150,120,80), (self.book_button_rect.x+12+i*4, self.book_button_rect.y+18), (self.book_button_rect.x+18+i*4, self.book_button_rect.y+18), 1)
             else:
                 pygame.draw.rect(self.screen, (80, 80, 80), self.book_button_rect, border_radius=8)
-                pygame.draw.rect(self.screen, (120, 120, 120), (self.book_button_rect.x+8, self.book_button_rect.y+12, 32, 24), border_radius=6)
-                pygame.draw.line(self.screen, (60,60,60), (self.book_button_rect.x+16, self.book_button_rect.y+12), (self.book_button_rect.x+16, self.book_button_rect.y+36), 2)
+                pygame.draw.rect(self.screen, (120, 120, 120), (self.book_button_rect.x+6, self.book_button_rect.y+10, 36, 28), border_radius=4)
+                pygame.draw.line(self.screen, (60,60,60), (self.book_button_rect.x+24, self.book_button_rect.y+10), (self.book_button_rect.x+24, self.book_button_rect.y+38), 3)
+            
+            # Кнопка ожидания (вторая слева) - песочные часы
+            if self.selected_unit and not isinstance(self.selected_unit, Hero):
+                pygame.draw.rect(self.screen, (220, 200, 120), self.defend_button_rect, border_radius=8)
+                # Песочные часы
+                # Верхняя часть
+                pygame.draw.polygon(self.screen, (240, 220, 140), [
+                    (self.defend_button_rect.x+14, self.defend_button_rect.y+8),
+                    (self.defend_button_rect.x+34, self.defend_button_rect.y+8),
+                    (self.defend_button_rect.x+24, self.defend_button_rect.y+20)
+                ])
+                # Нижняя часть
+                pygame.draw.polygon(self.screen, (240, 220, 140), [
+                    (self.defend_button_rect.x+24, self.defend_button_rect.y+28),
+                    (self.defend_button_rect.x+14, self.defend_button_rect.y+40),
+                    (self.defend_button_rect.x+34, self.defend_button_rect.y+40)
+                ])
+                # Песок
+                pygame.draw.circle(self.screen, (200, 180, 100), (self.defend_button_rect.x+24, self.defend_button_rect.y+35), 6)
+            else:
+                pygame.draw.rect(self.screen, (80, 80, 80), self.defend_button_rect, border_radius=8)
+                pygame.draw.polygon(self.screen, (120, 120, 120), [
+                    (self.defend_button_rect.x+14, self.defend_button_rect.y+8),
+                    (self.defend_button_rect.x+34, self.defend_button_rect.y+8),
+                    (self.defend_button_rect.x+24, self.defend_button_rect.y+20)
+                ])
+                pygame.draw.polygon(self.screen, (120, 120, 120), [
+                    (self.defend_button_rect.x+24, self.defend_button_rect.y+28),
+                    (self.defend_button_rect.x+14, self.defend_button_rect.y+40),
+                    (self.defend_button_rect.x+34, self.defend_button_rect.y+40)
+                ])
+            
+            # Кнопка защиты (третья) - красивый щит
+            if self.selected_unit and not isinstance(self.selected_unit, Hero):
+                pygame.draw.rect(self.screen, (100, 150, 200), self.skip_button_rect, border_radius=8)
+                # Щит
+                pygame.draw.ellipse(self.screen, (140, 180, 240), (self.skip_button_rect.x+8, self.skip_button_rect.y+8, 32, 20))
+                pygame.draw.polygon(self.screen, (140, 180, 240), [
+                    (self.skip_button_rect.x+10, self.skip_button_rect.y+18),
+                    (self.skip_button_rect.x+38, self.skip_button_rect.y+18),
+                    (self.skip_button_rect.x+24, self.skip_button_rect.y+38)
+                ])
+                # Крест на щите
+                pygame.draw.line(self.screen, (180, 220, 255), (self.skip_button_rect.x+24, self.skip_button_rect.y+14), (self.skip_button_rect.x+24, self.skip_button_rect.y+28), 2)
+                pygame.draw.line(self.screen, (180, 220, 255), (self.skip_button_rect.x+18, self.skip_button_rect.y+21), (self.skip_button_rect.x+30, self.skip_button_rect.y+21), 2)
+            else:
+                pygame.draw.rect(self.screen, (80, 80, 80), self.skip_button_rect, border_radius=8)
+                pygame.draw.ellipse(self.screen, (120, 120, 120), (self.skip_button_rect.x+8, self.skip_button_rect.y+8, 32, 20))
+                pygame.draw.polygon(self.screen, (120, 120, 120), [
+                    (self.skip_button_rect.x+10, self.skip_button_rect.y+18),
+                    (self.skip_button_rect.x+38, self.skip_button_rect.y+18),
+                    (self.skip_button_rect.x+24, self.skip_button_rect.y+38)
+                ])
             mouse = pygame.mouse.get_pos()
             if self.book_button_rect.collidepoint(mouse):
                 font_tip = pygame.font.Font(None, 22)
@@ -4093,6 +4136,10 @@ class Game:
         if finished is self._round_delimiter:
             # Начало нового раунда
             self.round_number += 1
+            # Логируем начало раунда
+            if hasattr(self, 'anim_logger'):
+                self.anim_logger.log_round_start(self.round_number)
+            
             for unit in self.units:
                 # сбрасываем ожидание в новом раунде
                 if hasattr(unit, 'has_waited'):
@@ -4100,6 +4147,40 @@ class Game:
                 # сбрасываем контратаку в новом раунде
                 if hasattr(unit, 'has_counterattacked'):
                     unit.has_counterattacked = False
+                
+                # Сброс флага защиты (бонус действует только 1 раунд)
+                if not isinstance(unit, Hero) and getattr(unit, '_defend_this_round', False):
+                    # Логируем сброс защиты ДО изменений
+                    if hasattr(self, 'anim_logger'):
+                        old_phys = getattr(unit, 'phys_defense', 0)
+                        old_mag = getattr(unit, 'magic_defense', 0)
+                        old_res = getattr(unit, 'magic_resist', 0)
+                    
+                    # Восстанавливаем оригинальные значения (если они были сохранены)
+                    if hasattr(unit, '_original_phys_defense'):
+                        unit.phys_defense = unit._original_phys_defense
+                        delattr(unit, '_original_phys_defense')
+                    elif hasattr(unit, 'phys_defense'):
+                        unit.phys_defense = int(unit.phys_defense / 1.2)
+                    
+                    if hasattr(unit, '_original_magic_defense'):
+                        unit.magic_defense = unit._original_magic_defense
+                        delattr(unit, '_original_magic_defense')
+                    elif hasattr(unit, 'magic_defense'):
+                        unit.magic_defense = int(unit.magic_defense / 1.2)
+                    
+                    if hasattr(unit, '_original_magic_resist'):
+                        unit.magic_resist = unit._original_magic_resist
+                        delattr(unit, '_original_magic_resist')
+                    elif hasattr(unit, 'magic_resist'):
+                        unit.magic_resist = int(unit.magic_resist / 1.2)
+                    
+                    unit._defend_this_round = False
+                    
+                    # Логируем результат сброса ПОСЛЕ изменений
+                    if hasattr(self, 'anim_logger'):
+                        details = f"{unit.unit_type}: Физ.защ {old_phys}->{getattr(unit, 'phys_defense', 0)}, Маг.защ {old_mag}->{getattr(unit, 'magic_defense', 0)}, Сопр.маг {old_res}->{getattr(unit, 'magic_resist', 0)}"
+                        self.anim_logger.log("DEFENSE_RESET", details)
             # Обрабатываем барьеры: уменьшаем длительность
             if hasattr(self, 'barriers'):
                 barriers_to_remove = []
@@ -4129,9 +4210,47 @@ class Game:
             self.turn_queue.pop(0)
             self.turn_queue.append(self._round_delimiter)
             self.round_number += 1
+            # Логируем начало раунда
+            if hasattr(self, 'anim_logger'):
+                self.anim_logger.log_round_start(self.round_number)
+            
             for unit in self.units:
                 if hasattr(unit, 'has_waited'):
                     unit.has_waited = False
+                
+                # Сброс флага защиты (бонус действует только 1 раунд)
+                if not isinstance(unit, Hero) and getattr(unit, '_defend_this_round', False):
+                    # Логируем сброс защиты ДО изменений
+                    if hasattr(self, 'anim_logger'):
+                        old_phys = getattr(unit, 'phys_defense', 0)
+                        old_mag = getattr(unit, 'magic_defense', 0)
+                        old_res = getattr(unit, 'magic_resist', 0)
+                    
+                    # Восстанавливаем оригинальные значения (если они были сохранены)
+                    if hasattr(unit, '_original_phys_defense'):
+                        unit.phys_defense = unit._original_phys_defense
+                        delattr(unit, '_original_phys_defense')
+                    elif hasattr(unit, 'phys_defense'):
+                        unit.phys_defense = int(unit.phys_defense / 1.2)
+                    
+                    if hasattr(unit, '_original_magic_defense'):
+                        unit.magic_defense = unit._original_magic_defense
+                        delattr(unit, '_original_magic_defense')
+                    elif hasattr(unit, 'magic_defense'):
+                        unit.magic_defense = int(unit.magic_defense / 1.2)
+                    
+                    if hasattr(unit, '_original_magic_resist'):
+                        unit.magic_resist = unit._original_magic_resist
+                        delattr(unit, '_original_magic_resist')
+                    elif hasattr(unit, 'magic_resist'):
+                        unit.magic_resist = int(unit.magic_resist / 1.2)
+                    
+                    unit._defend_this_round = False
+                    
+                    # Логируем результат сброса ПОСЛЕ изменений
+                    if hasattr(self, 'anim_logger'):
+                        details = f"{unit.unit_type}: Физ.защ {old_phys}->{getattr(unit, 'phys_defense', 0)}, Маг.защ {old_mag}->{getattr(unit, 'magic_defense', 0)}, Сопр.маг {old_res}->{getattr(unit, 'magic_resist', 0)}"
+                        self.anim_logger.log("DEFENSE_RESET", details)
         if self.turn_queue:
             self.selected_unit = self.turn_queue[0]
             # Сбрасываем флаги действий в НАЧАЛЕ хода юнита
@@ -4677,7 +4796,6 @@ class Game:
             self.menu_music_playing = False  # Сброс для перезапуска музыки меню
             return
         # Кнопка истории (не работает в режиме наблюдения)
-        wait_button_rect = pygame.Rect(self.skip_button_rect.x - 70, self.skip_button_rect.y, 48, 48)
         if self.history_button_rect.collidepoint(pos) and not self.spectator_mode:
             # Звук нажатия на кнопку
             if self.button_click_sound:
@@ -5067,6 +5185,29 @@ class Game:
                 return
             if spell.target_type == 'enemy' and target and target.team != caster.team and caster.mana >= spell.mana_cost:
                 self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
+                
+                # Получаем информацию о заклинании для анимации
+                spell_name = getattr(spell, 'name', '')
+                spell_icon = getattr(spell, 'icon', '')
+                
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, caster, target, is_instant_spell)
+                
                 # Специальные анимации по типам
                 if hasattr(spell, 'icon') and spell.icon == 'firearrow':
                     self.animate_firearrow(caster, target)
@@ -5092,8 +5233,9 @@ class Game:
                 elif hasattr(spell, 'icon') and spell.icon == 'dispel':
                     target_px = (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2)
                     animate_dispel_spell(self.screen, target_px, target_px, redraw_callback=self.draw)
-                else:
-                    # Полёт магического снаряда с цветом по типу кастера
+                elif not is_instant_spell:
+                    # Полёт магического снаряда только для НЕ мгновенных заклинаний
+                    self.anim_logger.log("PROJECTILE_ANIMATION", f"Снаряд для {spell_name}")
                     if caster.unit_type == 'succubus':
                         color = (255, 80, 120)
                     elif caster.unit_type == 'gog':
@@ -5106,6 +5248,7 @@ class Game:
                                       (caster.x * CELL_SIZE + CELL_SIZE//2, caster.y * CELL_SIZE + CELL_SIZE//2),
                                       (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                       color=color, redraw_callback=self.draw)
+                # Для мгновенных заклинаний (lightning, weakness) - никакой анимации полета
                 spell_success = spell.apply(target, caster=caster)
                 # Если заклинание не сработало, герой не тратит ход
                 if spell_success is False:
@@ -5445,7 +5588,8 @@ class Game:
             print('Клик по своему юниту — ничего не делаем')
         
         # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
+        # Кнопка ожидания (defend_button_rect) - перемещение в конец очереди
+        if self.defend_button_rect.collidepoint(pos):
             # Звук нажатия на кнопку
             if self.button_click_sound:
                 self.button_click_sound.play()
@@ -5453,7 +5597,7 @@ class Game:
                 if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
                     return  # Уже ждал в этом раунде
                 self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
+                self.add_event(f"{self.selected_unit.unit_type.capitalize()} ожидает (перемещается в конец очереди)")
                 # Сохраняем старую очередь для анимации
                 old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
                 # Убираем текущего юнита из начала очереди
@@ -5485,14 +5629,45 @@ class Game:
                     self.selected_unit.move_points_left = self.selected_unit.speed
                     self.selected_unit._defend_this_round = False
                 return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
+        # Кнопка защиты (skip_button_rect) - повышает защиту на 20% (физ. и маг.) до конца раунда
         if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
+            # Проверяем, не в защите ли уже юнит
+            if getattr(self.selected_unit, '_defend_this_round', False):
+                # Уже в защите - игнорируем повторное нажатие
+                self.anim_logger.log("DEFENSE_IGNORED", f"{self.selected_unit.unit_type}: уже в защите")
+                return
+            
             # Звук нажатия на кнопку
             if self.button_click_sound:
                 self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
+            
+            # Логируем применение защиты ДО изменений
+            old_phys = getattr(self.selected_unit, 'phys_defense', 0)
+            old_mag = getattr(self.selected_unit, 'magic_defense', 0)
+            old_res = getattr(self.selected_unit, 'magic_resist', 0)
+            
+            # Сохраняем оригинальные значения перед применением бафа (только если еще не сохранены)
+            if not hasattr(self.selected_unit, '_original_phys_defense'):
+                self.selected_unit._original_phys_defense = getattr(self.selected_unit, 'phys_defense', 0)
+                self.selected_unit._original_magic_defense = getattr(self.selected_unit, 'magic_defense', 0)
+                self.selected_unit._original_magic_resist = getattr(self.selected_unit, 'magic_resist', 0)
+            
+            # Повышаем физическую защиту на 20%
+            if hasattr(self.selected_unit, 'phys_defense'):
+                self.selected_unit.phys_defense = int(self.selected_unit.phys_defense * 1.2)
+            # Повышаем магическую защиту на 20%
+            if hasattr(self.selected_unit, 'magic_defense'):
+                self.selected_unit.magic_defense = int(self.selected_unit.magic_defense * 1.2)
+            # Повышаем магическую сопротивляемость на 20%
+            if hasattr(self.selected_unit, 'magic_resist'):
+                self.selected_unit.magic_resist = min(95, int(self.selected_unit.magic_resist * 1.2))
             self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
+            
+            # Логируем применение защиты ПОСЛЕ изменений
+            details = f"{self.selected_unit.unit_type}: Физ.защ {old_phys}->{getattr(self.selected_unit, 'phys_defense', 0)}, Маг.защ {old_mag}->{getattr(self.selected_unit, 'magic_defense', 0)}, Сопр.маг {old_res}->{getattr(self.selected_unit, 'magic_resist', 0)}"
+            self.anim_logger.log("DEFENSE_APPLIED", details)
+            
+            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту (+20% к физ. и маг. защите)")
             # Переходим к следующему ходу
             self.next_turn()
             return
@@ -5506,6 +5681,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -5518,13 +5695,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -5539,6 +5729,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)
@@ -5798,49 +5991,6 @@ class Game:
         else:
             print('Клик по своему юниту — ничего не делаем')
         
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
         # --- Только после обработки интерфейса ---
         if not self.selected_unit or self.selected_unit.has_attacked:
             return
@@ -5851,6 +6001,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -5863,13 +6015,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -5884,6 +6049,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)
@@ -6129,49 +6297,6 @@ class Game:
         else:
             print('Клик по своему юниту — ничего не делаем')
         
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
         # --- Только после обработки интерфейса ---
         if not self.selected_unit or self.selected_unit.has_attacked:
             return
@@ -6182,6 +6307,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -6194,13 +6321,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -6215,6 +6355,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)
@@ -6460,49 +6603,6 @@ class Game:
         else:
             print('Клик по своему юниту — ничего не делаем')
         
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
         # --- Только после обработки интерфейса ---
         if not self.selected_unit or self.selected_unit.has_attacked:
             return
@@ -6513,6 +6613,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -6525,13 +6627,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -6546,6 +6661,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)
@@ -6791,49 +6909,6 @@ class Game:
         else:
             print('Клик по своему юниту — ничего не делаем')
         
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
         # --- Только после обработки интерфейса ---
         if not self.selected_unit or self.selected_unit.has_attacked:
             return
@@ -6844,6 +6919,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -6856,13 +6933,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -6877,6 +6967,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)
@@ -7122,49 +7215,6 @@ class Game:
         else:
             print('Клик по своему юниту — ничего не делаем')
         
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
         # --- Только после обработки интерфейса ---
         if not self.selected_unit or self.selected_unit.has_attacked:
             return
@@ -7175,6 +7225,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -7187,13 +7239,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -7208,6 +7273,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)
@@ -7453,49 +7521,6 @@ class Game:
         else:
             print('Клик по своему юниту — ничего не делаем')
         
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
         # --- Только после обработки интерфейса ---
         if not self.selected_unit or self.selected_unit.has_attacked:
             return
@@ -7506,6 +7531,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -7518,13 +7545,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -7539,6 +7579,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)
@@ -7784,49 +7827,6 @@ class Game:
         else:
             print('Клик по своему юниту — ничего не делаем')
         
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
         # --- Только после обработки интерфейса ---
         if not self.selected_unit or self.selected_unit.has_attacked:
             return
@@ -7837,6 +7837,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -7849,13 +7851,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -7870,6 +7885,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)
@@ -8115,49 +8133,6 @@ class Game:
         else:
             print('Клик по своему юниту — ничего не делаем')
         
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
         # --- Только после обработки интерфейса ---
         if not self.selected_unit or self.selected_unit.has_attacked:
             return
@@ -8168,6 +8143,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -8180,13 +8157,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -8201,6 +8191,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)
@@ -8446,49 +8439,6 @@ class Game:
         else:
             print('Клик по своему юниту — ничего не делаем')
         
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
         # --- Только после обработки интерфейса ---
         if not self.selected_unit or self.selected_unit.has_attacked:
             return
@@ -8499,6 +8449,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -8511,13 +8463,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -8532,6 +8497,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)
@@ -8777,49 +8745,6 @@ class Game:
         else:
             print('Клик по своему юниту — ничего не делаем')
         
-        # Обработка кликов по кнопкам
-        if wait_button_rect.collidepoint(pos):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    return  # Уже ждал в этом раунде
-                self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} перемещается в конец очереди")
-                # Сохраняем старую очередь для анимации
-                old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
-                # Убираем текущего юнита из очереди
-                if self.turn_queue:
-                    self.turn_queue.pop(0)
-                # Перемещаем юнита в конец очереди
-                if self.selected_unit in self.turn_queue:
-                    idx = self.turn_queue.index(self.selected_unit)
-                    unit = self.turn_queue.pop(idx)
-                    self.turn_queue.append(unit)
-                else:
-                    pass  # fix: ensure indented block exists
-                # Анимация перемещения ленты очереди
-                if self.turn_queue:
-                    self.animate_queue_move(old_queue, self.turn_queue)
-                    self.selected_unit = self.turn_queue[0]
-                    # Сбрасываем флаги для нового активного юнита
-                    self.selected_unit.has_moved = False
-                    self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
-                    self.selected_unit._defend_this_round = False
-                return
-        # Кнопка защиты (defend) - доступна для всех юнитов кроме героев (теперь на месте skip_button_rect)
-        if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
-            # Звук нажатия на кнопку
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            self.selected_unit.defense = int(self.selected_unit.defense * 1.3)
-            self.selected_unit._defend_this_round = True
-            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту")
-            # Переходим к следующему ходу
-            self.next_turn()
-            return
         # --- Только после обработки интерфейса ---
         if not self.selected_unit or self.selected_unit.has_attacked:
             return
@@ -8830,6 +8755,8 @@ class Game:
             x = pos[0] // CELL_SIZE
             y = pos[1] // CELL_SIZE
             spell = self.selected_unit.spells[self.selected_unit.selected_spell]
+            # Отладочное логирование начала применения заклинания
+            self.anim_logger.log("SPELL_CAST_START", f"Герой кастует {spell.name} ({spell.icon}) target_type={spell.target_type}")
             # Найти цель
             target = None
             for unit in self.units:
@@ -8842,13 +8769,26 @@ class Game:
                 # Визуальный эффект для атакующих заклинаний
                 spell_name = getattr(spell, 'name', '')
                 spell_icon = getattr(spell, 'icon', '')
-                # Проверяем, не является ли заклинание Молнией или Слабостью
-                is_instant_spell = (spell_icon in ['lightning', 'weakness'] or 
-                                  spell_name in ['Молния', 'Слабость'] or
-                                  'lightning' in spell_icon.lower() or 
-                                  'weakness' in spell_icon.lower())
+                # Проверяем мгновенные заклинания (без анимации полета снаряда)
+                instant_spells = [
+                    'lightning', 'weakness', 'bless', 'curse', 'slow', 'haste',
+                    'heal', 'dispel', 'stone_skin', 'ice_shield', 'fire_shield',
+                    'counterstrike', 'rune_shield', 'rune_haste', 'raise_dead',
+                    'resurrection', 'undead_heal', 'forget', 'earth_spikes', 'rune_wall'
+                ]
+                is_instant_spell = (spell_icon in instant_spells or 
+                                  spell_name in ['Молния', 'Слабость', 'Благословение', 'Проклятие', 
+                                                'Замедление', 'Ускорение', 'Лечение', 'Снятие чар'] or
+                                  any(keyword in spell_icon.lower() for keyword in ['lightning', 'weakness', 'bless', 'curse']))
+                
+                # Отладочное логирование
+                self.anim_logger.log("SPELL_CHECK", f"name='{spell_name}' icon='{spell_icon}' instant={is_instant_spell}")
+                
+                # Логируем анимацию заклинания
+                self.anim_logger.log_spell_animation(spell_name, spell_icon, self.selected_unit, target, is_instant_spell)
                 
                 if spell_icon == 'firearrow':
+                    self.anim_logger.log("FIREARROW_ANIMATION", f"Огненная стрела от {self.selected_unit.unit_type} к {target.unit_type}")
                     self.animate_firearrow(self.selected_unit, target)
                 elif not is_instant_spell:
                     # Маги и герои стреляют магическими снарядами с разными цветами
@@ -8863,6 +8803,9 @@ class Game:
                     # Воспроизводим звук выстрела магов
                     if self.magic_shot_sound:
                         self.magic_shot_sound.play()
+                    self.anim_logger.log_projectile_animation("magic_bolt", 
+                        (self.selected_unit.x, self.selected_unit.y), 
+                        (target.x, target.y), color)
                     animate_magic_fly(self.screen, (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE//2),
                                      (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2),
                                      color=color, redraw_callback=self.draw)

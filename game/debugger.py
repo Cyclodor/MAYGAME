@@ -121,8 +121,8 @@ class GameDebugger:
             
         # Показываем границы всех кнопок
         buttons = [
-            ("Skip", self.game.skip_button_rect, (180, 180, 80)),
-            ("Defend", self.game.defend_button_rect, (120, 180, 220)),
+            ("Defense (Shield)", self.game.skip_button_rect, (100, 150, 200)),
+            ("Wait (Hourglass)", self.game.defend_button_rect, (220, 200, 120)),
             ("Book", self.game.book_button_rect, (180, 120, 60)),
             ("History", self.game.history_button_rect, (80, 120, 200))
         ]
@@ -271,8 +271,9 @@ class GameDebugger:
             ("Skip кнопка", self.game.skip_button_rect),
             ("Defend кнопка", self.game.defend_button_rect),
             ("Book кнопка", self.game.book_button_rect),
-            ("History кнопка", self.game.history_button_rect),
-            ("Wait кнопка", pygame.Rect(self.game.skip_button_rect.x - 70, self.game.skip_button_rect.y, 48, 48))
+            ("Wait кнопка (Hourglass)", self.game.defend_button_rect),
+            ("Defense кнопка (Shield)", self.game.skip_button_rect),
+            ("History кнопка", self.game.history_button_rect)
         ]
         
         info = ["=== ЭЛЕМЕНТЫ ИНТЕРФЕЙСА ==="]

@@ -474,9 +474,9 @@ class AIController:
         if not isinstance(unit, Hero) and not unit.has_attacked and self.should_defend(unit):
             self.current_action = "Использование защиты"
             self.last_decision = "Активирована защита"
-            # Используем защиту
-            defend_pos = (self.game.defend_button_rect.x + self.game.defend_button_rect.width // 2,
-                         self.game.defend_button_rect.y + self.game.defend_button_rect.height // 2)
+            # Используем защиту (skip_button_rect теперь кнопка защиты)
+            defend_pos = (self.game.skip_button_rect.x + self.game.skip_button_rect.width // 2,
+                         self.game.skip_button_rect.y + self.game.skip_button_rect.height // 2)
             self.game.handle_click(defend_pos, True)
             return True
         
@@ -571,45 +571,95 @@ class AIController:
                         else:
                             self.current_action = "Отход не удался"
             
+            # Ищем достижимую цель для атаки
+            # Сначала проверяем, какие враги достижимы с учетом текущих очков движения
             target, estimated_damage = self.find_best_attack_target(unit)
+            reachable_enemy_for_attack = None
             
-            if target:
-                # Проверяем, нужен ли шаг для атаки
+            if target and hasattr(unit, 'move_points_left') and unit.move_points_left > 0:
+                # Проверяем, можем ли достичь позиции для атаки с текущими ОД
                 can_attack_now = unit.can_attack(target.x, target.y, self.game.units)
                 
                 if not can_attack_now:
-                    # Нужно подойти ближе
-                    if hasattr(unit, 'move_points_left') and unit.move_points_left > 0:
-                        best_move = self.find_best_move_position(unit, target)
-                        if best_move and (best_move[0] != unit.x or best_move[1] != unit.y):
-                            # Перемещаемся
-                            self.current_action = f"Перемещение к {target.unit_type} ({target.x}, {target.y})"
-                            move_pos = (best_move[0] * CELL_SIZE + CELL_SIZE // 2,
-                                      best_move[1] * CELL_SIZE + CELL_SIZE // 2)
-                            old_x, old_y = unit.x, unit.y
-                            old_mp = getattr(unit, 'move_points_left', 0)
-                            self.game.handle_click(move_pos, True)
-                            moved = (unit.x != old_x) or (unit.y != old_y) or (getattr(unit, 'move_points_left', 0) < old_mp)
-                            if moved:
-                                self.last_decision = f"Перемещение к цели {target.unit_type}"
-                                # После перемещения атакуем (через следующий вызов)
-                                return True
-                            else:
-                                self.current_action = "Перемещение не удалось"
+                    # Нужно подойти ближе - проверяем достижимость
+                    # Для ближних юнитов нужно достичь клетки рядом с целью
+                    # Для дальнобойных - нужна линия видимости
+                    if hasattr(self.game, 'get_reachable_cells'):
+                        reachable = self.game.get_reachable_cells(unit.x, unit.y, unit.move_points_left)
+                        
+                        # Для ближних юнитов проверяем, есть ли доступные клетки рядом с целью
+                        if not (hasattr(unit, 'is_ranged') and unit.is_ranged):
+                            adjacent_to_target = [
+                                (target.x + 1, target.y),
+                                (target.x - 1, target.y),
+                                (target.x, target.y + 1),
+                                (target.x, target.y - 1)
+                            ]
+                            can_reach_attack_pos = any(pos in reachable for pos in adjacent_to_target)
+                            if can_reach_attack_pos:
+                                reachable_enemy_for_attack = target
                         else:
-                            self.current_action = "Нет доступной позиции для перемещения"
-                    else:
-                        self.current_action = "Недостаточно ОД для перемещения"
+                            # Для дальнобойных - проверяем, есть ли достижимые позиции для стрельбы
+                            # Упрощенная проверка: если расстояние <= move_points + текущее расстояние
+                            current_distance = self.get_distance(unit, target)
+                            if current_distance <= unit.move_points_left + 3:  # +3 для запаса дистанции стрельбы
+                                reachable_enemy_for_attack = target
+                    
+                    # Если цель недостижима - ищем ближайшего достижимого врага
+                    if not reachable_enemy_for_attack:
+                        self.current_action = f"Цель {target.unit_type} недостижима (расстояние: {self.get_distance(unit, target)}, ОД: {unit.move_points_left})"
+                        # Находим ближайших врагов, которых можем достичь
+                        closest_reachable = None
+                        min_distance = float('inf')
+                        
+                        for enemy in enemies:
+                            distance = self.get_distance(unit, enemy)
+                            # Для ближних - проверяем достижимость клеток рядом с врагом
+                            if not (hasattr(unit, 'is_ranged') and unit.is_ranged):
+                                if distance <= unit.move_points_left + 1:  # +1 так как атакуем с соседней клетки
+                                    if distance < min_distance:
+                                        min_distance = distance
+                                        closest_reachable = enemy
+                            else:
+                                # Для дальнобойных - более гибкий подход
+                                if distance <= unit.move_points_left + 3:
+                                    if distance < min_distance:
+                                        min_distance = distance
+                                        closest_reachable = enemy
+                        
+                        if closest_reachable:
+                            reachable_enemy_for_attack = closest_reachable
+                            self.current_action = f"Переключение на достижимого врага {closest_reachable.unit_type}"
                 else:
-                    # Можем атаковать сейчас
+                    # Можем атаковать прямо сейчас
                     self.current_action = f"Атака {target.unit_type} на расстоянии {self.get_distance(unit, target)}"
                     attack_pos = (target.x * CELL_SIZE + CELL_SIZE // 2,
                                 target.y * CELL_SIZE + CELL_SIZE // 2)
                     self.game.handle_click(attack_pos, True)
                     self.last_decision = f"Атака по {target.unit_type}"
                     return True
+            
+            # Если нашли достижимую цель - двигаемся к ней
+            if reachable_enemy_for_attack:
+                best_move = self.find_best_move_position(unit, reachable_enemy_for_attack)
+                if best_move and (best_move[0] != unit.x or best_move[1] != unit.y):
+                    # Перемещаемся
+                    self.current_action = f"Перемещение к {reachable_enemy_for_attack.unit_type} ({reachable_enemy_for_attack.x}, {reachable_enemy_for_attack.y})"
+                    move_pos = (best_move[0] * CELL_SIZE + CELL_SIZE // 2,
+                              best_move[1] * CELL_SIZE + CELL_SIZE // 2)
+                    old_x, old_y = unit.x, unit.y
+                    old_mp = getattr(unit, 'move_points_left', 0)
+                    self.game.handle_click(move_pos, True)
+                    moved = (unit.x != old_x) or (unit.y != old_y) or (getattr(unit, 'move_points_left', 0) < old_mp)
+                    if moved:
+                        self.last_decision = f"Перемещение к достижимой цели {reachable_enemy_for_attack.unit_type}"
+                        return True
+                    else:
+                        self.current_action = "Перемещение не удалось - пропуск хода"
+                else:
+                    self.current_action = "Нет доступной позиции для перемещения"
             else:
-                self.current_action = "Нет целей для атаки"
+                self.current_action = "Нет достижимых целей для атаки"
         
         # Если не атаковали, перемещаемся к ближайшей цели
         if not unit.has_attacked and hasattr(unit, 'move_points_left') and unit.move_points_left > 0:
