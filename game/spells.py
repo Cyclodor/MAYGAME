@@ -35,10 +35,12 @@ class BlessSpell(Spell):
             duration=2,
             school='light'
         )
+        self.buff_amount = 25  # процент увеличения атаки
     def apply(self, target, caster=None):
         turns = self.duration
         if caster and hasattr(caster, 'spell_power'):
             turns += caster.spell_power
+        # Примечание: buff_amount можно использовать в будущем для настройки силы баффа
         target.apply_attack_buff(turns=turns)
         return True  # Успешное применение
 
@@ -55,10 +57,12 @@ class CurseSpell(Spell):
             duration=2,
             school='darkness'
         )
+        self.debuff_amount = 25  # процент уменьшения атаки
     def apply(self, target, caster=None):
         turns = self.duration
         if caster and hasattr(caster, 'spell_power'):
             turns += caster.spell_power
+        # Примечание: debuff_amount можно использовать в будущем для настройки силы дебаффа
         target.apply_attack_debuff(turns=turns)
         return True  # Успешное применение
 
@@ -79,15 +83,17 @@ class SlowSpell(Spell):
             duration=2,
             school='earth'
         )
+        self.initiative_reduction = 5  # уменьшение инициативы
+        self.speed_reduction = 1  # уменьшение скорости
     def apply(self, target, caster=None):
         turns = self.duration
         if caster and hasattr(caster, 'spell_power'):
             turns += caster.spell_power
         if not hasattr(target, 'slow_turns') or target.slow_turns == 0:
             target.base_initiative = getattr(target, 'base_initiative', target.initiative)
-            target.initiative = max(1, target.initiative - 5)
+            target.initiative = max(1, target.initiative - self.initiative_reduction)
             target.base_speed = getattr(target, 'base_speed', target.speed)
-            target.speed = max(1, target.speed - 1)
+            target.speed = max(1, target.speed - self.speed_reduction)
             target.slow_turns = turns
         else:
             target.slow_turns = turns
@@ -106,10 +112,11 @@ class FireArrowSpell(Spell):
             duration=0,
             school='fire'
         )
+        self.spell_power_multiplier = 5  # множитель силы магии для урона
     def apply(self, target, caster=None):
         dmg = self.damage
         if caster and hasattr(caster, 'spell_power'):
-            dmg += 5 * caster.spell_power
+            dmg += self.spell_power_multiplier * caster.spell_power
         
         # Запоминаем здоровье до урона
         health_before = target.health
@@ -240,6 +247,8 @@ class HasteSpell(Spell):
             duration=2,
             school='air'
         )
+        self.speed_bonus = 2  # увеличение скорости
+        self.initiative_bonus = 5  # увеличение инициативы
     def apply(self, target, caster=None):
         turns = self.duration
         if caster and hasattr(caster, 'spell_power'):
@@ -247,9 +256,9 @@ class HasteSpell(Spell):
         # Используем общие поля, как у рунической спешки, чтобы логика снятия/окончания работала одинаково
         if not hasattr(target, 'haste_turns') or target.haste_turns == 0:
             target.base_speed = getattr(target, 'base_speed', target.speed)
-            target.speed += 2
+            target.speed += self.speed_bonus
             target.base_initiative = getattr(target, 'base_initiative', target.initiative)
-            target.initiative += 5
+            target.initiative += self.initiative_bonus
             target.haste_turns = turns
         else:
             target.haste_turns = turns
@@ -277,6 +286,7 @@ class RuneShieldSpell(Spell):
             duration=2,
             school='rune'
         )
+        self.defense_bonus = 15  # бонус к обоим типам защиты
     def apply(self, target, caster=None):
         turns = self.duration
         if caster and hasattr(caster, 'spell_power'):
@@ -284,10 +294,10 @@ class RuneShieldSpell(Spell):
         
         if getattr(target, 'rune_shield_turns', 0) == 0:
             # Увеличиваем оба типа защиты
-            target.phys_defense += 15
-            target.magic_defense += 15
-            target.rune_shield_phys_bonus = 15
-            target.rune_shield_magic_bonus = 15
+            target.phys_defense += self.defense_bonus
+            target.magic_defense += self.defense_bonus
+            target.rune_shield_phys_bonus = self.defense_bonus
+            target.rune_shield_magic_bonus = self.defense_bonus
         target.rune_shield_turns = turns
         return True  # Успешное применение
 
@@ -304,15 +314,17 @@ class RuneHasteSpell(Spell):
             duration=2,
             school='rune'
         )
+        self.speed_bonus = 2  # увеличение скорости
+        self.initiative_bonus = 5  # увеличение инициативы
     def apply(self, target, caster=None):
         turns = self.duration
         if caster and hasattr(caster, 'spell_power'):
             turns += caster.spell_power
         if not hasattr(target, 'rune_haste_turns') or target.rune_haste_turns == 0:
             target.base_speed = getattr(target, 'base_speed', target.speed)
-            target.speed += 2
+            target.speed += self.speed_bonus
             target.base_initiative = getattr(target, 'base_initiative', target.initiative)
-            target.initiative += 5
+            target.initiative += self.initiative_bonus
             target.rune_haste_turns = turns
         else:
             target.rune_haste_turns = turns
@@ -370,6 +382,7 @@ class FrostRingSpell(Spell):
             duration=0,
             school='water'
         )
+        self.spell_power_multiplier = 5  # множитель силы магии для урона
     def apply(self, center, caster=None):
         # center — (x, y), game_ref должен быть у caster
         if not caster or not hasattr(caster, 'game_ref'):
@@ -393,7 +406,7 @@ class FrostRingSpell(Spell):
         for unit in affected_units:
             dmg = self.damage
             if caster and hasattr(caster, 'spell_power'):
-                dmg += 5 * caster.spell_power
+                dmg += self.spell_power_multiplier * caster.spell_power
             
             health_before = unit.health
             unit_died = unit.take_damage(dmg, attack_type='magical')
@@ -537,6 +550,8 @@ class UndeadHealSpell(Spell):
             duration=0,
             school='darkness'
         )
+        self.heal_amount = 25  # базовое лечение
+        self.spell_power_multiplier = 5  # множитель силы магии
 
     def apply(self, target, caster=None):
         # Лечит только нежить, если она ранена
@@ -547,8 +562,10 @@ class UndeadHealSpell(Spell):
         max_hp = getattr(target, 'max_health', 0)
         if current_hp >= max_hp:
             return False  # Уже полное здоровье
-        # Лечение
-        heal = 25
+        # Лечение с учетом силы магии
+        heal = self.heal_amount
+        if caster and hasattr(caster, 'spell_power'):
+            heal += self.spell_power_multiplier * caster.spell_power
         target.health = min(max_hp, current_hp + heal)
         return True  # Успешное применение
 
@@ -565,6 +582,7 @@ class FireballSpell(Spell):
             duration=0,
             school='fire'
         )
+        self.spell_power_multiplier = 5  # множитель силы магии для урона
     
     def apply(self, center, caster=None):
         if not caster or not hasattr(caster, 'game_ref'):
@@ -591,7 +609,7 @@ class FireballSpell(Spell):
         for unit in affected_units:
             dmg = self.damage
             if caster and hasattr(caster, 'spell_power'):
-                dmg += 5 * caster.spell_power
+                dmg += self.spell_power_multiplier * caster.spell_power
             
             health_before = unit.health
             unit_died = unit.take_damage(dmg, attack_type='magical')
@@ -620,11 +638,12 @@ class StoneSkinSpell(Spell):
             duration=0,
             school='earth'
         )
+        self.base_percent = 15  # базовый процент увеличения защиты
     def apply(self, target, caster=None):
         if not target:
             return False
         knowledge = getattr(caster, 'knowledge', 0) if caster else 0
-        percent = 0.15 + knowledge / 100.0
+        percent = (self.base_percent / 100.0) + knowledge / 100.0
         # Повышаем обе защиты
         phys_bonus = int(max(1, target.phys_defense * percent))
         magic_bonus = int(max(1, target.magic_defense * percent))
@@ -662,19 +681,21 @@ class FireShieldSpell(Spell):
         return True  # Успешное применение
 
 class ResurrectionSpell(Spell):
-    """Заклинание света: Воскрешение - воскрешает мертвых союзников (кроме нежити)"""
+    """Заклинание света: Воскрешение - воскрешает мертвых союзников (кроме нежити) или лечит живых"""
     def __init__(self):
         super().__init__(
             name="Воскрешение",
             damage=0,
             mana_cost=12,
             cooldown=0,
-            target_type='area',
-            description="Воскрешает павшего союзника на выбранной клетке. Не работает на нежить.",
+            target_type='both',  # может применяться и на живых, и на мертвых
+            description="Воскрешает павшего союзника или лечит живого. Не работает на нежить.",
             icon='resurrection',
             duration=0,
             school='light'
         )
+        # Базовое количество HP для лечения/воскрешения
+        self.heal_amount = 50
     
     def apply(self, center, caster=None):
         if not caster or not hasattr(caster, 'game_ref'):
@@ -685,13 +706,60 @@ class ResurrectionSpell(Spell):
         # Проверка границ
         if not (0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT):
             return False
-            
-        # Проверка, что клетка пуста (нельзя воскресить, если на трупе стоит юнит)
-        if any(u.x == x and u.y == y for u in game.units):
-            game.add_event("На этой клетке уже стоит юнит!")
-            return False
         
-        # Ищем труп на этой клетке
+        # Вычисляем количество лечения: базовое + сила магии * 10
+        heal = self.heal_amount
+        if caster and hasattr(caster, 'spell_power'):
+            heal += caster.spell_power * 10
+        
+        # Сначала проверяем, есть ли живой юнит на клетке
+        living_unit = None
+        for u in game.units:
+            if u.x == x and u.y == y:
+                living_unit = u
+                break
+        
+        # Если есть живой юнит - лечим его
+        if living_unit:
+            # Не лечим нежить
+            if living_unit.team == 'undead':
+                game.add_event("Воскрешение не действует на нежить!")
+                return False
+            
+            # Проверяем, что юнит ранен
+            if living_unit.health >= living_unit.max_health:
+                game.add_event(f"{living_unit.unit_type.capitalize()} уже полностью здоров!")
+                return False
+            
+            # Лечим
+            health_before = living_unit.health
+            living_unit.health = min(living_unit.max_health, living_unit.health + heal)
+            actual_heal = living_unit.health - health_before
+            
+            # Простая анимация лечения (желтое свечение)
+            try:
+                import pygame, random
+                from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
+                cx = x * CELL_SIZE + CELL_SIZE // 2
+                cy = y * CELL_SIZE + CELL_SIZE // 2
+                
+                for step in range(15):
+                    pygame.event.pump()
+                    game.draw()
+                    s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                    radius = 10 + step * 2
+                    alpha = max(0, 150 - step * 10)
+                    pygame.draw.circle(s, (255, 255, 200, alpha), (cx, cy), radius, 3)
+                    game.screen.blit(s, (0,0))
+                    pygame.display.flip()
+                    pygame.time.delay(25)
+            except Exception:
+                pass
+            
+            game.add_event(f"{living_unit.unit_type.capitalize()} исцелен на {actual_heal} HP!")
+            return True
+        
+        # Если живого юнита нет, ищем труп для воскрешения
         corpse = None
         for c in game.corpses:
             if c['x'] == x and c['y'] == y:
@@ -779,8 +847,8 @@ class ResurrectionSpell(Spell):
             try:
                 # Создаем нового юнита того же класса
                 new_unit = unit_class(x, y, corpse['team'])
-                # Восстанавливаем 50% здоровья
-                new_unit.health = new_unit.max_health // 2
+                # Восстанавливаем здоровье на heal_amount
+                new_unit.health = min(new_unit.max_health, heal)
                 new_unit.game_ref = game
                 game.units.append(new_unit)
                 # Добавляем в очередь хода
@@ -811,6 +879,8 @@ class HealSpell(Spell):
             duration=0,
             school='light'
         )
+        self.heal_amount = 20  # базовое лечение
+        self.spell_power_multiplier = 5  # множитель силы магии
     
     def apply(self, target, caster=None):
         # Не лечим нежить
@@ -819,16 +889,16 @@ class HealSpell(Spell):
                 caster.game_ref.add_event("Лечение не действует на нежить!")
             return False
         
-        # Вычисляем количество лечения: базово 20 + сила магии * 5
-        heal_amount = 20
+        # Вычисляем количество лечения: базово + сила магии * множитель
+        heal = self.heal_amount
         if caster and hasattr(caster, 'spell_power'):
-            heal_amount += caster.spell_power * 5
+            heal += caster.spell_power * self.spell_power_multiplier
         
         # Запоминаем здоровье до лечения
         health_before = target.health
         
         # Восстанавливаем здоровье
-        target.health = min(target.max_health, target.health + heal_amount)
+        target.health = min(target.max_health, target.health + heal)
         actual_heal = target.health - health_before
         
         # Анимация лечения: желтые плюсики поднимаются вверх
@@ -894,6 +964,9 @@ class IceShieldSpell(Spell):
             duration=3,
             school='water'
         )
+        self.absorption_percent = 35  # процент поглощения физического урона
+        self.hp_bonus_percent = 5  # процент от макс хп для бонуса хп
+        self.defense_bonus_percent = 20  # процент от физ защиты для бонуса защиты
     
     def apply(self, target, caster=None):
         # Длительность: базово 3 + сила магии
@@ -902,14 +975,12 @@ class IceShieldSpell(Spell):
             turns += caster.spell_power
         
         # Вычисляем бонусы защиты
-        # 5% от макс хп
-        hp_bonus = int(target.max_health * 0.05)
-        # 20% от физ защиты
-        phys_bonus = int(target.phys_defense * 0.20)
+        hp_bonus = int(target.max_health * (self.hp_bonus_percent / 100.0))
+        phys_bonus = int(target.phys_defense * (self.defense_bonus_percent / 100.0))
         
         # Применяем бафф
         target.ice_shield_turns = turns
-        target.ice_shield_absorption = 0.35  # 35% поглощения физ урона
+        target.ice_shield_absorption = self.absorption_percent / 100.0
         target.ice_shield_hp_bonus = hp_bonus
         target.ice_shield_phys_bonus = phys_bonus
         
@@ -1005,12 +1076,13 @@ class LightningSpell(Spell):
             duration=0,
             school='air'
         )
+        self.spell_power_multiplier = 8  # множитель силы магии для урона
     
     def apply(self, target, caster=None):
-        # Вычисляем урон: базовый + сила магии * 8
+        # Вычисляем урон: базовый + сила магии * множитель
         damage = self.damage
         if caster and hasattr(caster, 'spell_power'):
-            damage += caster.spell_power * 8
+            damage += caster.spell_power * self.spell_power_multiplier
         
         # Запоминаем здоровье до урона
         health_before = target.health
@@ -1120,6 +1192,7 @@ class EarthSpikesSpell(Spell):
             duration=0,
             school='earth'
         )
+        self.spell_power_multiplier = 6  # множитель силы магии для урона
     
     def apply(self, center, caster=None):
         if not caster or not hasattr(caster, 'game_ref'):
@@ -1130,7 +1203,7 @@ class EarthSpikesSpell(Spell):
         # Вычисляем урон
         damage = self.damage
         if caster and hasattr(caster, 'spell_power'):
-            damage += caster.spell_power * 6
+            damage += caster.spell_power * self.spell_power_multiplier
         
         # Определяем зону атаки: крест 5x5 (2 клетки в каждую сторону)
         affected_cells = []
@@ -1514,6 +1587,7 @@ class WeaknessSpell(Spell):
             duration=3,
             school='darkness'
         )
+        self.debuff_amount = 30  # процент уменьшения атаки
     
     def apply(self, target, caster=None):
         # Длительность: базово 3 + сила магии
@@ -1521,8 +1595,8 @@ class WeaknessSpell(Spell):
         if caster and hasattr(caster, 'spell_power'):
             turns += caster.spell_power
         
-        # Вычисляем уменьшение атаки (30%)
-        percent = 0.30
+        # Вычисляем уменьшение атаки
+        percent = self.debuff_amount / 100.0
         phys_penalty = int(max(1, target.phys_attack * percent))
         magic_penalty = int(max(1, target.magic_attack * percent))
         

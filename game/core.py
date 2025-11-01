@@ -2762,27 +2762,46 @@ class Game:
         book_top = y + 30
         book_height = SCREEN_HEIGHT - 190
         pygame.draw.rect(self.screen, (45,40,35), (x-2, book_top-2, 340, book_height), border_radius=8)
-        vis_cnt_b = max(1, (book_height - 16)//30)
-        self.spell_book_scroll = getattr(self, 'spell_book_scroll', 0)
-        book_list = list(getattr(sel_hero, 'spells', [])) if sel_hero else []
-        start_b = min(self.spell_book_scroll, max(0, len(book_list) - vis_cnt_b))
-        end_b = min(len(book_list), start_b + vis_cnt_b)
-        draw_y = book_top + 6
-        for s in book_list[start_b:end_b]:
-            rect = pygame.Rect(x, draw_y, 300, 26)
-            pygame.draw.rect(self.screen, (80,70,60), rect, border_radius=6)
-            pygame.draw.rect(self.screen, (200,180,150), rect, 2, border_radius=6)
-            label = getattr(s, 'name', s.__class__.__name__)
-            self.screen.blit(font.render(label, True, (255,245,220)), (rect.x+8, rect.y+4))
-            self.spell_remove_rects.append((rect, s))
-            draw_y += 30
-        # Скролл кнопки
-        self.spell_book_up = pygame.Rect(x+300, book_top, 28, 22)
-        self.spell_book_down = pygame.Rect(x+300, book_top+book_height-22, 28, 22)
-        pygame.draw.rect(self.screen, (120,100,80), self.spell_book_up, border_radius=6)
-        pygame.draw.rect(self.screen, (120,100,80), self.spell_book_down, border_radius=6)
-        self.screen.blit(font.render('▲', True, (255,255,255)), (self.spell_book_up.x+6, self.spell_book_up.y+1))
-        self.screen.blit(font.render('▼', True, (255,255,255)), (self.spell_book_down.x+6, self.spell_book_down.y+1))
+        
+        if not heroes or sel_hero is None:
+            # Если героев нет, показываем сообщение
+            no_heroes_text = [
+                "Нет созданных героев",
+                "",
+                "Создайте героев в режиме",
+                "креативного редактора,",
+                "чтобы добавлять им",
+                "заклинания в книгу"
+            ]
+            msg_y = book_top + book_height // 2 - len(no_heroes_text) * 15
+            for line in no_heroes_text:
+                text_surf = pygame.font.Font(None, 24).render(line, True, (180, 180, 200))
+                text_x = x + (340 - text_surf.get_width()) // 2
+                self.screen.blit(text_surf, (text_x, msg_y))
+                msg_y += 30
+        else:
+            # Обычный код для книги героя
+            vis_cnt_b = max(1, (book_height - 16)//30)
+            self.spell_book_scroll = getattr(self, 'spell_book_scroll', 0)
+            book_list = list(getattr(sel_hero, 'spells', [])) if sel_hero else []
+            start_b = min(self.spell_book_scroll, max(0, len(book_list) - vis_cnt_b))
+            end_b = min(len(book_list), start_b + vis_cnt_b)
+            draw_y = book_top + 6
+            for s in book_list[start_b:end_b]:
+                rect = pygame.Rect(x, draw_y, 300, 26)
+                pygame.draw.rect(self.screen, (80,70,60), rect, border_radius=6)
+                pygame.draw.rect(self.screen, (200,180,150), rect, 2, border_radius=6)
+                label = getattr(s, 'name', s.__class__.__name__)
+                self.screen.blit(font.render(label, True, (255,245,220)), (rect.x+8, rect.y+4))
+                self.spell_remove_rects.append((rect, s))
+                draw_y += 30
+            # Скролл кнопки
+            self.spell_book_up = pygame.Rect(x+300, book_top, 28, 22)
+            self.spell_book_down = pygame.Rect(x+300, book_top+book_height-22, 28, 22)
+            pygame.draw.rect(self.screen, (120,100,80), self.spell_book_up, border_radius=6)
+            pygame.draw.rect(self.screen, (120,100,80), self.spell_book_down, border_radius=6)
+            self.screen.blit(font.render('▲', True, (255,255,255)), (self.spell_book_up.x+6, self.spell_book_up.y+1))
+            self.screen.blit(font.render('▼', True, (255,255,255)), (self.spell_book_down.x+6, self.spell_book_down.y+1))
         # Кнопки
         self.spellbook_back_rect = pygame.Rect(20, SCREEN_HEIGHT-60, 180, 40)
         pygame.draw.rect(self.screen, (130,80,80), self.spellbook_back_rect, border_radius=8)
@@ -2970,6 +2989,20 @@ class Game:
                 max_scroll_s = max(0, len(schools) - vis_cnt_s)
                 self.school_scroll = int(max(0, min(max_scroll_s, getattr(self, 'school_scroll', 0) - y_delta)))
                 return
+        
+        # Spell editor: скролл списка заклинаний
+        if self.state == 'spell_editor':
+            list_x = 30
+            list_y = 80
+            list_w = 300
+            list_h = SCREEN_HEIGHT - 150
+            spell_list_rect = pygame.Rect(list_x, list_y, list_w, list_h)
+            if spell_list_rect.collidepoint(mx, my):
+                spell_list = self._spells_catalog
+                visible_count = max(1, (list_h - 20) // 35)
+                max_scroll = max(0, len(spell_list) - visible_count)
+                self.spell_editor_scroll = int(max(0, min(max_scroll, getattr(self, 'spell_editor_scroll', 0) - y_delta)))
+                return
 
     def draw_spell_editor(self):
         """Редактор параметров заклинаний"""
@@ -3041,67 +3074,102 @@ class Game:
                 # Создаём временный экземпляр для получения дефолтных значений
                 try:
                     temp_spell = selected_spell_data['class']()
-                    default_damage = getattr(temp_spell, 'damage', 0)
-                    default_mana = getattr(temp_spell, 'mana_cost', 0)
-                    default_duration = getattr(temp_spell, 'duration', 0)
                 except:
-                    default_damage = 0
-                    default_mana = 0
-                    default_duration = 0
+                    temp_spell = None
                 
-                current_damage = overrides.get('damage', default_damage)
-                current_mana = overrides.get('mana_cost', default_mana)
-                current_duration = overrides.get('duration', default_duration)
+                # Список всех возможных параметров для редактирования
+                editable_params = [
+                    ('damage', 'Урон', (255,220,180), 1, lambda x: x > 0),
+                    ('mana_cost', 'Мана', (180,200,255), 1, lambda x: True),
+                    ('duration', 'Длительность', (255,255,180), 1, lambda x: x > 0),
+                    ('heal_amount', 'Лечение', (120,255,120), 1, lambda x: x > 0),
+                    ('spell_power_multiplier', 'Множитель силы', (220,180,255), 1, lambda x: x > 0),
+                    ('buff_amount', 'Баффы %', (180,255,180), 1, lambda x: x > 0),
+                    ('debuff_amount', 'Дебаффы %', (255,180,180), 1, lambda x: x > 0),
+                    ('initiative_reduction', 'Замедл. иниц.', (200,200,200), 1, lambda x: x > 0),
+                    ('speed_reduction', 'Замедл. скор.', (200,200,200), 1, lambda x: x > 0),
+                    ('speed_bonus', 'Бонус скор.', (180,255,200), 1, lambda x: x > 0),
+                    ('initiative_bonus', 'Бонус иниц.', (180,255,200), 1, lambda x: x > 0),
+                    ('defense_bonus', 'Бонус защиты', (200,220,255), 1, lambda x: x > 0),
+                    ('base_percent', 'Баз. процент', (255,220,200), 1, lambda x: x > 0),
+                    ('absorption_percent', 'Поглощение %', (150,200,255), 1, lambda x: x > 0),
+                    ('hp_bonus_percent', 'HP бонус %', (200,255,200), 1, lambda x: x > 0),
+                    ('defense_bonus_percent', 'Защита бонус %', (200,220,255), 1, lambda x: x > 0),
+                ]
                 
                 y = params_y + 50
+                self.spell_editor_controls = []
                 
-                # Параметры с кнопками +/-
-                if default_damage > 0:
-                    label_text = font.render(f"Урон: {current_damage}", True, (255,220,180))
+                # Отображаем все параметры, которые есть у заклинания
+                for param_name, display_name, color, delta, should_display in editable_params:
+                    if temp_spell is None:
+                        continue
+                    
+                    default_value = getattr(temp_spell, param_name, None)
+                    if default_value is None:
+                        continue
+                    
+                    # Проверяем, нужно ли показывать этот параметр
+                    if not should_display(default_value):
+                        continue
+                    
+                    current_value = overrides.get(param_name, default_value)
+                    
+                    # Название параметра
+                    label_text = font.render(f"{display_name}:", True, color)
                     self.screen.blit(label_text, (params_x, y))
                     
-                    minus_rect = pygame.Rect(params_x + 200, y-5, 40, 30)
-                    plus_rect = pygame.Rect(params_x + 250, y-5, 40, 30)
+                    # Значение параметра (кликабельное для ручного ввода)
+                    value_text = font.render(str(current_value), True, (255, 255, 255))
+                    value_rect = pygame.Rect(params_x + 160, y-5, 80, 30)
+                    pygame.draw.rect(self.screen, (50,60,80), value_rect, border_radius=6)
+                    pygame.draw.rect(self.screen, (120,140,180), value_rect, 2, border_radius=6)
+                    self.screen.blit(value_text, (value_rect.x + (value_rect.w - value_text.get_width())//2, value_rect.y+3))
+                    
+                    # Кнопки +/-
+                    minus_rect = pygame.Rect(params_x + 250, y-5, 40, 30)
+                    plus_rect = pygame.Rect(params_x + 300, y-5, 40, 30)
                     pygame.draw.rect(self.screen, (100,80,80), minus_rect, border_radius=6)
                     pygame.draw.rect(self.screen, (80,100,80), plus_rect, border_radius=6)
                     self.screen.blit(font.render('-', True, (255,255,255)), (minus_rect.x+13, minus_rect.y+3))
                     self.screen.blit(font.render('+', True, (255,255,255)), (plus_rect.x+13, plus_rect.y+3))
                     
-                    if not hasattr(self, 'spell_editor_controls'):
-                        self.spell_editor_controls = []
-                    self.spell_editor_controls.append(('damage', minus_rect, -5))
-                    self.spell_editor_controls.append(('damage', plus_rect, 5))
-                    y += 50
+                    self.spell_editor_controls.append((param_name, 'minus', minus_rect, -delta))
+                    self.spell_editor_controls.append((param_name, 'plus', plus_rect, delta))
+                    self.spell_editor_controls.append((param_name, 'value', value_rect, 0))
+                    y += 45
                 
-                # Мана
-                label_text = font.render(f"Мана: {current_mana}", True, (180,200,255))
-                self.screen.blit(label_text, (params_x, y))
-                
-                minus_rect = pygame.Rect(params_x + 200, y-5, 40, 30)
-                plus_rect = pygame.Rect(params_x + 250, y-5, 40, 30)
-                pygame.draw.rect(self.screen, (100,80,80), minus_rect, border_radius=6)
-                pygame.draw.rect(self.screen, (80,100,80), plus_rect, border_radius=6)
-                self.screen.blit(font.render('-', True, (255,255,255)), (minus_rect.x+13, minus_rect.y+3))
-                self.screen.blit(font.render('+', True, (255,255,255)), (plus_rect.x+13, plus_rect.y+3))
-                
-                self.spell_editor_controls.append(('mana_cost', minus_rect, -1))
-                self.spell_editor_controls.append(('mana_cost', plus_rect, 1))
-                y += 50
-                
-                # Длительность (если есть)
-                if default_duration > 0:
-                    label_text = font.render(f"Длительность: {current_duration} ход", True, (255,255,180))
-                    self.screen.blit(label_text, (params_x, y))
+                # Формула урона для заклинаний урона
+                if temp_spell is not None:
+                    damage_val = overrides.get('damage', getattr(temp_spell, 'damage', 0))
+                    multiplier_val = overrides.get('spell_power_multiplier', getattr(temp_spell, 'spell_power_multiplier', None))
+                    heal_val = overrides.get('heal_amount', getattr(temp_spell, 'heal_amount', None))
                     
-                    minus_rect = pygame.Rect(params_x + 260, y-5, 40, 30)
-                    plus_rect = pygame.Rect(params_x + 310, y-5, 40, 30)
-                    pygame.draw.rect(self.screen, (100,80,80), minus_rect, border_radius=6)
-                    pygame.draw.rect(self.screen, (80,100,80), plus_rect, border_radius=6)
-                    self.screen.blit(font.render('-', True, (255,255,255)), (minus_rect.x+13, minus_rect.y+3))
-                    self.screen.blit(font.render('+', True, (255,255,255)), (plus_rect.x+13, plus_rect.y+3))
+                    # Формула для заклинаний урона
+                    if damage_val > 0 and multiplier_val is not None and multiplier_val > 0:
+                        y += 15
+                        formula_text = f"Формула урона: {damage_val} + сила_магии × {multiplier_val}"
+                        formula_surf = pygame.font.Font(None, 24).render(formula_text, True, (255, 255, 100))
+                        self.screen.blit(formula_surf, (params_x, y))
+                        y += 30
+                        
+                        # Примеры расчета
+                        example_text = f"Пример: при силе магии 3 = {damage_val + 3 * multiplier_val} урона"
+                        example_surf = pygame.font.Font(None, 20).render(example_text, True, (200, 200, 150))
+                        self.screen.blit(example_surf, (params_x + 20, y))
                     
-                    self.spell_editor_controls.append(('duration', minus_rect, -1))
-                    self.spell_editor_controls.append(('duration', plus_rect, 1))
+                    # Формула для заклинаний лечения
+                    elif heal_val is not None and heal_val > 0 and multiplier_val is not None and multiplier_val > 0:
+                        y += 15
+                        formula_text = f"Формула лечения: {heal_val} + сила_магии × {multiplier_val}"
+                        formula_surf = pygame.font.Font(None, 24).render(formula_text, True, (120, 255, 120))
+                        self.screen.blit(formula_surf, (params_x, y))
+                        y += 30
+                        
+                        # Примеры расчета
+                        example_text = f"Пример: при силе магии 3 = {heal_val + 3 * multiplier_val} HP"
+                        example_surf = pygame.font.Font(None, 20).render(example_text, True, (150, 200, 150))
+                        self.screen.blit(example_surf, (params_x + 20, y))
         else:
             # Сброс контролов если ничего не выбрано
             self.spell_editor_controls = []
@@ -3112,9 +3180,81 @@ class Game:
         pygame.draw.rect(self.screen, (200, 120, 120), back_rect, 2, border_radius=8)
         self.screen.blit(font.render('Назад', True, (255,255,255)), (back_rect.x+35, back_rect.y+8))
         self.spell_editor_back_rect = back_rect
+        
+        # Панель ввода числа (если активна)
+        if hasattr(self, 'spell_num_input') and self.spell_num_input:
+            overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0,0,0,160))
+            self.screen.blit(overlay, (0,0))
+            box_w, box_h = 260, 300
+            box_x = SCREEN_WIDTH//2 - box_w//2
+            box_y = SCREEN_HEIGHT//2 - box_h//2
+            box = pygame.Rect(box_x, box_y, box_w, box_h)
+            pygame.draw.rect(self.screen, (40,50,70), box, border_radius=12)
+            pygame.draw.rect(self.screen, (200,200,220), box, 2, border_radius=12)
+            lbl = pygame.font.Font(None, 28).render(f"Введите {self.spell_num_input.get('param')}", True, (255,255,255))
+            self.screen.blit(lbl, (box_x+20, box_y+12))
+            # Поле ввода
+            input_rect = pygame.Rect(box_x+20, box_y+44, box_w-40, 36)
+            pygame.draw.rect(self.screen, (20,30,50), input_rect, border_radius=8)
+            pygame.draw.rect(self.screen, (120,140,180), input_rect, 2, border_radius=8)
+            cur_text = str(self.spell_num_input.get('value', ''))
+            self.screen.blit(pygame.font.Font(None, 28).render(cur_text, True, (240,240,255)), (input_rect.x+8, input_rect.y+6))
+            # Кнопки цифр 0-9, backspace, OK, Cancel
+            self.spell_num_buttons = []
+            digits = [str(i) for i in range(1,10)] + ['0']
+            bx, by = box_x+20, box_y+96
+            for idx, d in enumerate(digits):
+                r = pygame.Rect(bx + (idx%3)*70, by + (idx//3)*46, 60, 36)
+                pygame.draw.rect(self.screen, (70,90,120), r, border_radius=8)
+                pygame.draw.rect(self.screen, (180,200,220), r, 1, border_radius=8)
+                self.screen.blit(pygame.font.Font(None, 28).render(d, True, (255,255,255)), (r.x+22, r.y+6))
+                self.spell_num_buttons.append(('digit', d, r))
+            # Backspace
+            back_r = pygame.Rect(bx, by+4*46, 130, 36)
+            pygame.draw.rect(self.screen, (100,70,70), back_r, border_radius=8)
+            pygame.draw.rect(self.screen, (200,150,150), back_r, 1, border_radius=8)
+            self.screen.blit(pygame.font.Font(None, 24).render('Удалить', True, (255,255,255)), (back_r.x+30, back_r.y+8))
+            self.spell_num_buttons.append(('back', '', back_r))
+            # OK
+            ok_r = pygame.Rect(bx+140, by+3*46, 60, 36)
+            pygame.draw.rect(self.screen, (70,120,70), ok_r, border_radius=8)
+            pygame.draw.rect(self.screen, (150,220,150), ok_r, 1, border_radius=8)
+            self.screen.blit(pygame.font.Font(None, 26).render('OK', True, (255,255,255)), (ok_r.x+16, ok_r.y+6))
+            self.spell_num_buttons.append(('ok', '', ok_r))
+            # Cancel
+            cancel_r = pygame.Rect(bx+140, by+4*46, 60, 36)
+            pygame.draw.rect(self.screen, (120,70,70), cancel_r, border_radius=8)
+            pygame.draw.rect(self.screen, (220,150,150), cancel_r, 1, border_radius=8)
+            self.screen.blit(pygame.font.Font(None, 20).render('Отмена', True, (255,255,255)), (cancel_r.x+8, cancel_r.y+10))
+            self.spell_num_buttons.append(('cancel', '', cancel_r))
     
     def handle_spell_editor_click(self, pos):
         """Обработка кликов в редакторе заклинаний"""
+        # Если открыта панель ввода — обрабатываем только её
+        if hasattr(self, 'spell_num_input') and self.spell_num_input and hasattr(self, 'spell_num_buttons'):
+            for kind, val, r in self.spell_num_buttons:
+                if r.collidepoint(pos):
+                    if kind == 'digit':
+                        self.spell_num_input['value'] = (self.spell_num_input.get('value','') + val)[:6]
+                    elif kind == 'back':
+                        self.spell_num_input['value'] = self.spell_num_input.get('value','')[:-1]
+                    elif kind == 'ok':
+                        try:
+                            param = self.spell_num_input.get('param')
+                            selected_icon = self._spell_editor_selected
+                            self.spell_overrides.setdefault(selected_icon, {})
+                            self.spell_overrides[selected_icon][param] = int(self.spell_num_input.get('value') or 0)
+                            self._save_spell_overrides()
+                        except Exception:
+                            pass
+                        self.spell_num_input = None
+                    elif kind == 'cancel':
+                        self.spell_num_input = None
+                    return
+            # Если открыт ввод и клик вне кнопок — блокируем остальной интерфейс
+            return
+        
         # Кнопка "Назад"
         if hasattr(self, 'spell_editor_back_rect') and self.spell_editor_back_rect.collidepoint(pos):
             if self.button_click_sound:
@@ -3149,23 +3289,51 @@ class Game:
             selected_icon = self._spell_editor_selected
             self.spell_overrides.setdefault(selected_icon, {})
             
-            for param, rect, delta in self.spell_editor_controls:
+            for item in self.spell_editor_controls:
+                param = item[0]
+                action = item[1]
+                rect = item[2]
+                
                 if rect.collidepoint(pos):
-                    current = self.spell_overrides[selected_icon].get(param, None)
-                    if current is None:
-                        # Получаем дефолтное значение
-                        spell_data = next((s for s in self._spells_catalog if s['icon'] == selected_icon), None)
-                        if spell_data:
-                            try:
-                                temp_spell = spell_data['class']()
-                                current = getattr(temp_spell, param, 0)
-                            except:
-                                current = 0
-                    
-                    new_value = max(0, current + delta)
-                    self.spell_overrides[selected_icon][param] = new_value
-                    self._save_spell_overrides()
-                    return
+                    if action == 'value':
+                        # Двойной клик по значению открывает панель ввода
+                        now = pygame.time.get_ticks()
+                        last = getattr(self, '_spell_edit_last_click', 0)
+                        last_rect = getattr(self, '_spell_edit_last_rect', None)
+                        if last_rect == rect and now - last < 450:
+                            # Двойной клик - открываем панель ввода
+                            spell_data = next((s for s in self._spells_catalog if s['icon'] == selected_icon), None)
+                            if spell_data:
+                                try:
+                                    temp_spell = spell_data['class']()
+                                    default_value = getattr(temp_spell, param, 0)
+                                except:
+                                    default_value = 0
+                            else:
+                                default_value = 0
+                            current = self.spell_overrides[selected_icon].get(param, default_value)
+                            self.spell_num_input = {'param': param, 'value': str(current)}
+                        self._spell_edit_last_click = now
+                        self._spell_edit_last_rect = rect
+                        return
+                    else:
+                        # action == 'minus' или 'plus'
+                        delta = item[3]
+                        current = self.spell_overrides[selected_icon].get(param, None)
+                        if current is None:
+                            # Получаем дефолтное значение
+                            spell_data = next((s for s in self._spells_catalog if s['icon'] == selected_icon), None)
+                            if spell_data:
+                                try:
+                                    temp_spell = spell_data['class']()
+                                    current = getattr(temp_spell, param, 0)
+                                except:
+                                    current = 0
+                        
+                        new_value = max(0, current + delta)
+                        self.spell_overrides[selected_icon][param] = new_value
+                        self._save_spell_overrides()
+                        return
 
     def handle_creative_click(self, pos):
         # Кнопки
@@ -3206,10 +3374,8 @@ class Game:
                 self.button_click_sound.play()
             # Берём только героев с карты (которые размещены в Creative Mode)
             heroes = [u for u in self.units if isinstance(u, Hero)]
-            # Если героев нет - не открываем (нужно сначала разместить героев)
-            if not heroes:
-                return
-            self._spellbook_heroes = heroes
+            # Открываем книгу даже без героев (можно редактировать параметры заклинаний)
+            self._spellbook_heroes = heroes if heroes else []
             self._spellbook_selected_hero_idx = 0
             self._spellbook_selected_school = 'all'
             self.state = 'spellbook_editor'
@@ -3532,21 +3698,7 @@ class Game:
             self.num_buttons.append(('cancel', None, cancel_r))
 
     def handle_unit_editor_click(self, pos):
-        # Выбор расы
-        if hasattr(self, 'unit_editor_race_rects'):
-            for rect, r in self.unit_editor_race_rects:
-                if rect.collidepoint(pos):
-                    self._unit_editor_selected_race = r
-                    pool = self.creative_units_by_race.get(r, [])
-                    self._unit_editor_selected_unit = pool[0][0] if pool else self._unit_editor_selected_unit
-                    return
-        # Выбор юнита
-        if hasattr(self, 'unit_editor_unit_rects'):
-            for rect, name in self.unit_editor_unit_rects:
-                if rect.collidepoint(pos):
-                    self._unit_editor_selected_unit = name
-                    return
-        # Если открыт ввод числа — обрабатываем его приоритетно
+        # Если открыта панель ввода — обрабатываем только её (блокируем остальной интерфейс)
         if hasattr(self, 'num_input') and self.num_input and hasattr(self, 'num_buttons'):
             for kind, val, r in self.num_buttons:
                 if r.collidepoint(pos):
@@ -3570,6 +3722,21 @@ class Game:
                     return
             # Если открыт ввод и клик вне кнопок — блокируем остальной интерфейс
             return
+        
+        # Выбор расы
+        if hasattr(self, 'unit_editor_race_rects'):
+            for rect, r in self.unit_editor_race_rects:
+                if rect.collidepoint(pos):
+                    self._unit_editor_selected_race = r
+                    pool = self.creative_units_by_race.get(r, [])
+                    self._unit_editor_selected_unit = pool[0][0] if pool else self._unit_editor_selected_unit
+                    return
+        # Выбор юнита
+        if hasattr(self, 'unit_editor_unit_rects'):
+            for rect, name in self.unit_editor_unit_rects:
+                if rect.collidepoint(pos):
+                    self._unit_editor_selected_unit = name
+                    return
         # Параметры
         if hasattr(self, 'unit_editor_param_controls'):
             key = self._unit_editor_selected_unit

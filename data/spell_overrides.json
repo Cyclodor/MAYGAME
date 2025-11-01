@@ -1,4 +1,23 @@
 {
   "firearrow": {},
-  "bless": {}
+  "bless": {},
+  "fireball": {},
+  "rune_haste": {},
+  "weakness": {},
+  "heal": {
+    "heal_amount": 20,
+    "spell_power_multiplier": 2,
+    "mana_cost": 5
+  },
+  "resurrection": {
+    "heal_amount": 35
+  },
+  "ice_shield": {
+    "hp_bonus_percent": 5
+  },
+  "earth_spikes": {
+    "spell_power_multiplier": 6,
+    "mana_cost": 10,
+    "damage": 25
+  }
 }
