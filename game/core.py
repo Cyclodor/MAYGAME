@@ -5,7 +5,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from animation_logger import get_logger
 from .config import *
-from .units import Hero, Peasant, Spearman, Crossbowman, Swordsman, Gryphon, Skeleton, Zombie, Ghost, Vampire, Lich, Pixie, ElfScout, ElfArcher, Dryad, Ent, Imp, Gog, Demon, Cerberus, Succubus, Miner, Spearthrower, BearRider, RuneMage, Jarl, Scout, Beast, Minotaur, Witch, LizardRider
+from .units import Hero, Peasant, Spearman, Crossbowman, Swordsman, Gryphon, Skeleton, Zombie, Ghost, Vampire, Lich, Pixie, ElfScout, ElfArcher, Dryad, Ent, Imp, Gog, Demon, Cerberus, Succubus, Miner, Spearthrower, BearRider, RuneMage, Jarl, Scout, Beast, Minotaur, Witch, LizardRider, Monk, Angel, Cavalryman, DeathKnight, BoneDragon, Reaper, GreenDragon, Druid, Unicorn, BloodPriestess, Devil, HellHorse, Manticore, RedDragon, Beholder, ForgeDragon, MountainRuler, Volkhv
 from .graphics import (
     draw_cell_texture,
     draw_animated_grass,
@@ -48,7 +48,9 @@ TEAM_LABELS = {
     'human': 'Люди',
     'undead': 'Нежить',
     'elf': 'Эльфы',
-    'demon': 'Демоны'
+    'demon': 'Демоны',
+    'dwarf': 'Гномы',
+    'shadow': 'Тени'
 }
 
 def toggle_debug_mode():
@@ -116,20 +118,23 @@ class Game:
         self.animation_manager = AnimationManager(self)
         # Режим разработчика (креатив)
         self.creative_selected_team = 'human'
-        self.creative_selected_unit = 'Герой'  # По умолчанию выбран герой
+        self.creative_selected_unit = 'Hero_warrior'  # По умолчанию выбран герой-воин
         # Пулы юнитов по расам
         self.creative_units_by_race = {
-            'human': [('Peasant', Peasant), ('Spearman', Spearman), ('Swordsman', Swordsman), ('Crossbowman', Crossbowman), ('Gryphon', Gryphon)],
-            'elf': [('Pixie', Pixie), ('ElfScout', ElfScout), ('ElfArcher', ElfArcher), ('Dryad', Dryad), ('Ent', Ent)],
-            'undead': [('Skeleton', Skeleton), ('Zombie', Zombie), ('Ghost', Ghost), ('Vampire', Vampire), ('Lich', Lich)],
-            'demon': [('Imp', Imp), ('Gog', Gog), ('Demon', Demon), ('Cerberus', Cerberus), ('Succubus', Succubus)],
-            'dwarf': [('Miner', Miner), ('Spearthrower', Spearthrower), ('BearRider', BearRider), ('RuneMage', RuneMage), ('Jarl', Jarl)],
-            'shadow': [('Scout', Scout), ('Beast', Beast), ('Minotaur', Minotaur), ('Witch', Witch), ('LizardRider', LizardRider)],
+            'human': [('Peasant', Peasant), ('Spearman', Spearman), ('Swordsman', Swordsman), ('Crossbowman', Crossbowman), ('Gryphon', Gryphon), ('Monk', Monk), ('Angel', Angel), ('Cavalryman', Cavalryman)],
+            'elf': [('Pixie', Pixie), ('ElfScout', ElfScout), ('ElfArcher', ElfArcher), ('Dryad', Dryad), ('Ent', Ent), ('GreenDragon', GreenDragon), ('Druid', Druid), ('Unicorn', Unicorn)],
+            'undead': [('Skeleton', Skeleton), ('Zombie', Zombie), ('Ghost', Ghost), ('Vampire', Vampire), ('Lich', Lich), ('DeathKnight', DeathKnight), ('BoneDragon', BoneDragon), ('Reaper', Reaper)],
+            'demon': [('Imp', Imp), ('Gog', Gog), ('Demon', Demon), ('Cerberus', Cerberus), ('Succubus', Succubus), ('BloodPriestess', BloodPriestess), ('Devil', Devil), ('HellHorse', HellHorse)],
+            'dwarf': [('Miner', Miner), ('Spearthrower', Spearthrower), ('BearRider', BearRider), ('RuneMage', RuneMage), ('Jarl', Jarl), ('ForgeDragon', ForgeDragon), ('MountainRuler', MountainRuler), ('Volkhv', Volkhv)],
+            'shadow': [('Scout', Scout), ('Beast', Beast), ('Minotaur', Minotaur), ('Witch', Witch), ('LizardRider', LizardRider), ('Manticore', Manticore), ('RedDragon', RedDragon), ('Beholder', Beholder)],
         }
-        # Одна кнопка Hero с выпадающим списком класса
-        self.creative_units_common = [('Герой', Hero)]
-        self.creative_selected_hero_class = 'warrior'  # По умолчанию воин
-        self.creative_hero_dropdown_open = False
+        # Три класса героя вместо выпадающего списка
+        self.creative_units_common = [
+            ('Hero_warrior', Hero),
+            ('Hero_archer', Hero),
+            ('Hero_mage', Hero)
+        ]
+        self.creative_selected_hero_class = 'warrior'  # Для совместимости
         self.creative_panel_rect = pygame.Rect(SCREEN_WIDTH - 220, 0, 220, SCREEN_HEIGHT)
         # Уменьшенные кнопки внизу
         self.creative_start_rect = pygame.Rect(SCREEN_WIDTH - 180, SCREEN_HEIGHT - 60, 160, 38)
@@ -250,8 +255,49 @@ class Game:
                 pygame.draw.rect(field, (90, 60, 30), (x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE), 1)
         return field
 
+    def _set_default_squad_count(self, unit):
+        """Устанавливает размер отряда в зависимости от силы юнита"""
+        if isinstance(unit, Hero):
+            # Герои всегда одиночки, но инициализируем систему здоровья для них тоже
+            if not hasattr(unit, 'unit_hp') or unit.unit_hp is None:
+                unit.unit_hp = unit.max_health
+                unit.current_unit_hp = unit.health
+                unit.base_squad_count = 1
+            return
+        
+        # Слабые юниты (большие отряды)
+        weak_units = ['peasant', 'skeleton', 'pixie', 'imp', 'miner', 'scout']
+        # Средние юниты (средние отряды)
+        medium_units = ['spearman', 'crossbowman', 'zombie', 'ghost', 'elf_scout', 'elf_archer', 'gog', 'spearthrower']
+        # Сильные юниты (маленькие отряды)
+        strong_units = ['swordsman', 'gryphon', 'vampire', 'lich', 'dryad', 'ent', 'demon', 'cerberus', 'succubus', 
+                       'bearrider', 'runemage', 'jarl', 'beast', 'minotaur', 'witch', 'lizardrider']
+        # Очень сильные юниты (очень маленькие отряды)
+        very_strong_units = ['monk', 'cavalryman', 'deathknight', 'reaper', 'druid', 'unicorn', 
+                            'bloodpriestess', 'hellhorse', 'manticore', 'beholder', 'mountainruler', 'volkhv']
+        # Элитные юниты (минимальные отряды)
+        elite_units = ['angel', 'bonedragon', 'greendragon', 'devil', 'reddragon', 'forgedragon']
+        
+        unit_type = unit.unit_type.lower()
+        
+        if unit_type in weak_units:
+            count = random.randint(20, 40)
+        elif unit_type in medium_units:
+            count = random.randint(12, 24)
+        elif unit_type in strong_units:
+            count = random.randint(6, 15)
+        elif unit_type in very_strong_units:
+            count = random.randint(3, 8)
+        elif unit_type in elite_units:
+            count = random.randint(1, 4)
+        else:
+            count = random.randint(8, 16)  # По умолчанию
+        
+        unit.set_squad_count(count)
+    
     def initialize_units(self, p1_race=None, p2_race=None):
         self.units = []
+        self.corpses = []  # Очищаем трупы при создании новой игры
         # p1 - справа, p2 - слева
         races = {
             'human': [Peasant, Spearman, Crossbowman, Swordsman, Gryphon],
@@ -301,6 +347,13 @@ class Game:
             for i, unit_cls in enumerate(races[p1_race]):
                 unit = unit_cls(GRID_WIDTH-2, 1 + i*2, p1_race)
                 unit.game_ref = self
+                # Устанавливаем размер отряда (это также инициализирует unit_hp)
+                self._set_default_squad_count(unit)
+                # Убеждаемся, что unit_hp инициализирован даже для одиночных юнитов
+                if not hasattr(unit, 'unit_hp') or unit.unit_hp is None:
+                    unit.unit_hp = unit.max_health
+                    unit.current_unit_hp = unit.health
+                    unit.base_squad_count = getattr(unit, 'squad_count', 1)
                 try:
                     self._apply_unit_overrides_to_instance(unit)
                 except Exception:
@@ -341,6 +394,13 @@ class Game:
             for i, unit_cls in enumerate(races[p2_race]):
                 unit = unit_cls(1, 1 + i*2, p2_race)
                 unit.game_ref = self
+                # Устанавливаем размер отряда (это также инициализирует unit_hp)
+                self._set_default_squad_count(unit)
+                # Убеждаемся, что unit_hp инициализирован даже для одиночных юнитов
+                if not hasattr(unit, 'unit_hp') or unit.unit_hp is None:
+                    unit.unit_hp = unit.max_health
+                    unit.current_unit_hp = unit.health
+                    unit.base_squad_count = getattr(unit, 'squad_count', 1)
                 try:
                     self._apply_unit_overrides_to_instance(unit)
                 except Exception:
@@ -2239,53 +2299,35 @@ class Game:
         start_idx = min(self.creative_units_scroll, max(0, len(unit_pool) - visible_count))
         end_idx = min(len(unit_pool), start_idx + visible_count)
         draw_y = list_top + 8
-        # Инициализация на случай если герой не виден
-        hero_visible = any(name == 'Герой' for name, _ in unit_pool[start_idx:end_idx])
-        if not hero_visible:
-            self.creative_hero_class_option_rects = []
-            self.creative_hero_dropdown_rect = None
+        # Убираем выпадающий список - теперь три отдельных героя в списке
+        self.creative_hero_class_option_rects = []
+        self.creative_hero_dropdown_rect = None
+        # Проверяем, что выбранный юнит существует в списке
+        unit_names = [name for name, _ in unit_pool]
+        if self.creative_selected_unit not in unit_names:
+            # Если выбранный юнит не найден (например, при смене расы), выбираем первый
+            if unit_pool:
+                self.creative_selected_unit = unit_pool[0][0]
+            else:
+                self.creative_selected_unit = 'Hero_warrior'
         for name, _cls in unit_pool[start_idx:end_idx]:
             rect = pygame.Rect(self.creative_panel_rect.x + 12, draw_y, 180, 24)
             sel = (self.creative_selected_unit == name)
             pygame.draw.rect(self.screen, (100, 120, 160) if sel else (50, 60, 80), rect, border_radius=6)
             pygame.draw.rect(self.screen, (180, 180, 200), rect, 2, border_radius=6)
-            # Для героя показываем класс в скобках
+            # Для героев показываем класс
             display_name = name
-            if name == 'Герой':
-                class_names = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
-                class_label = class_names.get(self.creative_selected_hero_class, 'Воин')
-                display_name = f"Герой ({class_label})"
+            if name.startswith('Hero_'):
+                parts = name.split('_')
+                if len(parts) == 2:  # Hero_class
+                    hero_class = parts[1]
+                    class_names = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
+                    class_name = class_names.get(hero_class, hero_class)
+                    from .units import TEAM_LABELS
+                    display_name = f"{class_name} ({TEAM_LABELS.get(self.creative_selected_team, self.creative_selected_team)})"
             self.screen.blit(pygame.font.Font(None, 20).render(display_name, True, (240,240,255)), (rect.x+6, rect.y+3))
             self.creative_unit_rects.append((rect, name))
             draw_y += 30
-            
-            # Если это герой - сразу рисуем выпадающий список класса под ним
-            if name == 'Герой':
-                class_names = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
-                current_class_label = class_names.get(self.creative_selected_hero_class, 'Воин')
-                
-                self.creative_hero_dropdown_rect = pygame.Rect(self.creative_panel_rect.x + 12, draw_y, 180, 24)
-                pygame.draw.rect(self.screen, (70, 90, 120), self.creative_hero_dropdown_rect, border_radius=6)
-                pygame.draw.rect(self.screen, (180, 180, 200), self.creative_hero_dropdown_rect, 2, border_radius=6)
-                self.screen.blit(pygame.font.Font(None, 18).render(current_class_label, True, (240,240,255)), (self.creative_hero_dropdown_rect.x+8, self.creative_hero_dropdown_rect.y+4))
-                # Стрелка
-                arrow_text = '▼' if not self.creative_hero_dropdown_open else '▲'
-                self.screen.blit(pygame.font.Font(None, 16).render(arrow_text, True, (240,240,255)), (self.creative_hero_dropdown_rect.x+155, self.creative_hero_dropdown_rect.y+4))
-                draw_y += 28
-                
-                # Если открыт - показываем опции
-                if self.creative_hero_dropdown_open:
-                    self.creative_hero_class_option_rects = []
-                    for class_key, class_label in [('warrior', 'Воин'), ('archer', 'Лучник'), ('mage', 'Маг')]:
-                        if class_key != self.creative_selected_hero_class:
-                            option_rect = pygame.Rect(self.creative_panel_rect.x + 12, draw_y, 180, 22)
-                            pygame.draw.rect(self.screen, (60, 70, 90), option_rect, border_radius=6)
-                            pygame.draw.rect(self.screen, (160, 160, 180), option_rect, 2, border_radius=6)
-                            self.screen.blit(pygame.font.Font(None, 17).render(class_label, True, (240,240,255)), (option_rect.x+8, option_rect.y+4))
-                            self.creative_hero_class_option_rects.append((option_rect, class_key))
-                            draw_y += 24
-                else:
-                    self.creative_hero_class_option_rects = []
         # Кнопки скролла
         self.creative_scroll_up = pygame.Rect(self.creative_panel_rect.x + 160, list_top + 4, 32, 24)
         self.creative_scroll_down = pygame.Rect(self.creative_panel_rect.x + 160, list_top + list_height - 28, 32, 24)
@@ -2934,7 +2976,24 @@ class Game:
                 unit_pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
                 visible_count = max(1, (list_height - 16) // 30)
                 max_scroll = max(0, len(unit_pool) - visible_count)
-                self.creative_units_scroll = int(max(0, min(max_scroll, getattr(self, 'creative_units_scroll', 0) - y_delta)))
+                current_scroll = getattr(self, 'creative_units_scroll', 0)
+                # y_delta обычно отрицателен при прокрутке вниз, положителен при прокрутке вверх
+                # В pygame MOUSEWHEEL событие имеет поля x и y, где y > 0 означает прокрутку вверх
+                self.creative_units_scroll = int(max(0, min(max_scroll, current_scroll - y_delta)))
+                return
+        # Unit editor: скролл списка юнитов
+        if self.state == 'unit_editor':
+            # Область списка юнитов: x=200, y начинается с 80, высота уменьшена
+            unit_list_rect = pygame.Rect(200, 80, 180, SCREEN_HEIGHT - 320)
+            if unit_list_rect.collidepoint(mx, my):
+                pool = list(self.creative_units_by_race.get(getattr(self, '_unit_editor_selected_race', 'human'), []))
+                for hero_class in ['warrior', 'archer', 'mage']:
+                    pool.append((f"Hero_{getattr(self, '_unit_editor_selected_race', 'human')}_{hero_class}", Hero))
+                visible_count = max(1, (SCREEN_HEIGHT - 320) // 36)
+                max_scroll = max(0, len(pool) - visible_count)
+                if not hasattr(self, '_unit_editor_units_scroll'):
+                    self._unit_editor_units_scroll = 0
+                self._unit_editor_units_scroll = int(max(0, min(max_scroll, self._unit_editor_units_scroll - y_delta)))
                 return
         # Unit editor: скролл параметров
         if self.state == 'unit_editor':
@@ -3364,10 +3423,11 @@ class Game:
                 self.button_click_sound.play()
             self.state = 'unit_editor'
             self._unit_editor_selected_race = self.creative_selected_team
-            # По умолчанию первый юнит из пула + герой выбранной расы
+            # По умолчанию первый юнит из пула + три класса героя выбранной расы
             pool = list(self.creative_units_by_race.get(self._unit_editor_selected_race, []))
-            pool.append((f"Hero_{self._unit_editor_selected_race}", Hero))
-            self._unit_editor_selected_unit = pool[0][0] if pool else f"Hero_{self._unit_editor_selected_race}"
+            for hero_class in ['warrior', 'archer', 'mage']:
+                pool.append((f"Hero_{self._unit_editor_selected_race}_{hero_class}", Hero))
+            self._unit_editor_selected_unit = pool[0][0] if pool else f"Hero_{self._unit_editor_selected_race}_warrior"
             return
         if hasattr(self, 'creative_spellbook_rect') and self.creative_spellbook_rect.collidepoint(pos):
             if self.button_click_sound:
@@ -3399,21 +3459,7 @@ class Game:
             max_scroll = max(0, races_len - visible_races)
             self.creative_race_scroll = min(max_scroll, getattr(self, 'creative_race_scroll', 0) + 1)
             return
-        # Выпадающий список класса героя
-        if hasattr(self, 'creative_hero_dropdown_rect') and self.creative_hero_dropdown_rect and self.creative_hero_dropdown_rect.collidepoint(pos):
-            self.creative_hero_dropdown_open = not self.creative_hero_dropdown_open
-            if self.button_click_sound:
-                self.button_click_sound.play()
-            return
-        # Опции выпадающего списка класса героя
-        if hasattr(self, 'creative_hero_class_option_rects'):
-            for rect, class_key in self.creative_hero_class_option_rects:
-                if rect.collidepoint(pos):
-                    self.creative_selected_hero_class = class_key
-                    self.creative_hero_dropdown_open = False
-                    if self.button_click_sound:
-                        self.button_click_sound.play()
-                    return
+        # Выпадающий список класса героя больше не используется - все три класса в основном списке
         # Выбор юнита
         if hasattr(self, 'creative_unit_rects'):
             for rect, name in self.creative_unit_rects:
@@ -3440,9 +3486,14 @@ class Game:
             pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
             ctor = next((_cls for name, _cls in pool if name == self.creative_selected_unit), None)
             if ctor:
-                # Особый случай героя - используем выбранный класс из dropdown
+                # Особый случай героя - класс из имени (Hero_class)
                 if ctor is Hero:
-                    hero_class = self.creative_selected_hero_class
+                    hero_class = 'warrior'  # По умолчанию
+                    # Пытаемся извлечь класс из имени
+                    if self.creative_selected_unit.startswith('Hero_'):
+                        parts = self.creative_selected_unit.split('_')
+                        if len(parts) >= 2:
+                            hero_class = parts[1]
                     unit = Hero(gx, gy, self.creative_selected_team, hero_class=hero_class)
                 else:
                     unit = ctor(gx, gy, self.creative_selected_team)
@@ -3505,8 +3556,25 @@ class Game:
         for hero_class in ['warrior', 'archer', 'mage']:
             pool.append((f"Hero_{self._unit_editor_selected_race}_{hero_class}", Hero))
         x = 200
-        y = 80
-        for name, _ in pool:
+        y_start = 80
+        # Уменьшаем высоту списка, чтобы не перекрывалась кнопка "Книги заклинаний" (она на SCREEN_HEIGHT - 160)
+        list_height = SCREEN_HEIGHT - 320  # Укороченный список для редактора
+        
+        # Инициализируем скролл для списка юнитов
+        if not hasattr(self, '_unit_editor_units_scroll'):
+            self._unit_editor_units_scroll = 0
+        
+        # Вычисляем видимое количество элементов
+        visible_count = max(1, list_height // 36)
+        max_scroll = max(0, len(pool) - visible_count)
+        self._unit_editor_units_scroll = min(self._unit_editor_units_scroll, max_scroll)
+        
+        # Отрисовываем только видимые элементы
+        start_idx = self._unit_editor_units_scroll
+        end_idx = min(len(pool), start_idx + visible_count)
+        y = y_start
+        for idx in range(start_idx, end_idx):
+            name, _ = pool[idx]
             rect = pygame.Rect(x, y, 180, 30)
             sel = (self._unit_editor_selected_unit == name)
             pygame.draw.rect(self.screen, (100,120,160) if sel else (50,60,80), rect, border_radius=6)
@@ -3532,7 +3600,7 @@ class Game:
         if unit_key == 'Hero' or unit_key.startswith('Hero_'):
             params = ['attack','defense','knowledge','spell_power','max_mana']
         else:
-            params = ['health','max_health','phys_attack','magic_attack','phys_defense','magic_defense','magic_resist','speed','initiative','attack_range','attack_type']
+            params = ['squad_count','health','max_health','phys_attack','magic_attack','phys_defense','magic_defense','magic_resist','speed','initiative','attack_range','attack_type']
         x = 420
         y = 80
         overrides = self.unit_overrides.get(unit_key, {})
@@ -3564,6 +3632,7 @@ class Game:
                 else:
                     tmp = unit_cls(0, 0, tmp_team)
                 base_val = {
+                    'squad_count': getattr(tmp, 'squad_count', 1),
                     'health': getattr(tmp, 'health', 0),
                     'max_health': getattr(tmp, 'max_health', 0),
                     'attack': getattr(tmp, 'attack', 0),
@@ -4159,6 +4228,9 @@ class Game:
                     self.current_intro_sound = random.choice(self.battle_intro_sounds)
                     if self.current_intro_sound:
                         try:
+                            # Устанавливаем громкость intro звука согласно настройкам
+                            intro_volume = 0.0 if self.muted else self.sfx_volume
+                            self.current_intro_sound.set_volume(intro_volume)
                             # Ищем свободный канал для intro звука
                             self.intro_channel = self.current_intro_sound.play()
                             if self.intro_channel:
@@ -5513,7 +5585,23 @@ class Game:
                     elif hasattr(spell, 'icon') and spell.icon == 'raise_undead':
                         # Анимация поднятия мёртвых
                         self.animate_undead_heal_cast(target)
+                    elif hasattr(spell, 'icon') and spell.icon == 'resurrection':
+                        # Воскрешение принимает координаты, а не объект
+                        spell_success = spell.apply((target.x, target.y), caster=caster)
+                        # Если заклинание не сработало, герой не тратит ход
+                        if spell_success is False:
+                            caster.selected_spell = None
+                            self.area_preview_dismiss = True
+                            return
+                        caster.mana = max(0, caster.mana - spell.mana_cost)
+                        caster.selected_spell = None
+                        caster.used_spell_this_round = True
+                        self.area_preview_dismiss = True
+                        # Герой передает ход после использования заклинания
+                        self.next_turn()
+                        return
                     # Применение союзных баффов/эффектов и завершение хода
+                    # Для лечения анимация уже в HealSpell.apply
                     spell_success = spell.apply(target, caster=caster)
                     # Если заклинание не сработало, герой не тратит ход
                     if spell_success is False:

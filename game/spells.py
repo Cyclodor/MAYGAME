@@ -557,17 +557,57 @@ class UndeadHealSpell(Spell):
         # Лечит только нежить, если она ранена
         if not target or getattr(target, 'team', None) != 'undead':
             return False
-        # Проверяем, нужно ли лечение
-        current_hp = getattr(target, 'health', 0)
-        max_hp = getattr(target, 'max_health', 0)
-        if current_hp >= max_hp:
-            return False  # Уже полное здоровье
+        
         # Лечение с учетом силы магии
         heal = self.heal_amount
         if caster and hasattr(caster, 'spell_power'):
             heal += self.spell_power_multiplier * caster.spell_power
-        target.health = min(max_hp, current_hp + heal)
-        return True  # Успешное применение
+        
+        # Система отрядов: воскрешение может восстановить мертвых юнитов в отряде нежити
+        if hasattr(target, 'squad_count') and hasattr(target, 'unit_hp'):
+            # Проверяем, можем ли воскресить мертвых или вылечить раненого
+            max_possible_units = target.base_squad_count
+            dead_units = max_possible_units - target.squad_count
+            
+            if dead_units > 0:
+                # Воскрешаем юнитов
+                units_to_resurrect = min(dead_units, heal // target.unit_hp)
+                if units_to_resurrect > 0:
+                    target.squad_count += units_to_resurrect
+                    target.health = (target.squad_count - 1) * target.unit_hp + target.current_unit_hp
+                    target.max_health = target.base_squad_count * target.unit_hp
+                    if hasattr(caster, 'game_ref'):
+                        caster.game_ref.add_event(f"Воскрешено {units_to_resurrect} нежити в отряде {target.unit_type.capitalize()}!")
+                    return True
+                else:
+                    # Недостаточно силы для воскрешения, просто лечим
+                    health_before = target.current_unit_hp
+                    target.current_unit_hp = min(target.unit_hp, target.current_unit_hp + heal)
+                    actual_heal = target.current_unit_hp - health_before
+                    target.health = (target.squad_count - 1) * target.unit_hp + target.current_unit_hp
+                    if hasattr(caster, 'game_ref'):
+                        caster.game_ref.add_event(f"Нежить {target.unit_type.capitalize()} исцелена на {actual_heal} HP!")
+                    return True
+            elif target.current_unit_hp < target.unit_hp:
+                # Лечим текущего юнита
+                health_before = target.current_unit_hp
+                target.current_unit_hp = min(target.unit_hp, target.current_unit_hp + heal)
+                actual_heal = target.current_unit_hp - health_before
+                target.health = (target.squad_count - 1) * target.unit_hp + target.current_unit_hp
+                if hasattr(caster, 'game_ref'):
+                    caster.game_ref.add_event(f"Нежить {target.unit_type.capitalize()} исцелена на {actual_heal} HP!")
+                return True
+            else:
+                return False  # Уже полное здоровье
+        else:
+            # Старая система (без отрядов)
+            # Проверяем, нужно ли лечение
+            current_hp = getattr(target, 'health', 0)
+            max_hp = getattr(target, 'max_health', 0)
+            if current_hp >= max_hp:
+                return False  # Уже полное здоровье
+            target.health = min(max_hp, current_hp + heal)
+            return True  # Успешное применение
 
 class FireballSpell(Spell):
     def __init__(self):
@@ -719,22 +759,55 @@ class ResurrectionSpell(Spell):
                 living_unit = u
                 break
         
-        # Если есть живой юнит - лечим его
+        # Если есть живой юнит - лечим/воскрешаем его
         if living_unit:
             # Не лечим нежить
             if living_unit.team == 'undead':
                 game.add_event("Воскрешение не действует на нежить!")
                 return False
             
-            # Проверяем, что юнит ранен
-            if living_unit.health >= living_unit.max_health:
-                game.add_event(f"{living_unit.unit_type.capitalize()} уже полностью здоров!")
-                return False
-            
-            # Лечим
-            health_before = living_unit.health
-            living_unit.health = min(living_unit.max_health, living_unit.health + heal)
-            actual_heal = living_unit.health - health_before
+            # Система отрядов: воскрешение может восстановить мертвых юнитов в отряде
+            if hasattr(living_unit, 'squad_count') and hasattr(living_unit, 'unit_hp'):
+                # Проверяем, можем ли воскресить мертвых или вылечить раненого
+                max_possible_units = living_unit.base_squad_count
+                dead_units = max_possible_units - living_unit.squad_count
+                
+                if dead_units > 0:
+                    # Воскрешаем юнитов
+                    units_to_resurrect = min(dead_units, heal // living_unit.unit_hp)
+                    if units_to_resurrect > 0:
+                        living_unit.squad_count += units_to_resurrect
+                        living_unit.health = (living_unit.squad_count - 1) * living_unit.unit_hp + living_unit.current_unit_hp
+                        living_unit.max_health = living_unit.base_squad_count * living_unit.unit_hp
+                        game.add_event(f"Воскрешено {units_to_resurrect} юнитов в отряде {living_unit.unit_type.capitalize()}!")
+                    else:
+                        # Недостаточно силы для воскрешения, просто лечим
+                        health_before = living_unit.current_unit_hp
+                        living_unit.current_unit_hp = min(living_unit.unit_hp, living_unit.current_unit_hp + heal)
+                        actual_heal = living_unit.current_unit_hp - health_before
+                        living_unit.health = (living_unit.squad_count - 1) * living_unit.unit_hp + living_unit.current_unit_hp
+                        game.add_event(f"{living_unit.unit_type.capitalize()} исцелен на {actual_heal} HP!")
+                elif living_unit.current_unit_hp < living_unit.unit_hp:
+                    # Лечим текущего юнита
+                    health_before = living_unit.current_unit_hp
+                    living_unit.current_unit_hp = min(living_unit.unit_hp, living_unit.current_unit_hp + heal)
+                    actual_heal = living_unit.current_unit_hp - health_before
+                    living_unit.health = (living_unit.squad_count - 1) * living_unit.unit_hp + living_unit.current_unit_hp
+                    game.add_event(f"{living_unit.unit_type.capitalize()} исцелен на {actual_heal} HP!")
+                else:
+                    game.add_event(f"{living_unit.unit_type.capitalize()} уже полностью здоров!")
+                    return False
+            else:
+                # Старая система (без отрядов)
+                # Проверяем, что юнит ранен
+                if living_unit.health >= living_unit.max_health:
+                    game.add_event(f"{living_unit.unit_type.capitalize()} уже полностью здоров!")
+                    return False
+                
+                # Лечим
+                health_before = living_unit.health
+                living_unit.health = min(living_unit.max_health, living_unit.health + heal)
+                actual_heal = living_unit.health - health_before
             
             # Простая анимация лечения (желтое свечение)
             try:
@@ -894,7 +967,64 @@ class HealSpell(Spell):
         if caster and hasattr(caster, 'spell_power'):
             heal += caster.spell_power * self.spell_power_multiplier
         
-        # Запоминаем здоровье до лечения
+        # Система отрядов: лечение только текущего активного юнита, НЕ воскрешает
+        if hasattr(target, 'squad_count') and hasattr(target, 'current_unit_hp') and hasattr(target, 'unit_hp'):
+            health_before = target.current_unit_hp
+            target.current_unit_hp = min(target.unit_hp, target.current_unit_hp + heal)
+            actual_heal = target.current_unit_hp - health_before
+            
+            # Обновляем общее здоровье отряда
+            target.health = (target.squad_count - 1) * target.unit_hp + target.current_unit_hp
+            
+            # Анимация лечения для отрядов: желтые плюсики поднимаются вверх
+            if hasattr(caster, 'game_ref'):
+                game = caster.game_ref
+                try:
+                    import pygame, random
+                    from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
+                    cx = target.x * CELL_SIZE + CELL_SIZE // 2
+                    cy = target.y * CELL_SIZE + CELL_SIZE // 2
+                    
+                    # Создаем плюсики
+                    plusses = []
+                    for _ in range(8):
+                        px = cx + random.randint(-20, 20)
+                        py = cy + random.randint(-10, 10)
+                        speed = random.uniform(1.5, 3.0)
+                        plusses.append([px, py, speed, 255])  # x, y, скорость, альфа
+                    
+                    # Анимация подъема плюсиков
+                    for step in range(30):
+                        pygame.event.pump()
+                        game.draw()
+                        s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+                        
+                        font = pygame.font.Font(None, 32)
+                        for plus in plusses:
+                            plus[1] -= plus[2]  # поднимаем вверх
+                            plus[3] = max(0, plus[3] - 8)  # уменьшаем альфу
+                            
+                            # Рисуем плюсик
+                            text = font.render('+', True, (255, 255, 0, int(plus[3])))
+                            text_with_alpha = text.copy()
+                            text_with_alpha.set_alpha(int(plus[3]))
+                            s.blit(text_with_alpha, (int(plus[0]), int(plus[1])))
+                        
+                        # Светлое свечение вокруг цели
+                        if step < 15:
+                            glow_alpha = max(0, 120 - step * 8)
+                            pygame.draw.circle(s, (255, 255, 200, glow_alpha), (cx, cy), 25 + step, 3)
+                        
+                        game.screen.blit(s, (0,0))
+                        pygame.display.flip()
+                        pygame.time.delay(25)
+                except Exception:
+                    pass
+                
+                caster.game_ref.add_event(f"{target.unit_type.capitalize()} исцелён на {actual_heal} HP! (Текущий юнит в отряде)")
+            return True
+        
+        # Старая система (без отрядов)
         health_before = target.health
         
         # Восстанавливаем здоровье

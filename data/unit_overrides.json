@@ -1,15 +1,22 @@
 {
   "Pixie": {
-    "health": 25,
+    "health": 26,
     "magic_attack": 8,
     "phys_defense": 2,
-    "magic_defense": 3
+    "magic_defense": 3,
+    "squad_count": 13,
+    "base_squad_count": 13,
+    "max_health": 26
   },
   "Ent": {
-    "health": 20
+    "health": 110,
+    "max_health": 110
   },
   "Peasant": {
-    "health": 21
+    "health": 22,
+    "base_squad_count": 31,
+    "squad_count": 31,
+    "max_health": 22
   },
   "Hero": {
     "knowledge": 3,
@@ -66,6 +73,12 @@
   "Hero_human_mage": {
     "knowledge": 5,
     "spell_power": 5,
-    "max_mana": 80
-  }
+    "max_mana": 150
+  },
+  "Unicorn": {},
+  "ElfArcher": {
+    "health": 40,
+    "max_health": 40
+  },
+  "Spearman": {}
 }

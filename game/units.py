@@ -9,7 +9,9 @@ TEAM_LABELS = {
     'human': 'Люди',
     'undead': 'Нежить',
     'elf': 'Эльфы',
-    'demon': 'Демоны'
+    'demon': 'Демоны',
+    'dwarf': 'Гномы',
+    'shadow': 'Тени'
 }
 
 class Unit:
@@ -59,6 +61,11 @@ class Unit:
         self.last_tooltip_update = time.time()
         self.base_defense = 15 if unit_type == 'hero' else 5
         self.rune_shield_turns = 0  # Только руна защиты
+        self.squad_count = 1  # Количество юнитов в отряде (по умолчанию 1)
+        # Система здоровья отряда
+        self.base_squad_count = 1  # Изначальное количество юнитов в отряде
+        self.unit_hp = None  # HP одного юнита (будет установлено после инициализации)
+        self.current_unit_hp = None  # HP последнего (текущего) юнита в отряде
         
         # ВАЖНО: Конвертация должна вызываться ПОСЛЕ того, как подкласс установит свои значения
         # Поэтому мы НЕ вызываем её здесь, а будем вызывать в конце __init__ каждого подкласса
@@ -109,7 +116,29 @@ class Unit:
             atk = int(atk * 1.25)
         if self.attack_debuff_turns > 0:
             atk = int(atk * 0.75)
+        
+        # Умножаем на количество юнитов в отряде
+        squad_count = getattr(self, 'squad_count', 1)
+        atk = atk * squad_count
+        
         return atk
+    
+    def set_squad_count(self, count):
+        """Устанавливает количество юнитов в отряде"""
+        if self.unit_hp is None:
+            # Первая установка - инициализируем систему здоровья отряда
+            # unit_hp - это HP одного юнита (сохраняем текущее max_health как HP одного юнита)
+            self.unit_hp = self.max_health
+            self.current_unit_hp = self.max_health
+            self.base_squad_count = count
+        
+        self.squad_count = count
+        # Обновляем общее здоровье отряда
+        # health = (squad_count - 1) * unit_hp + current_unit_hp
+        if count > 0:
+            self.current_unit_hp = self.unit_hp  # Все юниты здоровы при создании
+            self.health = (count - 1) * self.unit_hp + self.current_unit_hp
+            self.max_health = self.base_squad_count * self.unit_hp
     
     def get_defense_against(self, attack_type):
         """Возвращает защиту против определенного типа атаки."""
@@ -130,11 +159,53 @@ class Unit:
         # Рисуем текстуру юнита сначала
         surface.blit(self.image, (self.x * CELL_SIZE, self.y * CELL_SIZE))
         # Полоска здоровья поверх текстуры юнита
-        health_ratio = 0 if self.max_health <= 0 else max(0.0, min(1.0, self.health / self.max_health))
+        # Для отрядов показываем HP текущего юнита, для одиночных - общее
+        if hasattr(self, 'squad_count') and hasattr(self, 'unit_hp') and self.unit_hp is not None and self.squad_count > 1:
+            current_unit_hp = getattr(self, 'current_unit_hp', self.unit_hp)
+            max_unit_hp = self.unit_hp
+            health_ratio = 0 if max_unit_hp <= 0 else max(0.0, min(1.0, current_unit_hp / max_unit_hp))
+        else:
+            health_ratio = 0 if self.max_health <= 0 else max(0.0, min(1.0, self.health / self.max_health))
         back_rect = (self.x * CELL_SIZE, self.y * CELL_SIZE - 6, CELL_SIZE, 5)
         value_rect = (self.x * CELL_SIZE, self.y * CELL_SIZE - 6, int(CELL_SIZE * health_ratio), 5)
         pygame.draw.rect(surface, RED, back_rect)
         pygame.draw.rect(surface, GREEN, value_rect)
+        # Отображение количества юнитов в отряде (если больше 1)
+        squad_count = getattr(self, 'squad_count', 1)
+        if squad_count > 1 and not isinstance(self, Hero):
+            # Определяем цвет фона в зависимости от текущего хода
+            is_current_player = False
+            if hasattr(self, 'game_ref') and self.game_ref:
+                # Проверяем, является ли этот юнит текущим в очереди
+                if hasattr(self.game_ref, 'turn_queue') and self.game_ref.turn_queue:
+                    current_unit = self.game_ref.turn_queue[0]
+                    if current_unit is not None and hasattr(current_unit, 'team'):
+                        is_current_player = (current_unit.team == self.team)
+                # Если нет активного юнита, проверяем через selected_unit
+                elif hasattr(self.game_ref, 'selected_unit') and self.game_ref.selected_unit:
+                    if hasattr(self.game_ref.selected_unit, 'team'):
+                        is_current_player = (self.game_ref.selected_unit.team == self.team)
+            
+            if is_current_player:
+                bg_color = (0, 100, 200, 220)  # Синий для текущего игрока
+            else:
+                bg_color = (200, 0, 0, 220)  # Красный для противника
+            
+            # Уменьшенный размер экранчика
+            font = pygame.font.Font(None, 16)
+            count_text = font.render(str(squad_count), True, (255, 255, 255))
+            bg_width = max(count_text.get_width() + 4, 18)
+            bg_height = count_text.get_height() + 2
+            count_bg = pygame.Surface((bg_width, bg_height), pygame.SRCALPHA)
+            count_bg.fill(bg_color)
+            # Позиция: снизу посередине
+            x_pos = self.x * CELL_SIZE + (CELL_SIZE - bg_width) // 2
+            y_pos = self.y * CELL_SIZE + CELL_SIZE - bg_height - 2
+            surface.blit(count_bg, (x_pos, y_pos))
+            # Текст по центру
+            text_x = x_pos + (bg_width - count_text.get_width()) // 2
+            text_y = y_pos + (bg_height - count_text.get_height()) // 2
+            surface.blit(count_text, (text_x, text_y))
         # Типтул только при наведении
         if getattr(self, 'show_tooltip', False):
             mouse_pos = pygame.mouse.get_pos()
@@ -177,9 +248,18 @@ class Unit:
             current_def += getattr(self, 'stone_skin_bonus', 0)
         # Определяем тип атаки для отображения
         attack_type_text = "Физ." if self.attack_type == 'physical' else "Маг."
+        # Для отрядов показываем только размер отряда и HP текущего юнита
+        if hasattr(self, 'squad_count') and hasattr(self, 'unit_hp') and self.unit_hp is not None and self.squad_count > 1:
+            current_unit_hp = getattr(self, 'current_unit_hp', self.unit_hp)
+            max_unit_hp = self.unit_hp
+            base_squad_count = getattr(self, 'base_squad_count', self.squad_count)
+            health_display = f"ХП: {current_unit_hp}/{max_unit_hp} | Отряд: {self.squad_count}/{base_squad_count}"
+        else:
+            health_display = f"Здоровье: {self.health}/{self.max_health}"
+        
         tooltip_text = [
             (f"Тип: {self.unit_type}", (255,255,255)),
-            (f"Здоровье: {self.health}/{self.max_health}", fade_color(self.fade_health)),
+            (health_display, fade_color(self.fade_health)),
             (f"{attack_type_text} атака: {self.phys_attack if self.attack_type == 'physical' else self.magic_attack}", (255,180,180)),
             (f"Физ. защита: {self.phys_defense}", (180,180,255)),
             (f"Маг. защита: {self.magic_defense}", (200,180,255)),
@@ -269,7 +349,47 @@ class Unit:
             absorbed = int(actual * absorption)
             actual = max(1, actual - absorbed)
         
-        self.health -= actual
+        # Система отрядов: обрабатываем урон по юнитам
+        if hasattr(self, 'squad_count') and hasattr(self, 'unit_hp') and self.unit_hp is not None and self.squad_count > 1:
+            # Инициализируем current_unit_hp если нужно
+            if self.current_unit_hp is None:
+                self.current_unit_hp = self.unit_hp
+            
+            # Обрабатываем урон по текущему юниту
+            remaining_damage = actual
+            while remaining_damage > 0 and self.squad_count > 0:
+                if remaining_damage >= self.current_unit_hp:
+                    # Убиваем текущего юнита
+                    remaining_damage -= self.current_unit_hp
+                    self.squad_count -= 1
+                    if self.squad_count > 0:
+                        # Переходим к следующему юниту с полным здоровьем
+                        self.current_unit_hp = self.unit_hp
+                    else:
+                        # Отряд уничтожен
+                        self.current_unit_hp = 0
+                        self.health = 0
+                        break
+                else:
+                    # Текущий юнит ранен, но жив
+                    self.current_unit_hp -= remaining_damage
+                    remaining_damage = 0
+            
+            # Обновляем общее здоровье отряда
+            if self.squad_count > 0:
+                self.health = (self.squad_count - 1) * self.unit_hp + self.current_unit_hp
+                self.max_health = self.base_squad_count * self.unit_hp
+            else:
+                self.health = 0
+                self.max_health = self.base_squad_count * self.unit_hp
+        else:
+            # Стандартная система (без отрядов или одиночный юнит)
+            self.health -= actual
+            # Инициализируем unit_hp если это одиночный юнит
+            if not hasattr(self, 'unit_hp') or self.unit_hp is None:
+                self.unit_hp = self.max_health
+                self.current_unit_hp = self.health
+        
         try:
             self.last_damage_received = actual
         except Exception:
@@ -524,6 +644,7 @@ class Unit:
     def ranged_damage(self, target_x, target_y):
         # Урон уменьшается с расстоянием, минимум 50% от базового, но не меньше 4
         distance = abs(self.x - target_x) + abs(self.y - target_y)
+        # get_current_attack уже учитывает squad_count, поэтому используем его
         base_damage = self.get_current_attack()
         # Если атака в ближнем бою (расстояние = 1), урон уменьшается вдвое для лучников
         if distance == 1:
@@ -1115,6 +1236,251 @@ class LizardRider(Unit):
         self.initiative = 12
         self.attack_range = 1
         self.base_defense = 4
+        self.convert_old_stats_to_new()
+
+# --- Заглушки для будущих юнитов ---
+# Люди
+class Monk(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'monk')
+        self.health = 60
+        self.max_health = 60
+        self.attack = 14
+        self.defense = 6
+        self.speed = 4
+        self.initiative = 13
+        self.attack_range = 1
+        self.base_defense = 6
+        self.convert_old_stats_to_new()
+
+class Angel(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'angel')
+        self.health = 100
+        self.max_health = 100
+        self.attack = 20
+        self.defense = 12
+        self.speed = 5
+        self.initiative = 16
+        self.attack_range = 1
+        self.base_defense = 12
+        self.convert_old_stats_to_new()
+
+class Cavalryman(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'cavalryman')
+        self.health = 80
+        self.max_health = 80
+        self.attack = 16
+        self.defense = 8
+        self.speed = 6
+        self.initiative = 13
+        self.attack_range = 1
+        self.base_defense = 8
+        self.convert_old_stats_to_new()
+
+# Эльфы
+class GreenDragon(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'greendragon')
+        self.health = 120
+        self.max_health = 120
+        self.attack = 22
+        self.defense = 14
+        self.speed = 4
+        self.initiative = 15
+        self.attack_range = 1
+        self.base_defense = 14
+        self.convert_old_stats_to_new()
+
+class Druid(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'druid')
+        self.health = 55
+        self.max_health = 55
+        self.attack = 16
+        self.defense = 5
+        self.speed = 4
+        self.initiative = 12
+        self.is_ranged = True
+        self.attack_range = 4
+        self.base_defense = 5
+        self.convert_old_stats_to_new()
+
+class Unicorn(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'unicorn')
+        self.health = 90
+        self.max_health = 90
+        self.attack = 18
+        self.defense = 10
+        self.speed = 6
+        self.initiative = 14
+        self.attack_range = 1
+        self.base_defense = 10
+        self.convert_old_stats_to_new()
+
+# Нежить
+class DeathKnight(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'deathknight')
+        self.health = 95
+        self.max_health = 95
+        self.attack = 19
+        self.defense = 11
+        self.speed = 5
+        self.initiative = 13
+        self.attack_range = 1
+        self.base_defense = 11
+        self.convert_old_stats_to_new()
+
+class BoneDragon(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'bonedragon')
+        self.health = 130
+        self.max_health = 130
+        self.attack = 24
+        self.defense = 15
+        self.speed = 4
+        self.initiative = 16
+        self.attack_range = 1
+        self.base_defense = 15
+        self.convert_old_stats_to_new()
+
+class Reaper(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'reaper')
+        self.health = 70
+        self.max_health = 70
+        self.attack = 17
+        self.defense = 7
+        self.speed = 5
+        self.initiative = 14
+        self.attack_range = 1
+        self.base_defense = 7
+        self.convert_old_stats_to_new()
+
+# Демоны
+class BloodPriestess(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'bloodpriestess')
+        self.health = 65
+        self.max_health = 65
+        self.attack = 15
+        self.defense = 6
+        self.speed = 5
+        self.initiative = 13
+        self.is_ranged = True
+        self.attack_range = 4
+        self.base_defense = 6
+        self.convert_old_stats_to_new()
+
+class Devil(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'devil')
+        self.health = 110
+        self.max_health = 110
+        self.attack = 21
+        self.defense = 13
+        self.speed = 5
+        self.initiative = 15
+        self.attack_range = 1
+        self.base_defense = 13
+        self.convert_old_stats_to_new()
+
+class HellHorse(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'hellhorse')
+        self.health = 85
+        self.max_health = 85
+        self.attack = 17
+        self.defense = 9
+        self.speed = 7
+        self.initiative = 15
+        self.attack_range = 1
+        self.base_defense = 9
+        self.convert_old_stats_to_new()
+
+# Гномы
+class ForgeDragon(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'forgedragon')
+        self.health = 125
+        self.max_health = 125
+        self.attack = 23
+        self.defense = 16
+        self.speed = 3
+        self.initiative = 14
+        self.attack_range = 1
+        self.base_defense = 16
+        self.convert_old_stats_to_new()
+
+class MountainRuler(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'mountainruler')
+        self.health = 100
+        self.max_health = 100
+        self.attack = 20
+        self.defense = 14
+        self.speed = 4
+        self.initiative = 15
+        self.attack_range = 1
+        self.base_defense = 14
+        self.convert_old_stats_to_new()
+
+class Volkhv(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'volkhv')
+        self.health = 75
+        self.max_health = 75
+        self.attack = 18
+        self.defense = 8
+        self.speed = 5
+        self.initiative = 13
+        self.is_ranged = True
+        self.attack_range = 4
+        self.base_defense = 8
+        self.convert_old_stats_to_new()
+
+# Тени
+class Manticore(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'manticore')
+        self.health = 95
+        self.max_health = 95
+        self.attack = 19
+        self.defense = 11
+        self.speed = 6
+        self.initiative = 14
+        self.attack_range = 1
+        self.base_defense = 11
+        self.convert_old_stats_to_new()
+
+class RedDragon(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'reddragon')
+        self.health = 135
+        self.max_health = 135
+        self.attack = 25
+        self.defense = 17
+        self.speed = 4
+        self.initiative = 17
+        self.attack_range = 1
+        self.base_defense = 17
+        self.convert_old_stats_to_new()
+
+class Beholder(Unit):
+    def __init__(self, x, y, team):
+        super().__init__(x, y, team, 'beholder')
+        self.health = 80
+        self.max_health = 80
+        self.attack = 20
+        self.defense = 10
+        self.speed = 4
+        self.initiative = 15
+        self.is_ranged = True
+        self.attack_range = 5
+        self.base_defense = 10
         self.convert_old_stats_to_new()
 
 class Corpse:
