@@ -6,11 +6,14 @@ from game.config import *
 from game.core import Game
 
 async def main():
+    print("Инициализация игры для веб-версии...")
     pygame.init()
     mixer.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Фэнтези Стратегия")
+    print("Создание объекта Game...")
     game = Game(screen)
+    print("Игра создана, состояние:", game.state)
     clock = pygame.time.Clock()
     
     # Выводим информацию о дебаггере
@@ -32,13 +35,18 @@ async def main():
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
-                    game.handle_click(event.pos)
+                    game.handle_click(event.pos, button=1)
                 elif event.button == 3:
-                    # Cancel prepared spell if any
-                    if (hasattr(game, 'selected_unit') and game.selected_unit and 
-                        hasattr(game.selected_unit, 'selected_spell') and 
-                        game.selected_unit.selected_spell is not None):
-                        game.selected_unit.selected_spell = None
+                    # Обработка правой кнопки мыши
+                    if game.state == 'creative':
+                        # Удаление юнитов в креативе правой кнопкой
+                        game.handle_click(event.pos, button=3)
+                    else:
+                        # Cancel prepared spell if any
+                        if (hasattr(game, 'selected_unit') and game.selected_unit and 
+                            hasattr(game.selected_unit, 'selected_spell') and 
+                            game.selected_unit.selected_spell is not None):
+                            game.selected_unit.selected_spell = None
             elif event.type == pygame.MOUSEWHEEL:
                 # Прокрутка UI (креатив/редактор книг) колесом мыши
                 if hasattr(game, 'on_mouse_wheel'):

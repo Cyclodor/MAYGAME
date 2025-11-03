@@ -13,6 +13,7 @@ from .graphics import (
     animate_magic_projectile,
     animate_arrow_fly,
     animate_fire_arrow_fly,
+    animate_ice_arrow,
     animate_magic_fly,
     animate_stone_skin,
     animate_fire_explosion,
@@ -35,7 +36,7 @@ from .graphics import (
     load_image,
 )
 from .hero_animations import animate_warrior_teleport
-from .spells import BlessSpell, CurseSpell, SlowSpell, FireArrowSpell, DispelSpell, RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, StoneSkinSpell, RaiseDeadSpell, FireballSpell, UndeadHealSpell, HasteSpell, FireShieldSpell, HealSpell, ResurrectionSpell, IceShieldSpell, LightningSpell, EarthSpikesSpell, CounterstrikeSpell, RuneWallSpell, WeaknessSpell
+from .spells import BlessSpell, CurseSpell, SlowSpell, FireArrowSpell, DispelSpell, RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, StoneSkinSpell, RaiseDeadSpell, FireballSpell, UndeadHealSpell, HasteSpell, FireShieldSpell, HealSpell, ResurrectionSpell, IceShieldSpell, LightningSpell, EarthSpikesSpell, CounterstrikeSpell, RuneWallSpell, WeaknessSpell, ChainLightningSpell, AccuracySpell, QuicksandSpell, EarthShockSpell, PrayerSpell, BlindnessSpell
 from .sound import load_sound, load_sound_mp3
 from .debugger import GameDebugger
 from .ai import AIController
@@ -67,6 +68,7 @@ class Game:
         self.units = []
         self.corpses = []  # Список трупов на поле боя
         self.barriers = []  # Список магических барьеров
+        self.quicksands = []  # Список зыбучих песков (не барьеры, но ловушки)
         self.selected_unit = None
         self.current_team = 'human'
         self.game_over = False
@@ -111,6 +113,9 @@ class Game:
         self.ai_think_delay = 30  # Задержка перед ходом ИИ (в кадрах, ~0.5 сек при 60 FPS)
         self.spectator_mode = False  # Режим наблюдения (оба бота)
         self.is_paused = False  # Пауза игры
+        # Переменные для кастомного курсора дальнобойных юнитов
+        self._ranged_cursor_pos = None
+        self._ranged_cursor_penalty = None
         # Инициализация дебаггера
         self.debugger = GameDebugger(self)
         # Инициализация менеджера анимаций
@@ -187,6 +192,10 @@ class Game:
         self.game_over = False
         self.victory_state = None
         self.winner_team = None
+        if hasattr(self, 'barriers'):
+            self.barriers = []
+        if hasattr(self, 'quicksands'):
+            self.quicksands = []
         if hasattr(self, 'turn_queue'):
             self.turn_queue = []
         self.current_initiative_index = 0 if hasattr(self, 'current_initiative_index') else 0
@@ -194,6 +203,10 @@ class Game:
         self.combat_music_playing = False
         self.current_intro_sound = None
         self.intro_channel = None
+        # Сброс логики выбора человек/бот при пересоздании боя
+        self.player1_type = 'human'
+        self.player2_type = 'ai'
+        self.spectator_mode = False
         # Очищаем трупы при сбросе состояния боя
         self.corpses = []
         # Остановить любую текущую музыку (меню/бой)
@@ -327,6 +340,8 @@ class Game:
     def initialize_units(self, p1_race=None, p2_race=None):
         self.units = []
         self.corpses = []  # Очищаем трупы при создании новой игры
+        self.barriers = []  # Очищаем барьеры при создании новой игры
+        self.quicksands = []  # Очищаем зыбучие пески при создании новой игры
         # p1 - справа, p2 - слева
         races = {
             'human': [Peasant, Spearman, Crossbowman, Swordsman, Gryphon],
@@ -337,11 +352,11 @@ class Game:
             'shadow': [Scout, Beast, Minotaur, Witch, LizardRider]
         }
         hero_spells = {
-            'human': [BlessSpell(), DispelSpell(), HasteSpell(), HealSpell(), ResurrectionSpell()],
+            'human': [BlessSpell(), DispelSpell(), HasteSpell(), HealSpell(), ResurrectionSpell(), PrayerSpell(), BlindnessSpell()],
             'undead': [CurseSpell(), RaiseDeadSpell(), UndeadHealSpell(), WeaknessSpell()],
-            'elf': [SlowSpell(), StoneSkinSpell(), IceShieldSpell(), LightningSpell(), CounterstrikeSpell()],
+            'elf': [SlowSpell(), StoneSkinSpell(), IceShieldSpell(), LightningSpell(), CounterstrikeSpell(), ChainLightningSpell(), AccuracySpell()],
             'demon': [FireArrowSpell(), FireballSpell(), FireShieldSpell()],
-            'dwarf': [RuneShieldSpell(), RuneHasteSpell(), EarthSpikesSpell(), RuneWallSpell()],
+            'dwarf': [RuneShieldSpell(), RuneHasteSpell(), EarthSpikesSpell(), RuneWallSpell(), QuicksandSpell(), EarthShockSpell()],
             'shadow': [ForgetSpell(), FrostRingSpell()]
         }
         # --- Первый игрок (справа) ---
@@ -1034,6 +1049,71 @@ class Game:
                         pygame.draw.polygon(book_surface, (255, 120, 40), [
                             (flame_x, flame_y), (flame_x-3, flame_y+8), (flame_x+3, flame_y+8)
                         ])
+                elif spell.icon == 'fire_wall':
+                    # Огненная стена - вертикальная полоса пламени
+                    cx, cy = icon_box.center
+                    # Вертикальные языки пламени
+                    for i in range(3):
+                        wall_x = cx - 8 + i * 8
+                        # Основание пламени
+                        pygame.draw.polygon(book_surface, (255, 120, 40), [
+                            (wall_x-3, cy+10), (wall_x+3, cy+10), (wall_x+2, cy+2), (wall_x-2, cy+2)
+                        ])
+                        # Верхние языки
+                        pygame.draw.polygon(book_surface, (255, 200, 80), [
+                            (wall_x-2, cy+2), (wall_x+2, cy+2), (wall_x+1, cy-8), (wall_x-1, cy-8)
+                        ])
+                        pygame.draw.polygon(book_surface, (255, 255, 150), [
+                            (wall_x-1, cy-2), (wall_x+1, cy-2), (wall_x, cy-10)
+                        ])
+                elif spell.icon == 'meteor_rain':
+                    # Метеоритный дождь - несколько падающих метеоритов
+                    cx, cy = icon_box.center
+                    # Несколько метеоритов сверху вниз
+                    for i, offset in enumerate([-8, -2, 2, 8]):
+                        meteor_x = cx + offset
+                        meteor_y = cy - 12 + i * 8
+                        # Метеорит
+                        pygame.draw.circle(book_surface, (200, 100, 40), (meteor_x, meteor_y), 4)
+                        pygame.draw.circle(book_surface, (255, 150, 80), (meteor_x, meteor_y), 2)
+                        # Хвост метеорита
+                        pygame.draw.line(book_surface, (255, 180, 120), (meteor_x, meteor_y+4), (meteor_x, meteor_y+10), 2)
+                elif spell.icon == 'ice_arrow':
+                    # Ледяная стрела с инеем
+                    cx, cy = icon_box.center
+                    # Древко стрелы
+                    pygame.draw.line(book_surface, (180, 200, 220), (cx-8, cy+5), (cx+8, cy-5), 3)
+                    # Наконечник изо льда
+                    pygame.draw.polygon(book_surface, (200, 230, 255), [(cx+8, cy-5), (cx+12, cy-8), (cx+9, cy-1)])
+                    pygame.draw.polygon(book_surface, (150, 200, 255), [(cx+9, cy-4), (cx+11, cy-7), (cx+9, cy-2)])
+                    # Снежинки вокруг
+                    for i in range(6):
+                        angle = math.radians(i * 60)
+                        snow_x = cx + int(10 * math.cos(angle))
+                        snow_y = cy + int(10 * math.sin(angle))
+                        pygame.draw.circle(book_surface, (220, 240, 255), (snow_x, snow_y), 1)
+                        # Лучи снежинки
+                        for j in range(4):
+                            ray_angle = angle + math.radians(j * 90)
+                            ray_x = snow_x + int(3 * math.cos(ray_angle))
+                            ray_y = snow_y + int(3 * math.sin(ray_angle))
+                            pygame.draw.circle(book_surface, (240, 250, 255), (ray_x, ray_y), 1)
+                elif spell.icon == 'phantom':
+                    # Фантом - призрачная фигура
+                    cx, cy = icon_box.center
+                    # Полупрозрачное тело фантома (синеватое)
+                    pygame.draw.ellipse(book_surface, (100, 150, 255, 180), (cx-8, cy+2, 16, 12))
+                    pygame.draw.circle(book_surface, (120, 180, 255, 180), (cx, cy-4), 6)
+                    # Призрачный хвост
+                    pygame.draw.polygon(book_surface, (80, 130, 255, 150), [
+                        (cx-6, cy+14), (cx+6, cy+14), (cx+3, cy+20), (cx-3, cy+20)
+                    ])
+                    # Сияние вокруг
+                    for i in range(8):
+                        angle = math.radians(i * 45)
+                        glow_x = cx + int(12 * math.cos(angle))
+                        glow_y = cy + int(12 * math.sin(angle))
+                        pygame.draw.circle(book_surface, (150, 200, 255, 100), (glow_x, glow_y), 2)
                 elif spell.icon == 'heal':
                     # Иконка исцеления: зелёный крест с сиянием
                     cx, cy = icon_box.center
@@ -1190,6 +1270,121 @@ class Game:
                         sx = cx + int(8 * math.cos(angle))
                         sy = cy - 6 + int(8 * math.sin(angle))
                         pygame.draw.circle(book_surface, (255, 255, 200), (sx, sy), 2)
+                elif spell.icon == 'chain_lightning':
+                    # Цепная молния: несколько молний, соединённых вместе
+                    cx, cy = icon_box.center
+                    # Основная молния
+                    points1 = [(cx-6, cy-12), (cx-4, cy-4), (cx-2, cy-2), (cx, cy+4), (cx+2, cy+12)]
+                    for i in range(len(points1)-1):
+                        pygame.draw.line(book_surface, (255, 255, 180), points1[i], points1[i+1], 3)
+                        pygame.draw.line(book_surface, (255, 255, 255), points1[i], points1[i+1], 1)
+                    # Вторая молния отскакивает
+                    points2 = [(cx+2, cy+6), (cx+4, cy-2), (cx+6, cy-6), (cx+8, cy-10)]
+                    for i in range(len(points2)-1):
+                        pygame.draw.line(book_surface, (255, 255, 150), points2[i], points2[i+1], 2)
+                    # Третья молния
+                    points3 = [(cx-2, cy+8), (cx-4, cy+2), (cx-6, cy-2), (cx-8, cy-8)]
+                    for i in range(len(points3)-1):
+                        pygame.draw.line(book_surface, (255, 255, 150), points3[i], points3[i+1], 2)
+                    # Искры вокруг
+                    for angle in [0, 1.57, 3.14, 4.71]:
+                        sx = cx + int(10 * math.cos(angle))
+                        sy = cy + int(10 * math.sin(angle))
+                        pygame.draw.circle(book_surface, (255, 255, 200), (sx, sy), 2)
+                elif spell.icon == 'accuracy':
+                    # Точность: линза с монеткой внутри
+                    cx, cy = icon_box.center
+                    # Линза (эллипс)
+                    pygame.draw.ellipse(book_surface, (180, 220, 255, 200), (cx-12, cy-14, 24, 28), 2)
+                    pygame.draw.ellipse(book_surface, (220, 240, 255, 150), (cx-10, cy-12, 20, 24))
+                    # Монетка (круг)
+                    pygame.draw.circle(book_surface, (255, 215, 0), (cx, cy), 6)
+                    pygame.draw.circle(book_surface, (200, 150, 0), (cx, cy), 4)
+                    # Блик на линзе
+                    pygame.draw.ellipse(book_surface, (255, 255, 255, 180), (cx-6, cy-10, 8, 6))
+                    # Лучи точности
+                    for i in range(4):
+                        angle = i * 1.57
+                        start_x = cx + int(12 * math.cos(angle))
+                        start_y = cy + int(12 * math.sin(angle))
+                        end_x = cx + int(16 * math.cos(angle))
+                        end_y = cy + int(16 * math.sin(angle))
+                        pygame.draw.line(book_surface, (200, 220, 255), (start_x, start_y), (end_x, end_y), 2)
+                elif spell.icon == 'quicksand':
+                    # Зыбучие пески: бурлящая лужа грязи
+                    cx, cy = icon_box.center
+                    # Основная лужа (коричневая)
+                    pygame.draw.circle(book_surface, (80, 60, 40), (cx, cy), 10)
+                    pygame.draw.circle(book_surface, (100, 75, 50), (cx, cy), 8)
+                    # Пузыри
+                    for i in range(4):
+                        angle = i * 1.57
+                        bubble_x = cx + int(5 * math.cos(angle))
+                        bubble_y = cy + int(5 * math.sin(angle))
+                        pygame.draw.circle(book_surface, (120, 90, 60), (bubble_x, bubble_y), 2)
+                    # Частицы грязи
+                    for i in range(6):
+                        angle = i * 1.047
+                        particle_x = cx + int(8 * math.cos(angle))
+                        particle_y = cy + int(8 * math.sin(angle))
+                        pygame.draw.circle(book_surface, (90, 70, 45), (particle_x, particle_y), 1)
+                elif spell.icon == 'earth_shock':
+                    # Шок земли: фиолетовый гравитационный купол
+                    cx, cy = icon_box.center
+                    # Купол (фиолетовый)
+                    for layer in range(3):
+                        layer_size = 12 - layer * 3
+                        pygame.draw.circle(book_surface, (180, 100, 255), (cx, cy), layer_size, 2)
+                    # Центр (чёрная дыра)
+                    pygame.draw.circle(book_surface, (0, 0, 0), (cx, cy), 4)
+                    pygame.draw.circle(book_surface, (50, 0, 80), (cx, cy), 6, 1)
+                    # Частицы вокруг
+                    for i in range(8):
+                        angle = i * 0.785
+                        particle_x = cx + int(10 * math.cos(angle))
+                        particle_y = cy + int(10 * math.sin(angle))
+                        pygame.draw.circle(book_surface, (200, 120, 255), (particle_x, particle_y), 2)
+                    # Взрывные волны
+                    for wave in range(2):
+                        wave_size = 14 - wave * 3
+                        pygame.draw.circle(book_surface, (255, 150, 50), (cx, cy), wave_size, 1)
+                elif spell.icon == 'prayer':
+                    # Молитва: крылья ангела с перьями
+                    cx, cy = icon_box.center
+                    # Крылья (белые)
+                    for wing_side in [-1, 1]:
+                        wing_x = cx + wing_side * 8
+                        for feather_idx in range(3):
+                            feather_y = cy - 4 + feather_idx * 4
+                            feather_size = 3 - feather_idx
+                            pygame.draw.circle(book_surface, (255, 255, 255), (wing_x, feather_y), feather_size)
+                    # Центральное свечение
+                    pygame.draw.circle(book_surface, (255, 255, 200), (cx, cy), 6)
+                    pygame.draw.circle(book_surface, (255, 255, 255), (cx, cy), 4)
+                    # Лучи света
+                    for i in range(6):
+                        angle = i * 1.047
+                        end_x = cx + int(10 * math.cos(angle))
+                        end_y = cy + int(10 * math.sin(angle))
+                        pygame.draw.line(book_surface, (255, 255, 200), (cx, cy), (end_x, end_y), 2)
+                elif spell.icon == 'blindness':
+                    # Ослепление: слепящие звезды
+                    cx, cy = icon_box.center
+                    # Звезды вокруг центра
+                    for star_idx in range(4):
+                        star_angle = star_idx * 1.57
+                        star_x = cx + int(8 * math.cos(star_angle))
+                        star_y = cy + int(8 * math.sin(star_angle))
+                        # Звезда (крест)
+                        for ray_idx in range(4):
+                            ray_angle = ray_idx * (math.pi / 2)
+                            ray_end_x = star_x + int(4 * math.cos(ray_angle))
+                            ray_end_y = star_y + int(4 * math.sin(ray_angle))
+                            pygame.draw.line(book_surface, (255, 255, 200), (star_x, star_y), (ray_end_x, ray_end_y), 2)
+                        pygame.draw.circle(book_surface, (255, 255, 255), (star_x, star_y), 2)
+                    # Центральная вспышка
+                    pygame.draw.circle(book_surface, (255, 255, 255), (cx, cy), 6)
+                    pygame.draw.circle(book_surface, (255, 255, 200), (cx, cy), 4)
                 elif spell.icon == 'earth_spikes':
                     # Земляные шипы: множество каменных шипов
                     cx, cy = icon_box.center
@@ -2799,10 +2994,10 @@ class Game:
     def _build_spells_catalog(self):
         from .spells import (
             BlessSpell, CurseSpell, SlowSpell, FireArrowSpell, DispelSpell,
-            RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, RaiseDeadSpell, FireballSpell, StoneSkinSpell, UndeadHealSpell, HasteSpell, FireShieldSpell, HealSpell, ResurrectionSpell, IceShieldSpell, LightningSpell, EarthSpikesSpell, CounterstrikeSpell, RuneWallSpell, WeaknessSpell
+            RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, RaiseDeadSpell, FireballSpell, StoneSkinSpell, UndeadHealSpell, HasteSpell, FireShieldSpell, HealSpell, ResurrectionSpell, IceShieldSpell, LightningSpell, EarthSpikesSpell, CounterstrikeSpell, RuneWallSpell, WeaknessSpell, FireWallSpell, MeteorRainSpell, IceArrowSpell, PhantomSpell, ChainLightningSpell, AccuracySpell, QuicksandSpell, EarthShockSpell, PrayerSpell, BlindnessSpell
         )
         classes = [BlessSpell, CurseSpell, SlowSpell, FireArrowSpell, DispelSpell,
-                   RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, RaiseDeadSpell, FireballSpell, StoneSkinSpell, UndeadHealSpell, HasteSpell, FireShieldSpell, HealSpell, ResurrectionSpell, IceShieldSpell, LightningSpell, EarthSpikesSpell, CounterstrikeSpell, RuneWallSpell, WeaknessSpell]
+                   RuneShieldSpell, RuneHasteSpell, ForgetSpell, FrostRingSpell, RaiseDeadSpell, FireballSpell, StoneSkinSpell, UndeadHealSpell, HasteSpell, FireShieldSpell, HealSpell, ResurrectionSpell, IceShieldSpell, LightningSpell, EarthSpikesSpell, CounterstrikeSpell, RuneWallSpell, WeaknessSpell, FireWallSpell, MeteorRainSpell, IceArrowSpell, PhantomSpell, ChainLightningSpell, AccuracySpell, QuicksandSpell, EarthShockSpell, PrayerSpell, BlindnessSpell]
         catalog = []
         for cls in classes:
             try:
@@ -2824,13 +3019,20 @@ class Game:
         if not hasattr(self, '_spellbook_selected_hero_idx'):
             self._spellbook_selected_hero_idx = 0
         
-        # Вкладки героев со скроллом
+        # Вкладки героев со скроллом (максимум 2 героя)
         heroes = getattr(self, '_spellbook_heroes', [])
+        # Ограничиваем до двух героев
+        heroes = heroes[:2]
+        self._spellbook_heroes = heroes  # Обновляем список
+        # Если выбранный индекс выходит за границы, сбрасываем на первый
+        if self._spellbook_selected_hero_idx >= len(heroes):
+            self._spellbook_selected_hero_idx = 0
+        
         self.spellbook_hero_tabs = []
         
-        # Скролл для табов если героев много
+        # Скролл для табов если героев много (теперь максимум 2)
         hero_tab_scroll = getattr(self, 'hero_tab_scroll', 0)
-        max_visible_tabs = 4  # Максимум видимых табов
+        max_visible_tabs = 2  # Максимум видимых табов (ограничено до 2 героев)
         start_tab = min(hero_tab_scroll, max(0, len(heroes) - max_visible_tabs))
         end_tab = min(len(heroes), start_tab + max_visible_tabs)
         
@@ -2842,15 +3044,22 @@ class Game:
             pygame.draw.rect(self.screen, (90,120,160) if sel else (60,70,90), rect, border_radius=8)
             pygame.draw.rect(self.screen, (210,220,240), rect, 2, border_radius=8)
             
-            # Красивая подпись с классом
+            # Красивая подпись с классом и расой
             hero_class = getattr(h, 'hero_class', 'warrior')
+            hero_team = getattr(h, 'team', 'human')
             class_labels = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
             class_label = class_labels.get(hero_class, hero_class)
-            label = f"Герой {idx+1} ({TEAM_LABELS.get(h.team, h.team)}) - {class_label}"
+            team_label = TEAM_LABELS.get(hero_team, hero_team)
+            # Формат: "Воин (Люди)" или "Лучник (Эльфы)"
+            label = f"{class_label} ({team_label})"
             label_surf = font.render(label, True, (255,255,255))
-            # Обрезаем если не влезает
+            # Обрезаем если не влезает - сначала убираем расу
             if label_surf.get_width() > rect.w - 20:
-                label = f"Герой {idx+1} - {class_label}"
+                label = f"{class_label}"
+                label_surf = font.render(label, True, (255,255,255))
+            # Если все еще не влезает, используем короткое имя
+            if label_surf.get_width() > rect.w - 20:
+                label = f"Герой {idx+1}"
                 label_surf = font.render(label, True, (255,255,255))
             self.screen.blit(label_surf, (rect.x+10, rect.y+7))
             self.spellbook_hero_tabs.append((rect, idx))
@@ -2897,7 +3106,12 @@ class Game:
         self.screen.blit(font.render('▲', True, (255,255,255)), (self.school_up.x+3, self.school_up.y-2))
         self.screen.blit(font.render('▼', True, (255,255,255)), (self.school_down.x+3, self.school_down.y-2))
         # Доступные заклинания
-        sel_hero = heroes[getattr(self, '_spellbook_selected_hero_idx', 0)] if heroes else None
+        hero_idx = getattr(self, '_spellbook_selected_hero_idx', 0)
+        # Проверяем, что индекс не выходит за границы (героев максимум 2)
+        if hero_idx >= len(heroes):
+            hero_idx = 0
+            self._spellbook_selected_hero_idx = 0
+        sel_hero = heroes[hero_idx] if heroes and hero_idx < len(heroes) else None
         available = [it for it in self._spells_catalog if self._spellbook_selected_school in ('all', it['school'])]
         self.spell_add_rects = []
         x = panel_x + panel_w + 20
@@ -3003,7 +3217,9 @@ class Game:
         
         if hasattr(self, 'hero_tab_scroll_right') and self.hero_tab_scroll_right.collidepoint(pos):
             heroes = getattr(self, '_spellbook_heroes', [])
-            max_visible_tabs = 4
+            # Ограничиваем до двух героев и используем max_visible_tabs = 2
+            heroes = heroes[:2]
+            max_visible_tabs = 2
             max_scroll = max(0, len(heroes) - max_visible_tabs)
             self.hero_tab_scroll = min(max_scroll, getattr(self, 'hero_tab_scroll', 0) + 1)
             return
@@ -3034,7 +3250,14 @@ class Game:
             return
         # Добавление заклинания
         heroes = getattr(self, '_spellbook_heroes', [])
-        sel_hero = heroes[getattr(self, '_spellbook_selected_hero_idx', 0)] if heroes else None
+        # Ограничиваем до двух героев
+        heroes = heroes[:2]
+        hero_idx = getattr(self, '_spellbook_selected_hero_idx', 0)
+        # Проверяем, что индекс не выходит за границы
+        if hero_idx >= len(heroes):
+            hero_idx = 0
+            self._spellbook_selected_hero_idx = 0
+        sel_hero = heroes[hero_idx] if heroes else None
         if sel_hero and hasattr(self, 'spell_add_rects'):
             for rect, it in self.spell_add_rects:
                 if rect.collidepoint(pos):
@@ -3072,7 +3295,14 @@ class Game:
             return
         if hasattr(self, 'spell_book_down') and self.spell_book_down.collidepoint(pos):
             heroes = getattr(self, '_spellbook_heroes', [])
-            sel_hero = heroes[getattr(self, '_spellbook_selected_hero_idx', 0)] if heroes else None
+            # Ограничиваем до двух героев
+            heroes = heroes[:2]
+            hero_idx = getattr(self, '_spellbook_selected_hero_idx', 0)
+            # Проверяем, что индекс не выходит за границы
+            if hero_idx >= len(heroes):
+                hero_idx = 0
+                self._spellbook_selected_hero_idx = 0
+            sel_hero = heroes[hero_idx] if heroes else None
             book_list = list(getattr(sel_hero, 'spells', [])) if sel_hero else []
             book_height = SCREEN_HEIGHT - 190
             vis_cnt_b = max(1, (book_height - 16)//30)
@@ -3178,7 +3408,14 @@ class Game:
             book_rect = pygame.Rect(book_x - 2, book_top-2, 340, book_height)
             if book_rect.collidepoint(mx, my):
                 heroes = getattr(self, '_spellbook_heroes', [])
-                sel_hero = heroes[getattr(self, '_spellbook_selected_hero_idx', 0)] if heroes else None
+                # Ограничиваем до двух героев
+                heroes = heroes[:2]
+                hero_idx = getattr(self, '_spellbook_selected_hero_idx', 0)
+                # Проверяем, что индекс не выходит за границы
+                if hero_idx >= len(heroes):
+                    hero_idx = 0
+                    self._spellbook_selected_hero_idx = 0
+                sel_hero = heroes[hero_idx] if heroes and hero_idx < len(heroes) else None
                 book_list = list(getattr(sel_hero, 'spells', [])) if sel_hero else []
                 vis_cnt_b = max(1, (book_height - 16)//30)
                 max_scroll_b = max(0, len(book_list) - vis_cnt_b)
@@ -3541,7 +3778,7 @@ class Game:
                         self._save_spell_overrides()
                         return
 
-    def handle_creative_click(self, pos):
+    def handle_creative_click(self, pos, button=1):
         # Кнопки
         if self.creative_start_rect.collidepoint(pos):
             if self.button_click_sound:
@@ -3622,14 +3859,16 @@ class Game:
         if self.creative_panel_rect.collidepoint(pos):
             return
         # Удаление правой кнопкой
-        if pygame.mouse.get_pressed()[2]:
+        if button == 3:
             for u in list(self.units):
                 if u.x == gx and u.y == gy:
                     self.units.remove(u)
+                    if self.button_click_sound:
+                        self.button_click_sound.play()
                     break
             return
         # Постановка левой кнопкой
-        if 0 <= gx < GRID_WIDTH and 0 <= gy < GRID_HEIGHT and not any(u.x == gx and u.y == gy for u in self.units):
+        if button == 1 and 0 <= gx < GRID_WIDTH and 0 <= gy < GRID_HEIGHT and not any(u.x == gx and u.y == gy for u in self.units):
             pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
             ctor = next((_cls for name, _cls in pool if name == self.creative_selected_unit), None)
             if ctor:
@@ -3664,6 +3903,8 @@ class Game:
         self.game_over = False
         self.victory_state = None
         self.turn_queue = []
+        # Применение звуковых настроек из файла настроек
+        self._apply_audio_volumes()
         # Найти героев (если есть)
         heroes = [u for u in self.units if isinstance(u, Hero)]
         self.hero1 = next((h for h in heroes if h.team in ['human','elf']), heroes[0] if heroes else None)
@@ -4110,35 +4351,144 @@ class Game:
     def draw_barriers(self):
         """Отрисовывает магические барьеры."""
         import pygame
+        import random
         from .config import CELL_SIZE
         
         for barrier in self.barriers:
             x = barrier['x']
             y = barrier['y']
+            barrier_type = barrier.get('type', 'rune_wall')
             
-            # Рисуем полупрозрачный барьер
             barrier_rect = pygame.Rect(x * CELL_SIZE + 10, y * CELL_SIZE + 5, 
                                       CELL_SIZE - 20, CELL_SIZE - 10)
             
             # Создаем поверхность для барьера
             barrier_surface = pygame.Surface((CELL_SIZE - 20, CELL_SIZE - 10), pygame.SRCALPHA)
             
-            # Фиолетовый полупрозрачный барьер
-            pygame.draw.rect(barrier_surface, (150, 100, 200, 120), 
-                           (0, 0, CELL_SIZE - 20, CELL_SIZE - 10))
-            pygame.draw.rect(barrier_surface, (180, 120, 220, 200), 
-                           (0, 0, CELL_SIZE - 20, CELL_SIZE - 10), 3)
-            
-            # Руны на барьере
-            cx = (CELL_SIZE - 20) // 2
-            cy = (CELL_SIZE - 10) // 2
-            rune_size = 10
-            pygame.draw.line(barrier_surface, (200, 150, 255, 180), 
-                           (cx, cy - rune_size), (cx, cy + rune_size), 2)
-            pygame.draw.line(barrier_surface, (200, 150, 255, 180), 
-                           (cx - rune_size, cy), (cx + rune_size, cy), 2)
+            if barrier_type == 'fire_wall':
+                # Огненная стена - анимированное пламя
+                import time
+                t = time.time() * 3  # Скорость анимации
+                cx = (CELL_SIZE - 20) // 2
+                cy = (CELL_SIZE - 10) // 2
+                
+                # Основание огня
+                flame_height = (CELL_SIZE - 10) - 5
+                flame_points = []
+                for i in range(8):
+                    offset_x = int(math.sin(t * 2 + i * 0.8) * 5) + random.randint(-3, 3)
+                    offset_y = cy - i * (flame_height // 8) + int(math.sin(t * 3 + i) * 2)
+                    flame_points.append((cx + offset_x, offset_y))
+                
+                # Рисуем пламя (от яркого внизу к темному вверху)
+                for i in range(len(flame_points) - 1):
+                    px, py = flame_points[i]
+                    next_px, next_py = flame_points[i + 1]
+                    # Цвет меняется от желтого/белого внизу к красному вверху
+                    intensity = int(255 - i * 30)
+                    alpha = 200 - i * 20
+                    if intensity < 100:
+                        intensity = 100
+                    pygame.draw.line(barrier_surface, (255, intensity, 0, alpha), 
+                                   (px, py), (next_px, next_py), max(3, 6 - i // 2))
+                
+                # Яркое ядро огня внизу
+                pygame.draw.circle(barrier_surface, (255, 255, 200, 180), (cx, cy), 8)
+                pygame.draw.circle(barrier_surface, (255, 200, 0, 150), (cx, cy), 5)
+                
+                # Искры
+                for _ in range(5):
+                    spark_x = cx + random.randint(-15, 15)
+                    spark_y = cy - random.randint(0, flame_height // 2)
+                    spark_size = random.randint(1, 3)
+                    spark_alpha = random.randint(100, 200)
+                    pygame.draw.circle(barrier_surface, (255, 220, 0, spark_alpha), 
+                                     (spark_x, spark_y), spark_size)
+            else:
+                # Обычный барьер (руна стены) - фиолетовый полупрозрачный барьер
+                pygame.draw.rect(barrier_surface, (150, 100, 200, 120), 
+                               (0, 0, CELL_SIZE - 20, CELL_SIZE - 10))
+                pygame.draw.rect(barrier_surface, (180, 120, 220, 200), 
+                               (0, 0, CELL_SIZE - 20, CELL_SIZE - 10), 3)
+                
+                # Руны на барьере
+                cx = (CELL_SIZE - 20) // 2
+                cy = (CELL_SIZE - 10) // 2
+                rune_size = 10
+                pygame.draw.line(barrier_surface, (200, 150, 255, 180), 
+                               (cx, cy - rune_size), (cx, cy + rune_size), 2)
+                pygame.draw.line(barrier_surface, (200, 150, 255, 180), 
+                               (cx - rune_size, cy), (cx + rune_size, cy), 2)
             
             self.screen.blit(barrier_surface, (x * CELL_SIZE + 10, y * CELL_SIZE + 5))
+    
+    def draw_quicksands(self):
+        """Отрисовывает зыбучие пески (только для кастера)"""
+        import pygame
+        import random
+        import time
+        import math
+        from .config import CELL_SIZE
+        
+        if not hasattr(self, 'quicksands'):
+            return
+        
+        for quicksand in self.quicksands:
+            x = quicksand['x']
+            y = quicksand['y']
+            caster_team = quicksand.get('caster_team')
+            
+            # Показываем зыбучие пески только юнитам команды кастера
+            # Проверяем, является ли текущий активный юнит из команды кастера
+            show_quicksand = False
+            if caster_team:
+                # Проверяем текущий активный юнит (selected_unit или первый в очереди)
+                current_unit = None
+                if hasattr(self, 'selected_unit') and self.selected_unit:
+                    current_unit = self.selected_unit
+                elif hasattr(self, 'turn_queue') and self.turn_queue:
+                    current_unit = self.turn_queue[0] if self.turn_queue else None
+                
+                # Показываем только если текущий активный юнит из команды кастера
+                if current_unit and hasattr(current_unit, 'team') and current_unit.team == caster_team:
+                    show_quicksand = True
+            
+            if show_quicksand:
+                quicksand_rect = pygame.Rect(x * CELL_SIZE + 10, y * CELL_SIZE + 5, 
+                                            CELL_SIZE - 20, CELL_SIZE - 10)
+                
+                # Создаем поверхность для зыбучих песков
+                quicksand_surface = pygame.Surface((CELL_SIZE - 20, CELL_SIZE - 10), pygame.SRCALPHA)
+                
+                t = time.time() * 2  # Скорость анимации
+                cx = (CELL_SIZE - 20) // 2
+                cy = (CELL_SIZE - 10) // 2
+                
+                # Основная лужа (коричневая/грязь) - полупрозрачная, чтобы была видна как подсказка
+                pool_size = int((CELL_SIZE - 20) * 0.7)
+                pygame.draw.circle(quicksand_surface, (80, 60, 40, 120), (cx, cy), pool_size)
+                pygame.draw.circle(quicksand_surface, (100, 75, 50, 100), (cx, cy), int(pool_size * 0.9))
+                
+                # Бурлящие пузыри
+                for bubble_idx in range(6):
+                    bubble_angle = (bubble_idx * (2*math.pi / 6.0)) + t
+                    bubble_dist = random.randint(5, int(pool_size * 0.6))
+                    bubble_x = cx + int(bubble_dist * math.cos(bubble_angle))
+                    bubble_y = cy + int(bubble_dist * math.sin(bubble_angle))
+                    bubble_size = random.randint(2, 4)
+                    pygame.draw.circle(quicksand_surface, (120, 90, 60, 100), (bubble_x, bubble_y), bubble_size)
+                
+                # Частицы грязи
+                for particle_idx in range(8):
+                    particle_angle = (particle_idx * (2*math.pi / 8.0)) + t * 2
+                    particle_dist = random.randint(int(pool_size * 0.7), int(pool_size * 1.0))
+                    particle_x = cx + int(particle_dist * math.cos(particle_angle))
+                    particle_y = cy + int(particle_dist * math.sin(particle_angle))
+                    particle_size = random.randint(1, 2)
+                    particle_alpha = random.randint(60, 90)
+                    pygame.draw.circle(quicksand_surface, (90, 70, 45, particle_alpha), (particle_x, particle_y), particle_size)
+                
+                self.screen.blit(quicksand_surface, (quicksand_rect.x, quicksand_rect.y))
     
     def draw_corpses(self):
         """Отрисовывает трупы как серые полупрозрачные модели."""
@@ -4202,13 +4552,16 @@ class Game:
         self.draw_grid()
         # Отрисовка трупов перед юнитами
         self.draw_corpses()
-        # Отрисовка барьеров
-        self.draw_barriers()
+        # Отрисовка юнитов
         for unit in self.units:
             # Пропускаем отрисовку юнита, если он скрыт
             if hide_unit_at and unit.x == hide_unit_at[0] and unit.y == hide_unit_at[1]:
                 continue
             unit.draw(self.screen)
+        # Отрисовка барьеров поверх юнитов (особенно для огненной стены)
+        self.draw_barriers()
+        # Отрисовка зыбучих песков (отдельно от барьеров)
+        self.draw_quicksands()
         # Предпросмотр зоны для area-заклинаний
         # Автоматически сбрасываем флаг dismiss при наличии выбранного area-заклинания
         if isinstance(self.selected_unit, Hero) and getattr(self.selected_unit, 'selected_spell', None) is not None:
@@ -4262,6 +4615,24 @@ class Game:
                                         (cx - CELL_SIZE//2, cy - CELL_SIZE//2 + dy*CELL_SIZE, CELL_SIZE, CELL_SIZE))
                         pygame.draw.rect(preview_surface, (180, 120, 220, 120), 
                                         (cx - CELL_SIZE//2, cy - CELL_SIZE//2 + dy*CELL_SIZE, CELL_SIZE, CELL_SIZE), 2)
+                elif hasattr(spell, 'icon') and spell.icon == 'fire_wall':
+                    # Зона 3 клетки по вертикали (вверх, текущая, вниз)
+                    for dy in [-1, 0, 1]:
+                        pygame.draw.rect(preview_surface, (255, 100, 0, 100), 
+                                        (cx - CELL_SIZE//2, cy - CELL_SIZE//2 + dy*CELL_SIZE, CELL_SIZE, CELL_SIZE))
+                        pygame.draw.rect(preview_surface, (255, 150, 50, 150), 
+                                        (cx - CELL_SIZE//2, cy - CELL_SIZE//2 + dy*CELL_SIZE, CELL_SIZE, CELL_SIZE), 3)
+                elif hasattr(spell, 'icon') and spell.icon == 'meteor_rain':
+                    # Preview для метеоритного дождя - показываем целевую клетку (первый метеорит попадет сюда)
+                    pygame.draw.circle(preview_surface, (255, 200, 0, 120), (cx, cy), CELL_SIZE//2)
+                    pygame.draw.circle(preview_surface, (255, 100, 0, 180), (cx, cy), CELL_SIZE//2, 3)
+                    # Показываем что еще 3 метеорита будут случайными
+                    hint_text = "4 метеорита (1 здесь, 3 случайных)"
+                    hint = pygame.font.Font(None, 18).render(hint_text, True, (255, 200, 100))
+                    hint_bg = pygame.Surface((hint.get_width()+10, hint.get_height()+6), pygame.SRCALPHA)
+                    hint_bg.fill((0,0,0,160))
+                    self.screen.blit(hint_bg, (cx - hint.get_width()//2 - 5, cy - CELL_SIZE - 30))
+                    self.screen.blit(hint, (cx - hint.get_width()//2, cy - CELL_SIZE - 27))
                 self.screen.blit(preview_surface, (0,0))
                 if hasattr(spell, 'icon') and spell.icon == 'frost_ring':
                     hint = pygame.font.Font(None, 20).render('Кольцо холода: зона 3x3 (центр пуст)', True, (220,230,255))
@@ -4283,6 +4654,8 @@ class Game:
         if hovered_unit:
             hovered_unit.draw_tooltip(self.screen, mouse_pos)
         self.draw_ui()
+        # Отрисовка кастомного курсора для дальнобойных юнитов
+        self.draw_custom_ranged_cursor()
         # Отрисовка отладочной информации поверх всего
         self.debugger.draw_debug_overlay(self.screen)
         pygame.display.flip()
@@ -4455,6 +4828,70 @@ class Game:
         except Exception:
             pass
 
+    def draw_custom_ranged_cursor(self):
+        """Отрисовывает кастомный курсор (сломанная стрела) для дальнобойных юнитов со штрафом"""
+        if not hasattr(self, '_ranged_cursor_pos') or not self._ranged_cursor_pos:
+            return
+        
+        if not hasattr(self, '_ranged_cursor_penalty') or not self._ranged_cursor_penalty:
+            return
+        
+        mouse_x, mouse_y = self._ranged_cursor_pos
+        penalty_text = self._ranged_cursor_penalty
+        
+        # Рисуем сломанную стрелу
+        # Вычисляем направление стрелы от выбранного юнита к мыши
+        if self.selected_unit and hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged():
+            start_x = self.selected_unit.x * CELL_SIZE + CELL_SIZE // 2
+            start_y = self.selected_unit.y * CELL_SIZE + CELL_SIZE // 2
+            dx = mouse_x - start_x
+            dy = mouse_y - start_y
+            angle = math.atan2(dy, dx)
+            
+            # Рисуем сломанную стрелу около курсора (смещение чтобы не закрывать цель)
+            arrow_len = 20
+            arrow_tip_x = mouse_x - int(arrow_len * math.cos(angle))
+            arrow_tip_y = mouse_y - int(arrow_len * math.sin(angle))
+            
+            # Наконечник стрелы (треугольник)
+            tip_size = 8
+            cos_a = math.cos(angle)
+            sin_a = math.sin(angle)
+            
+            # Перпендикулярный вектор для ширины наконечника
+            perp_x = -sin_a
+            perp_y = cos_a
+            
+            tip_points = [
+                (arrow_tip_x, arrow_tip_y),
+                (arrow_tip_x - int(tip_size * cos_a) + int(tip_size * 0.5 * perp_x),
+                 arrow_tip_y - int(tip_size * sin_a) + int(tip_size * 0.5 * perp_y)),
+                (arrow_tip_x - int(tip_size * cos_a) - int(tip_size * 0.5 * perp_x),
+                 arrow_tip_y - int(tip_size * sin_a) - int(tip_size * 0.5 * perp_y))
+            ]
+            pygame.draw.polygon(self.screen, (200, 150, 100), tip_points)  # Коричневая/сломанная стрела
+            
+            # Древко стрелы (ломаная линия)
+            tail_x = arrow_tip_x - int(arrow_len * cos_a)
+            tail_y = arrow_tip_y - int(arrow_len * sin_a)
+            mid_x = (arrow_tip_x + tail_x) // 2 + int(3 * perp_x)  # Излом в середине
+            mid_y = (arrow_tip_y + tail_y) // 2 + int(3 * perp_y)
+            
+            pygame.draw.line(self.screen, (150, 100, 60), (arrow_tip_x, arrow_tip_y), (mid_x, mid_y), 3)
+            pygame.draw.line(self.screen, (150, 100, 60), (mid_x, mid_y), (tail_x, tail_y), 3)
+            
+            # Текст штрафа над курсором
+            font = pygame.font.Font(None, 24)
+            text_surface = font.render(penalty_text, True, (255, 200, 100))
+            text_x = mouse_x - text_surface.get_width() // 2
+            text_y = mouse_y - 30
+            
+            # Фон для текста
+            bg_surface = pygame.Surface((text_surface.get_width() + 8, text_surface.get_height() + 4), pygame.SRCALPHA)
+            bg_surface.fill((0, 0, 0, 180))
+            self.screen.blit(bg_surface, (text_x - 4, text_y - 2))
+            self.screen.blit(text_surface, (text_x, text_y))
+
     def update_cursor(self):
         # Экраны выбора
         if self.state in ('menu', 'choose_race_p1', 'choose_race_p2'):
@@ -4482,11 +4919,21 @@ class Game:
             if self.selected_unit and hasattr(self.selected_unit, 'can_attack'):
                 try:
                     if self.selected_unit.can_attack(grid_x, grid_y, self.units):
-                        self.set_cursor(pygame.SYSTEM_CURSOR_CROSSHAIR)
+                        # Сохраняем информацию о дальнобойном юните и штрафе для отрисовки курсора
+                        if hasattr(self.selected_unit, 'is_ranged') and self.selected_unit.is_ranged():
+                            _, penalty_text = self.selected_unit.get_ranged_damage_multiplier(grid_x, grid_y)
+                            self._ranged_cursor_penalty = penalty_text
+                            self._ranged_cursor_pos = mouse_pos
+                        else:
+                            self._ranged_cursor_penalty = None
+                            self._ranged_cursor_pos = None
+                        self.set_cursor(pygame.SYSTEM_CURSOR_ARROW)  # Используем обычную стрелку, кастомный курсор отрисуем отдельно
                         return
                 except Exception:
                     pass
         # По умолчанию
+        self._ranged_cursor_penalty = None
+        self._ranged_cursor_pos = None
         self.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
 
     def prepare_initiative_queue(self):
@@ -4517,9 +4964,20 @@ class Game:
             return
         finished = self.turn_queue.pop(0)
         
-        # Уменьшаем эффекты в КОНЦЕ хода юнита (не разделителя)
+            # Уменьшаем эффекты в КОНЦЕ хода юнита (не разделителя)
         if finished is not self._round_delimiter and hasattr(finished, 'end_turn_effects'):
             finished.end_turn_effects()
+        
+        # Обрабатываем фантомов - уменьшаем время существования и удаляем при истечении
+        if finished is not self._round_delimiter and hasattr(finished, 'is_phantom') and finished.is_phantom:
+            if hasattr(finished, 'phantom_turns') and finished.phantom_turns > 0:
+                finished.phantom_turns -= 1
+                if finished.phantom_turns <= 0:
+                    # Фантом исчезает
+                    self.kill_unit(finished)
+                    self.animation_manager.animate_queue_fade(finished)
+                    if hasattr(self, 'add_event'):
+                        self.add_event(f"Фантом {finished.unit_type} исчез")
         
         # Реген маны героям при окончании хода, если не кастовали в этот ход
         if isinstance(finished, Hero):
@@ -4584,6 +5042,16 @@ class Game:
                 for barrier in barriers_to_remove:
                     self.barriers.remove(barrier)
                     self.add_event(f"Барьер рассеялся ({barrier['x']}, {barrier['y']})")
+            
+            # Уменьшаем срок действия зыбучих песков
+            if hasattr(self, 'quicksands'):
+                quicksands_to_remove = []
+                for quicksand in self.quicksands:
+                    quicksand['turns'] -= 1
+                    if quicksand['turns'] <= 0:
+                        quicksands_to_remove.append(quicksand)
+                for quicksand in quicksands_to_remove:
+                    self.quicksands.remove(quicksand)
             # Разделитель отправляем в конец очереди текущего раунда
             self.turn_queue.append(self._round_delimiter)
         else:
@@ -4610,6 +5078,14 @@ class Game:
             for unit in self.units:
                 if hasattr(unit, 'has_waited'):
                     unit.has_waited = False
+                # При начале нового раунда - удаляем сохраненные ОД от предыдущего раунда
+                # и даем всем полные ОД (новый раунд = полный сброс)
+                if not isinstance(unit, Hero):
+                    # Удаляем сохраненные ОД если были (они были от предыдущего раунда)
+                    if hasattr(unit, '_saved_move_points'):
+                        delattr(unit, '_saved_move_points')
+                    # Даем полные ОД всем юнитам в новом раунде
+                    unit.move_points_left = unit.speed
                 
                 # Сброс флага защиты (бонус действует только 1 раунд)
                 if not isinstance(unit, Hero) and getattr(unit, '_defend_this_round', False):
@@ -4646,9 +5122,54 @@ class Game:
                         self.anim_logger.log("DEFENSE_RESET", details)
         if self.turn_queue:
             self.selected_unit = self.turn_queue[0]
+            # Восстанавливаем сохраненные ОД если юнит ожидал (только для не-героев)
+            if not isinstance(self.selected_unit, Hero):
+                if hasattr(self.selected_unit, '_saved_move_points'):
+                    # Юнит ожидал - присваиваем конкретно те ОД, которые были сохранены при нажатии ожидания
+                    saved_points = self.selected_unit._saved_move_points
+                    self.selected_unit.move_points_left = saved_points  # Конкретное присваивание
+                    delattr(self.selected_unit, '_saved_move_points')
+                else:
+                    # Если нет сохраненных ОД - даем полные ОД (начало нового раунда или первый ход)
+                    self.selected_unit.move_points_left = self.selected_unit.speed
             # Сбрасываем флаги действий в НАЧАЛЕ хода юнита
             if hasattr(self.selected_unit, 'reset_turn'):
                 self.selected_unit.reset_turn()
+            # Проверяем огненную стену в начале хода юнита (не раунда)
+            if hasattr(self, 'barriers') and not isinstance(self.selected_unit, Hero):
+                for barrier in self.barriers:
+                    if barrier['x'] == self.selected_unit.x and barrier['y'] == self.selected_unit.y and barrier.get('type') == 'fire_wall':
+                        # Наносим урон от огненной стены
+                        damage = barrier.get('damage', 15)
+                        spell_power = barrier.get('spell_power', 0)
+                        spell_power_multiplier = barrier.get('spell_power_multiplier', 3)
+                        total_damage = damage + spell_power * spell_power_multiplier
+                        
+                        health_before = self.selected_unit.health
+                        squad_count_before = getattr(self.selected_unit, 'squad_count', 1)
+                        unit_died = self.selected_unit.take_damage(total_damage, attack_type='magical')
+                        actual_damage = health_before - self.selected_unit.health
+                        squad_count_after = getattr(self.selected_unit, 'squad_count', 1)
+                        units_lost = squad_count_before - squad_count_after
+                        
+                        if unit_died:
+                            self.kill_unit(self.selected_unit)
+                            self.animation_manager.animate_queue_fade(self.selected_unit)
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} сгорел в огненной стене в начале хода (урон: {actual_damage})"
+                            if units_lost > 0:
+                                event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                            self.add_event(event_msg)
+                            self.check_game_over()
+                            # Переходим к следующему ходу если юнит умер
+                            if self.selected_unit not in self.units:
+                                self.next_turn()
+                                return
+                        else:
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} обжегся в огненной стене в начале хода (урон: {actual_damage})"
+                            if units_lost > 0:
+                                event_msg += f", потеряно {units_lost} юнитов из отряда"
+                            self.add_event(event_msg)
+                        break  # Один барьер на клетку
             # Проверяем, пропустил ли юнит ход из-за забвения
             # Двойная проверка: и флаг, и сам эффект (на случай если снятие чар было применено)
             if (hasattr(self.selected_unit, 'skipped_turn_due_to_forget') and 
@@ -4730,6 +5251,86 @@ class Game:
             path.append((cx, cy))
         # Проигрываем шаги
         for px, py in path:
+            # Проверяем, есть ли зыбучие пески на новой клетке
+            quicksand_trap = None
+            if hasattr(self, 'quicksands'):
+                for quicksand in self.quicksands:
+                    if quicksand['x'] == px and quicksand['y'] == py:
+                        quicksand_trap = quicksand
+                        break
+            
+            if quicksand_trap:
+                # Показываем анимацию бурлящей лужи при наступлении
+                try:
+                    from .graphics import animate_quicksand_trigger
+                    from .config import CELL_SIZE
+                    trigger_px = (px * CELL_SIZE + CELL_SIZE // 2, py * CELL_SIZE + CELL_SIZE // 2)
+                    animate_quicksand_trigger(self.screen, trigger_px, redraw_callback=self.draw)
+                except Exception as e:
+                    print(f"Ошибка анимации зыбучих песков при наступлении: {e}")
+                
+                # Юнит принудительно пропускает ход при наступлении на зыбучие пески
+                unit.move_points_left = 0
+                unit.has_moved = True
+                unit.has_attacked = True  # Принудительно пропускаем ход
+                self.add_event(f"{unit.unit_type.capitalize()} попал в зыбучие пески и застрял!")
+                
+                # Удаляем зыбучие пески после срабатывания
+                if quicksand_trap in self.quicksands:
+                    self.quicksands.remove(quicksand_trap)
+                
+                # Прерываем движение
+                unit.x = px
+                unit.y = py
+                return
+            
+            # Проверяем, есть ли огненная стена на новой клетке
+            for barrier in self.barriers:
+                if barrier['x'] == px and barrier['y'] == py and barrier.get('type') == 'fire_wall':
+                    # Наносим урон при прохождении через огненную стену
+                    damage = barrier.get('damage', 15)
+                    spell_power = barrier.get('spell_power', 0)
+                    spell_power_multiplier = barrier.get('spell_power_multiplier', 3)
+                    total_damage = damage + spell_power * spell_power_multiplier
+                    
+                    health_before = unit.health
+                    squad_count_before = getattr(unit, 'squad_count', 1)
+                    unit_died = unit.take_damage(total_damage, attack_type='magical')
+                    actual_damage = health_before - unit.health
+                    squad_count_after = getattr(unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
+                    
+                    if unit_died:
+                        self.kill_unit(unit)
+                        self.animation_manager.animate_queue_fade(unit)
+                        event_msg = f"{unit.unit_type.capitalize()} сгорел в огненной стене (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
+                        self.check_game_over()
+                        return  # Юнит погиб, движение прервано
+                    else:
+                        event_msg = f"{unit.unit_type.capitalize()} обжегся в огненной стене (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
+                    
+                    # Визуальный эффект - вспышка огня
+                    try:
+                        from .config import CELL_SIZE
+                        for flash in range(5):
+                            self.draw()
+                            flash_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+                            alpha = int(200 * (1 - flash / 5))
+                            pygame.draw.rect(flash_surface, (255, 100, 0, alpha), 
+                                           (0, 0, CELL_SIZE, CELL_SIZE))
+                            self.screen.blit(flash_surface, (px * CELL_SIZE, py * CELL_SIZE))
+                            pygame.display.flip()
+                            pygame.time.delay(30)
+                    except Exception:
+                        pass
+                    break  # Урон применен один раз за проход
+            
             unit.x, unit.y = px, py
             self.draw()
             pygame.display.flip()
@@ -5034,7 +5635,35 @@ class Game:
             if self.winner_team is None:
                 self.victory_state = 'defeat'
             else:
-                self.victory_state = 'victory' if self.winner_team == self.player1_race else 'defeat'
+                # Правильная логика определения победы/поражения
+                # Победа показывается относительно игрока 1 (кто запустил игру)
+                if self.winner_team == self.player1_race:
+                    # Победила раса игрока 1
+                    if self.player1_type == 'human':
+                        # Игрок 1 (человек) выиграл
+                        self.victory_state = 'victory'
+                    else:
+                        # Бот выиграл, игрок 1 проиграл (если player1_type == 'ai', то это бот)
+                        # Но это значит, что если играют два бота, то победа для наблюдателя
+                        # Для простоты: если player1_type == 'ai', это поражение для наблюдателя
+                        self.victory_state = 'defeat'
+                elif self.winner_team == self.player2_race:
+                    # Победила раса игрока 2
+                    if self.player1_type == 'human' and self.player2_type == 'human':
+                        # Оба игрока - люди, игрок 1 проиграл игроку 2
+                        self.victory_state = 'defeat'
+                    elif self.player1_type == 'human' and self.player2_type == 'ai':
+                        # Игрок проиграл боту
+                        self.victory_state = 'defeat'
+                    elif self.player1_type == 'ai' and self.player2_type == 'human':
+                        # Игрок (player2) выиграл бота (player1)
+                        self.victory_state = 'victory'
+                    else:
+                        # Оба бота - поражение для наблюдателя
+                        self.victory_state = 'defeat'
+                else:
+                    # Неизвестная раса победила - поражение по умолчанию
+                    self.victory_state = 'defeat'
             from pygame import mixer
             if self.combat_music_playing:
                 mixer.music.stop()
@@ -5046,7 +5675,7 @@ class Game:
             print(f"Игра окончена! Победили {TEAM_LABELS.get(self.winner_team, self.winner_team) if self.winner_team else 'Никто'}!")
             return
 
-    def handle_click(self, pos, is_ai_action=False):
+    def handle_click(self, pos, is_ai_action=False, button=1):
         # Блокируем действия во время проигрывания intro звука
         if self.state == 'game' and self.battle_intro_playing:
             return
@@ -5334,7 +5963,7 @@ class Game:
                 return
             return
         if self.state == 'creative':
-            self.handle_creative_click(pos)
+            self.handle_creative_click(pos, button=button)
             return
         if self.state == 'settings':
             self.handle_settings_click(pos)
@@ -5467,6 +6096,8 @@ class Game:
                     # Запускаем игру
                     self.state = 'game'
                     self.background = self.generate_battlefield()
+                    # Применение звуковых настроек из файла настроек
+                    self._apply_audio_volumes()
                     self.initialize_units(self.player1_race, self.player2_race)
                     self.prepare_initiative_queue()
                     if hasattr(self, 'turn_queue') and self.turn_queue:
@@ -5626,6 +6257,30 @@ class Game:
                         if self.fireball_flight_sound:
                             self.fireball_flight_sound.play()
                     animate_fireball(self.screen, caster_px, center_px, redraw_callback=self.draw, explosion_sound_callback=play_fireball_explosion, flight_sound_callback=play_fireball_flight)
+                elif hasattr(spell, 'icon') and spell.icon == 'meteor_rain':
+                    # Метеоритный дождь использует анимацию в самом заклинании
+                    caster.selected_spell = None
+                elif hasattr(spell, 'icon') and spell.icon == 'ice_arrow':
+                    # Ледяная стрела использует анимацию в самом заклинании
+                    caster.selected_spell = None
+                elif hasattr(spell, 'icon') and spell.icon == 'phantom':
+                    # Фантом использует анимацию в самом заклинании
+                    caster.selected_spell = None
+                elif hasattr(spell, 'icon') and spell.icon == 'chain_lightning':
+                    # Цепная молния использует анимацию в самом заклинании
+                    caster.selected_spell = None
+                elif hasattr(spell, 'icon') and spell.icon == 'quicksand':
+                    # Зыбучие пески используют анимацию в самом заклинании
+                    pass
+                elif hasattr(spell, 'icon') and spell.icon == 'earth_shock':
+                    # Шок земли использует анимацию в самом заклинании
+                    pass
+                elif hasattr(spell, 'icon') and spell.icon == 'prayer':
+                    # Молитва использует анимацию в самом заклинании
+                    pass
+                elif hasattr(spell, 'icon') and spell.icon == 'blindness':
+                    # Ослепление использует анимацию в самом заклинании
+                    pass
                 # Применение по области/клетке
                 spell_success = spell.apply((x, y), caster=caster)
                 # Если заклинание не сработало, герой не тратит ход
@@ -5687,6 +6342,24 @@ class Game:
                 elif hasattr(spell, 'icon') and spell.icon == 'dispel':
                     target_px = (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2)
                     animate_dispel_spell(self.screen, target_px, target_px, redraw_callback=self.draw)
+                elif hasattr(spell, 'icon') and spell.icon == 'ice_arrow':
+                    # Ледяная стрела использует анимацию в самом заклинании, без магического шарика
+                    pass
+                elif hasattr(spell, 'icon') and spell.icon == 'chain_lightning':
+                    # Цепная молния использует анимацию в самом заклинании
+                    pass
+                elif hasattr(spell, 'icon') and spell.icon == 'quicksand':
+                    # Зыбучие пески используют анимацию в самом заклинании
+                    pass
+                elif hasattr(spell, 'icon') and spell.icon == 'earth_shock':
+                    # Шок земли использует анимацию в самом заклинании
+                    pass
+                elif hasattr(spell, 'icon') and spell.icon == 'prayer':
+                    # Молитва использует анимацию в самом заклинании
+                    pass
+                elif hasattr(spell, 'icon') and spell.icon == 'blindness':
+                    # Ослепление использует анимацию в самом заклинании
+                    pass
                 elif not is_instant_spell:
                     # Полёт магического снаряда только для НЕ мгновенных заклинаний
                     self.anim_logger.log("PROJECTILE_ANIMATION", f"Снаряд для {spell_name}")
@@ -6189,7 +6862,11 @@ class Game:
                 if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
                     return  # Уже ждал в этом раунде
                 self.selected_unit.has_waited = True
-                self.add_event(f"{self.selected_unit.unit_type.capitalize()} ожидает (перемещается в конец очереди)")
+                # Сохраняем текущие ОД юнита перед ожиданием
+                saved_move_points = getattr(self.selected_unit, 'move_points_left', self.selected_unit.speed)
+                # Сохраняем ОД в специальный атрибут для восстановления при следующем ходе
+                self.selected_unit._saved_move_points = saved_move_points
+                self.add_event(f"{self.selected_unit.unit_type.capitalize()} ожидает (перемещается в конец очереди, сохраняет {saved_move_points} ОД)")
                 # Сохраняем старую очередь для анимации
                 old_queue = self.turn_queue.copy() if hasattr(self, 'turn_queue') and self.turn_queue else []
                 # Убираем текущего юнита из начала очереди
@@ -6218,7 +6895,17 @@ class Game:
                     # Сбрасываем флаги для нового активного юнита
                     self.selected_unit.has_moved = False
                     self.selected_unit.has_attacked = False
-                    self.selected_unit.move_points_left = self.selected_unit.speed
+                    # Восстанавливаем сохраненные ОД если юнит ожидал (только для не-героев)
+                    # Конкретное присваивание сохраненных ОД при начале хода в конце очереди
+                    if not isinstance(self.selected_unit, Hero):
+                        if hasattr(self.selected_unit, '_saved_move_points'):
+                            # Юнит ожидал - присваиваем конкретно те ОД, которые были сохранены при нажатии ожидания
+                            saved_points = self.selected_unit._saved_move_points
+                            self.selected_unit.move_points_left = saved_points  # Конкретное присваивание
+                            delattr(self.selected_unit, '_saved_move_points')
+                        else:
+                            # Если нет сохраненных ОД - даем полные ОД
+                            self.selected_unit.move_points_left = self.selected_unit.speed
                     self.selected_unit._defend_this_round = False
                 return
         # Кнопка защиты (skip_button_rect) - повышает защиту на 20% (физ. и маг.) до конца раунда

@@ -41,6 +41,63 @@ class AIController:
         """Вычисляет расстояние между двумя юнитами (манхэттенское)"""
         return abs(unit1.x - unit2.x) + abs(unit1.y - unit2.y)
     
+    def is_path_clear(self, start_x, start_y, target_x, target_y, unit):
+        """
+        Проверяет, свободен ли путь от start до target (перекрыт ли другими юнитами)
+        Использует манхэттенское расстояние (движение только по осям X и Y)
+        :param start_x, start_y: Начальная позиция
+        :param target_x, target_y: Целевая позиция
+        :param unit: Юнит, который двигается (исключаем его из проверки)
+        :return: True если путь свободен, False если перекрыт
+        """
+        # Если позиции совпадают - путь свободен
+        if start_x == target_x and start_y == target_y:
+            return True
+        
+        # Если позиции соседние (расстояние = 1) - путь свободен
+        # (конечная позиция проверяется в get_reachable_cells)
+        distance = abs(start_x - target_x) + abs(start_y - target_y)
+        if distance == 1:
+            return True
+        
+        # Строим путь пошагово (сначала по X, затем по Y)
+        path_cells = []
+        current_x, current_y = start_x, start_y
+        
+        # Двигаемся по оси X от start_x к target_x
+        while current_x != target_x:
+            # Добавляем промежуточные клетки (но не начальную)
+            if current_x != start_x or current_y != start_y:
+                path_cells.append((current_x, current_y))
+            # Перемещаемся на одну клетку ближе к target_x
+            if current_x < target_x:
+                current_x += 1
+            else:
+                current_x -= 1
+        
+        # Двигаемся по оси Y от start_y к target_y
+        while current_y != target_y:
+            # Добавляем промежуточные клетки (но не начальную и не дубликаты)
+            if (current_x, current_y) != (start_x, start_y) and (current_x, current_y) not in path_cells:
+                path_cells.append((current_x, current_y))
+            # Перемещаемся на одну клетку ближе к target_y
+            if current_y < target_y:
+                current_y += 1
+            else:
+                current_y -= 1
+        
+        # Проверяем каждую клетку на пути на наличие других юнитов
+        # (конечная позиция не проверяется, т.к. она уже проверяется в get_reachable_cells)
+        for px, py in path_cells:
+            # Проверяем, есть ли юнит на этой клетке (кроме самого двигающегося юнита)
+            for u in self.game.units:
+                if u != unit and u.x == px and u.y == py:
+                    # Путь перекрыт другим юнитом
+                    return False
+        
+        # Путь свободен
+        return True
+    
     def can_reach_cell(self, unit, target_x, target_y):
         """Проверяет, может ли юнит достичь указанной клетки"""
         if hasattr(self.game, 'get_reachable_cells'):
@@ -241,6 +298,11 @@ class AIController:
         enemies = self.get_enemies()
         
         for x, y in reachable:
+            # Проверяем, свободен ли путь до этой клетки
+            if not self.is_path_clear(unit.x, unit.y, x, y, unit):
+                # Путь перекрыт - пропускаем эту клетку
+                continue
+            
             score = 0
             
             # Если есть предпочтительная цель, двигаемся к ней
@@ -304,6 +366,11 @@ class AIController:
         best_score = -float('inf')
         
         for x, y in reachable:
+            # Проверяем, свободен ли путь до этой клетки
+            if not self.is_path_clear(unit.x, unit.y, x, y, unit):
+                # Путь перекрыт - пропускаем эту клетку
+                continue
+            
             score = 0
             
             # Высокий приоритет - отойти от рядом стоящего врага

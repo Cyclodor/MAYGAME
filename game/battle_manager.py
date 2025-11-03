@@ -255,10 +255,30 @@ class BattleManager:
                 winner_team = list(teams_alive)[0]
                 self.game.winner_team = winner_team
                 # Определяем победителя по расе
+                # Правильная логика определения победы/поражения
+                # Победа показывается относительно игрока 1 (кто запустил игру)
                 if self.game.player1_race and winner_team == self.game.player1_race:
-                    self.game.victory_state = 'victory' if self.game.player1_type == 'human' else 'defeat'
+                    # Победила раса игрока 1
+                    if self.game.player1_type == 'human':
+                        # Игрок 1 (человек) выиграл
+                        self.game.victory_state = 'victory'
+                    else:
+                        # Бот выиграл, игрок 1 проиграл
+                        self.game.victory_state = 'defeat'
                 elif self.game.player2_race and winner_team == self.game.player2_race:
-                    self.game.victory_state = 'defeat' if self.game.player1_type == 'human' else 'victory'
+                    # Победила раса игрока 2
+                    if self.game.player1_type == 'human' and self.game.player2_type == 'human':
+                        # Оба игрока - люди, игрок 1 проиграл игроку 2
+                        self.game.victory_state = 'defeat'
+                    elif self.game.player1_type == 'human' and self.game.player2_type == 'ai':
+                        # Игрок проиграл боту
+                        self.game.victory_state = 'defeat'
+                    elif self.game.player1_type == 'ai' and self.game.player2_type == 'human':
+                        # Игрок (player2) выиграл бота (player1)
+                        self.game.victory_state = 'victory'
+                    else:
+                        # Оба бота - поражение для наблюдателя
+                        self.game.victory_state = 'defeat'
             else:
                 # Ничья (все погибли)
                 self.game.victory_state = 'defeat'

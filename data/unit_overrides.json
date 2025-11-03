@@ -11,7 +11,7 @@
   "Ent": {
     "health": 101,
     "max_health": 101
-  },
+},
   "Peasant": {
     "health": 22,
     "base_squad_count": 31,

@@ -110,6 +110,9 @@ class Unit:
             atk = self.magic_attack
         else:
             atk = self.phys_attack
+        # Ослепление: снижаем урон на 35%
+        if getattr(self, 'blindness_active', False):
+            atk = int(atk * 0.65)
         
         # Гарантируем, что атака не отрицательна
         if atk < 0:
@@ -315,8 +318,22 @@ class Unit:
             tooltip_text.append((f"Проклятие: {self.curse_turns} хода", fade_color(self.fade_curse)))
         if hasattr(self, 'slow_turns') and getattr(self, 'slow_turns', 0) > 0:
             tooltip_text.append((f"Замедление: {self.slow_turns} хода", (120,120,255)))
+        if hasattr(self, 'ice_arrow_turns') and getattr(self, 'ice_arrow_turns', 0) > 0:
+            tooltip_text.append((f"Ледяная стрела: {self.ice_arrow_turns} хода (скорость -2, инициатива -4)", (150,220,255)))
         if hasattr(self, 'forget_turns') and getattr(self, 'forget_turns', 0) > 0:
             tooltip_text.append((f"Забвение: {self.forget_turns} хода", (200,200,255)))
+        # Информация о клоне (фантоме)
+        if getattr(self, 'is_phantom', False) and hasattr(self, 'phantom_turns'):
+            tooltip_text.append((f"Фантом: осталось {self.phantom_turns} ходов", (150,200,255)))
+        # Точность - только длительность
+        if hasattr(self, 'accuracy_turns') and getattr(self, 'accuracy_turns', 0) > 0:
+            tooltip_text.append((f"✨ Точность: {self.accuracy_turns} хода", (180,220,255)))
+        # Молитва
+        if hasattr(self, 'prayer_turns') and getattr(self, 'prayer_turns', 0) > 0:
+            tooltip_text.append((f"Молитва: {self.prayer_turns} хода", (255,255,200)))
+        # Ослепление
+        if hasattr(self, 'blindness_turns') and getattr(self, 'blindness_turns', 0) > 0:
+            tooltip_text.append((f"Ослепление: {self.blindness_turns} хода", (255,255,150)))
         font = pygame.font.Font(None, 24)
         max_width = max(font.size(line[0])[0] for line in tooltip_text)
         tooltip_height = len(tooltip_text) * 22 + 8
@@ -339,18 +356,24 @@ class Unit:
         self.prev_defense = self.defense
         self.prev_speed = self.speed
 
-    def take_damage(self, damage, attack_type='physical'):
+    def take_damage(self, damage, attack_type='physical', ignore_magic_defense=False):
         """
         Получить урон с учетом типа атаки и соответствующей защиты.
         attack_type: 'physical' или 'magical'
+        ignore_magic_defense: если True, игнорирует магическую защиту (но не сопротивление магии)
         """
         # Выбираем подходящую защиту
-        defense = self.get_defense_against(attack_type)
+        if attack_type == 'magical' and ignore_magic_defense:
+            # Игнорируем магическую защиту (для шока земли)
+            defense = 0
+        else:
+            defense = self.get_defense_against(attack_type)
         
         # Вычисляем урон после защиты
         actual = max(1, damage - defense)
         
         # Применяем сопротивление магии (только для магического урона)
+        # Сопротивление магии снижает урон на процент (но не может отразить боевые заклинания)
         if attack_type == 'magical' and self.magic_resist > 0:
             resist_mult = (100 - self.magic_resist) / 100.0
             actual = max(1, int(actual * resist_mult))
@@ -497,6 +520,26 @@ class Unit:
                 if hasattr(self, 'game_ref') and self.game_ref:
                     self.game_ref.prepare_initiative_queue()
                 self.speed = getattr(self, 'base_speed', self.speed+1)
+        # Сброс эффекта ледяной стрелы
+        if hasattr(self, 'ice_arrow_turns') and self.ice_arrow_turns > 0:
+            self.ice_arrow_turns -= 1
+            if self.ice_arrow_turns == 0:
+                # Возвращаем скорость и инициативу
+                if hasattr(self, 'base_speed'):
+                    self.speed = self.base_speed
+                if hasattr(self, 'base_initiative'):
+                    self.initiative = self.base_initiative
+                self.ice_arrow_speed_reduced = False
+                # Пересчет очереди хода
+                if hasattr(self, 'game_ref') and self.game_ref:
+                    self.game_ref.prepare_initiative_queue()
+                print(f'Эффект ледяной стрелы закончился у {self.unit_type} ({self.x},{self.y})')
+        # Сброс эффекта точности
+        if hasattr(self, 'accuracy_turns') and self.accuracy_turns > 0:
+            self.accuracy_turns -= 1
+            if self.accuracy_turns == 0:
+                self.accuracy_active = False
+                print(f'Эффект точности закончился у {self.unit_type} ({self.x},{self.y})')
         # Огненный щит: тикаем длительность
         if hasattr(self, 'fire_shield_turns') and getattr(self, 'fire_shield_turns', 0) > 0:
             self.fire_shield_turns -= 1
@@ -528,6 +571,47 @@ class Unit:
                 self.weakness_phys_penalty = 0
                 self.weakness_magic_penalty = 0
                 print(f'Слабость рассеялась у {self.unit_type} ({self.x},{self.y})')
+        # Ослепление: тикаем длительность
+        if hasattr(self, 'blindness_turns') and getattr(self, 'blindness_turns', 0) > 0:
+            self.blindness_turns -= 1
+            if self.blindness_turns == 0:
+                self.blindness_active = False
+                print(f'Ослепление рассеялось у {self.unit_type} ({self.x},{self.y})')
+        # Молитва: тикаем длительность и лечим каждый ход
+        if hasattr(self, 'prayer_turns') and getattr(self, 'prayer_turns', 0) > 0:
+            self.prayer_turns -= 1
+            # Лечение каждый ход до максимума
+            if hasattr(self, 'squad_count') and hasattr(self, 'current_unit_hp') and hasattr(self, 'unit_hp'):
+                # Для отрядов лечим текущего юнита
+                if self.current_unit_hp < self.unit_hp:
+                    heal_amount = min(5, self.unit_hp - self.current_unit_hp)  # Лечим до 5 ХП за ход
+                    self.current_unit_hp += heal_amount
+                    self.health = (self.squad_count - 1) * self.unit_hp + self.current_unit_hp
+                    if hasattr(self, 'game_ref') and self.game_ref:
+                        self.game_ref.add_event(f"{self.unit_type.capitalize()} получает лечение от молитвы (+{heal_amount} ХП)")
+            else:
+                # Для обычных юнитов
+                if self.health < self.max_health:
+                    heal_amount = min(10, self.max_health - self.health)  # Лечим до 10 ХП за ход
+                    self.health += heal_amount
+                    if hasattr(self, 'game_ref') and self.game_ref:
+                        self.game_ref.add_event(f"{self.unit_type.capitalize()} получает лечение от молитвы (+{heal_amount} ХП)")
+            
+            if self.prayer_turns == 0:
+                # Снимаем бонусы молитвы
+                if hasattr(self, 'prayer_applied') and self.prayer_applied:
+                    if hasattr(self, 'attack_type') and self.attack_type == 'physical':
+                        self.phys_attack = max(0, self.phys_attack - 2)
+                    else:
+                        self.magic_attack = max(0, self.magic_attack - 2)
+                    self.phys_defense = max(0, self.phys_defense - 2)
+                    self.magic_defense = max(0, self.magic_defense - 2)
+                    self.speed = max(1, self.speed - 2)
+                    self.initiative = max(1, self.initiative - 2)
+                    self.prayer_applied = False
+                    if hasattr(self, 'game_ref') and self.game_ref:
+                        self.game_ref.prepare_initiative_queue()
+                    print(f'Молитва рассеялась у {self.unit_type} ({self.x},{self.y})')
 
     def reset_turn(self):
         """Сбрасывает флаги действий в НАЧАЛЕ хода юнита"""
@@ -545,7 +629,15 @@ class Unit:
     def can_attack(self, target_x, target_y, units=None):
         if hasattr(self, 'forget_turns') and getattr(self, 'forget_turns', 0) > 0:
             return False
-        if getattr(self, 'is_ranged', False):
+        # Ослепление: дальнобойные теряют возможность дальнобойной атаки
+        if getattr(self, 'is_ranged', False) and getattr(self, 'blindness_active', False):
+            # Ослепленные дальнобойные могут атаковать только в ближнем бою
+            dx = abs(self.x - target_x)
+            dy = abs(self.y - target_y)
+            distance_to_target = dx + dy
+            if distance_to_target > 1:  # Только ближний бой
+                return False
+        if getattr(self, 'is_ranged', False) and not getattr(self, 'blindness_active', False):
             # Проверяем расстояние до цели
             dx = abs(self.x - target_x)
             dy = abs(self.y - target_y)
@@ -631,11 +723,15 @@ class Unit:
             for dx, dy in [(-1,0),(1,0),(0,-1),(0,1)]:
                 nx, ny = cx+dx, cy+dy
                 if (nx, ny) not in visited and 0 <= nx < SCREEN_WIDTH // CELL_SIZE and 0 <= ny <= max_y:
-                    # Проверяем, что клетка свободна от юнитов и барьеров
+                    # Проверяем, что клетка свободна от юнитов
                     has_unit = any(u.x == nx and u.y == ny for u in units)
-                    has_barrier = any(b['x'] == nx and b['y'] == ny for b in barriers)
+                    # Проверяем барьеры - огненная стена разрешает прохождение, остальные блокируют
+                    has_blocking_barrier = any(
+                        b['x'] == nx and b['y'] == ny and b.get('type', 'rune_wall') != 'fire_wall' 
+                        for b in barriers
+                    )
                     
-                    if not has_unit and not has_barrier:
+                    if not has_unit and not has_blocking_barrier:
                         visited.add((nx, ny))
                         queue.append((nx, ny, dist+1))
         return False
@@ -653,21 +749,56 @@ class Unit:
     def is_ranged(self):
         return self.attack_range > 1
 
+    def get_ranged_damage_multiplier(self, target_x, target_y):
+        """Возвращает множитель урона для дальнобойной атаки и информацию о штрафе"""
+        distance = abs(self.x - target_x) + abs(self.y - target_y)
+        
+        # Проверяем эффект точности
+        has_accuracy = getattr(self, 'accuracy_active', False) and getattr(self, 'accuracy_turns', 0) > 0
+        
+        # Если есть эффект точности - нет штрафа от расстояния
+        if has_accuracy:
+            if distance == 1:
+                return 0.5, "1/2"  # Ближний бой - всё равно половина
+            else:
+                return 1.0, None  # Полный урон без штрафа
+        
+        # Новая система штрафа от расстояния
+        # Если атака в ближнем бою (расстояние = 1), урон уменьшается вдвое
+        if distance == 1:
+            return 0.5, "1/2"
+        # До 6 клеток включительно - полный урон
+        elif distance <= 6:
+            return 1.0, None
+        # От 7 до ~10 клеток - 50% урона
+        elif distance <= 10:
+            return 0.5, "1/2"
+        # От 11 до ~14 клеток - 25% урона (1/4)
+        elif distance <= 14:
+            return 0.25, "1/4"
+        # Больше 14 клеток - 12.5% урона (1/8)
+        else:
+            return 0.125, "1/8"
+    
     def ranged_damage(self, target_x, target_y):
-        # Урон уменьшается с расстоянием, минимум 50% от базового, но не меньше 4
+        """Вычисляет урон дальнобойной атаки с учетом расстояния"""
         distance = abs(self.x - target_x) + abs(self.y - target_y)
         # get_current_attack уже учитывает squad_count, поэтому используем его
         base_damage = self.get_current_attack()
-        # Гарантируем, что base_damage не отрицателен (get_current_attack уже возвращает минимум 1, но на всякий случай)
+        # Гарантируем, что base_damage не отрицателен
         if base_damage < 1:
             base_damage = 1
-        # Если атака в ближнем бою (расстояние = 1), урон уменьшается вдвое для лучников
-        if distance == 1:
-            return max(1, base_damage // 2)  # Половина урона, минимум 1
-        # Уменьшено влияние расстояния (было 0.04, стало 0.03)
-        factor = max(0.5, 1 - 0.03 * (distance - 1))
-        result = max(4, int(base_damage * factor))
-        # Финальная проверка - урон не должен быть отрицательным
+        
+        # Получаем множитель урона
+        damage_multiplier, _ = self.get_ranged_damage_multiplier(target_x, target_y)
+        
+        # Если есть эффект точности - добавляем бонус 20%
+        has_accuracy = getattr(self, 'accuracy_active', False) and getattr(self, 'accuracy_turns', 0) > 0
+        if has_accuracy:
+            base_damage = int(base_damage * 1.2)
+        
+        # Вычисляем итоговый урон
+        result = int(base_damage * damage_multiplier)
         return max(1, result)
 
 # --- Юниты людей ---
