@@ -111,17 +111,29 @@ class Unit:
         else:
             atk = self.phys_attack
         
+        # Гарантируем, что атака не отрицательна
+        if atk < 0:
+            atk = 0
+        
         # Применяем баффы/дебаффы
         if self.attack_buff_turns > 0:
             atk = int(atk * 1.25)
         if self.attack_debuff_turns > 0:
             atk = int(atk * 0.75)
         
+        # Гарантируем, что после баффов/дебаффов атака не отрицательна
+        if atk < 0:
+            atk = 0
+        
         # Умножаем на количество юнитов в отряде
         squad_count = getattr(self, 'squad_count', 1)
+        # Гарантируем, что squad_count не отрицателен
+        if squad_count < 1:
+            squad_count = 1
         atk = atk * squad_count
         
-        return atk
+        # Финальная проверка - урон должен быть минимум 1
+        return max(1, atk)
     
     def set_squad_count(self, count):
         """Устанавливает количество юнитов в отряде"""
@@ -249,7 +261,7 @@ class Unit:
         # Определяем тип атаки для отображения
         attack_type_text = "Физ." if self.attack_type == 'physical' else "Маг."
         # Для отрядов показываем только размер отряда и HP текущего юнита
-        if hasattr(self, 'squad_count') and hasattr(self, 'unit_hp') and self.unit_hp is not None and self.squad_count > 1:
+        if hasattr(self, 'squad_count') and hasattr(self, 'unit_hp') and self.unit_hp is not None:
             current_unit_hp = getattr(self, 'current_unit_hp', self.unit_hp)
             max_unit_hp = self.unit_hp
             base_squad_count = getattr(self, 'base_squad_count', self.squad_count)
@@ -646,12 +658,17 @@ class Unit:
         distance = abs(self.x - target_x) + abs(self.y - target_y)
         # get_current_attack уже учитывает squad_count, поэтому используем его
         base_damage = self.get_current_attack()
+        # Гарантируем, что base_damage не отрицателен (get_current_attack уже возвращает минимум 1, но на всякий случай)
+        if base_damage < 1:
+            base_damage = 1
         # Если атака в ближнем бою (расстояние = 1), урон уменьшается вдвое для лучников
         if distance == 1:
             return max(1, base_damage // 2)  # Половина урона, минимум 1
         # Уменьшено влияние расстояния (было 0.04, стало 0.03)
         factor = max(0.5, 1 - 0.03 * (distance - 1))
-        return max(4, int(base_damage * factor))
+        result = max(4, int(base_damage * factor))
+        # Финальная проверка - урон не должен быть отрицательным
+        return max(1, result)
 
 # --- Юниты людей ---
 class Peasant(Unit):

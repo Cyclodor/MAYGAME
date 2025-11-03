@@ -120,18 +120,27 @@ class FireArrowSpell(Spell):
         
         # Запоминаем здоровье до урона
         health_before = target.health
+        squad_count_before = getattr(target, 'squad_count', 1)
         died = target.take_damage(dmg, attack_type='magical')
         actual_damage = health_before - target.health
+        squad_count_after = getattr(target, 'squad_count', 1)
+        units_lost = squad_count_before - squad_count_after
         
         if died and hasattr(caster, 'game_ref'):
             game = caster.game_ref
             game.kill_unit(target)
             game.animation_manager.animate_queue_fade(target)
-            game.add_event(f"Огненная стрела убила {target.unit_type} (урон: {actual_damage})")
+            event_msg = f"Огненная стрела убила {target.unit_type} (урон: {actual_damage})"
+            if units_lost > 0:
+                event_msg += f", уничтожено {units_lost} юнитов из отряда"
+            game.add_event(event_msg)
             game.check_game_over()
         elif hasattr(caster, 'game_ref'):
             game = caster.game_ref
-            game.add_event(f"Огненная стрела ранила {target.unit_type} (урон: {actual_damage}, осталось: {target.health}/{target.max_health})")
+            event_msg = f"Огненная стрела ранила {target.unit_type} (урон: {actual_damage})"
+            if units_lost > 0:
+                event_msg += f", потеряно {units_lost} юнитов из отряда"
+            game.add_event(event_msg)
         
         return True  # Успешное применение
 
@@ -418,7 +427,7 @@ class FrostRingSpell(Spell):
                 game.add_event(f"Кольцо холода заморозило {unit.unit_type} (урон: {actual_damage})")
                 game.check_game_over()
             else:
-                game.add_event(f"Кольцо холода ранило {unit.unit_type} (урон: {actual_damage}, осталось: {unit.health}/{unit.max_health})")
+                game.add_event(f"Кольцо холода ранило {unit.unit_type} (урон: {actual_damage})")
         
         return True  # Успешное применение
 
@@ -544,8 +553,8 @@ class UndeadHealSpell(Spell):
             damage=0,
             mana_cost=8,
             cooldown=0,
-            target_type='ally',
-            description="Лечит только нежить, собирая кости в целебную гору.",
+            target_type='both',  # может применяться и на живых, и на мертвых нежить
+            description="Воскрешает павшую нежить или лечит живую. Работает только на нежить.",
             icon='raise_undead',
             duration=0,
             school='darkness'
@@ -553,61 +562,253 @@ class UndeadHealSpell(Spell):
         self.heal_amount = 25  # базовое лечение
         self.spell_power_multiplier = 5  # множитель силы магии
 
-    def apply(self, target, caster=None):
-        # Лечит только нежить, если она ранена
-        if not target or getattr(target, 'team', None) != 'undead':
+    def apply(self, center, caster=None):
+        if not caster or not hasattr(caster, 'game_ref'):
+            return False
+        game = caster.game_ref
+        x, y = center
+        
+        # Проверка границ
+        if not (0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT):
             return False
         
-        # Лечение с учетом силы магии
+        # Вычисляем количество лечения: базовое + сила магии * 5
         heal = self.heal_amount
         if caster and hasattr(caster, 'spell_power'):
             heal += self.spell_power_multiplier * caster.spell_power
         
+        # Сначала проверяем, есть ли живой юнит на клетке
+        living_unit = None
+        corpse_found = None
+        for u in game.units:
+            if u.x == x and u.y == y:
+                living_unit = u
+                break
+        # Проверяем трупы нежити
+        for corpse in game.corpses:
+            if corpse['x'] == x and corpse['y'] == y:
+                if corpse['team'] == 'undead':
+                    corpse_found = corpse
+                break
+        
+        # Если есть живой юнит - лечим/воскрешаем его
+        if living_unit:
+            # Проверяем, что это нежить
+            if living_unit.team != 'undead':
+                game.add_event("Поднятие мёртвых действует только на нежить!")
+                return False
+        
         # Система отрядов: воскрешение может восстановить мертвых юнитов в отряде нежити
-        if hasattr(target, 'squad_count') and hasattr(target, 'unit_hp'):
+            if hasattr(living_unit, 'squad_count') and hasattr(living_unit, 'unit_hp') and living_unit.unit_hp is not None:
             # Проверяем, можем ли воскресить мертвых или вылечить раненого
-            max_possible_units = target.base_squad_count
-            dead_units = max_possible_units - target.squad_count
-            
-            if dead_units > 0:
-                # Воскрешаем юнитов
-                units_to_resurrect = min(dead_units, heal // target.unit_hp)
-                if units_to_resurrect > 0:
-                    target.squad_count += units_to_resurrect
-                    target.health = (target.squad_count - 1) * target.unit_hp + target.current_unit_hp
-                    target.max_health = target.base_squad_count * target.unit_hp
-                    if hasattr(caster, 'game_ref'):
-                        caster.game_ref.add_event(f"Воскрешено {units_to_resurrect} нежити в отряде {target.unit_type.capitalize()}!")
-                    return True
+                base_squad = getattr(living_unit, 'base_squad_count', None)
+                if base_squad is None or base_squad <= living_unit.squad_count:
+                    # Если base_squad_count не установлен, пытаемся определить из max_health
+                    if living_unit.unit_hp > 0:
+                        calculated_base = living_unit.max_health // living_unit.unit_hp
+                        if calculated_base > 0:
+                            base_squad = max(calculated_base, living_unit.squad_count)
+                        else:
+                            base_squad = max(living_unit.squad_count, 1)
+                    else:
+                        base_squad = max(living_unit.squad_count, 1)
+                
+                # Всегда сохраняем base_squad_count если он был вычислен
+                if not hasattr(living_unit, 'base_squad_count') or living_unit.base_squad_count < base_squad:
+                    living_unit.base_squad_count = base_squad
+                
+                max_possible_units = base_squad
+                dead_units = max_possible_units - living_unit.squad_count
+                
+                if dead_units > 0 and living_unit.unit_hp > 0:
+                    # Логика частичного воскрешения: сначала лечим текущего до полного, потом воскрешаем частично (даже если лечения недостаточно)
+                    remaining_heal = heal
+                    
+                    # Шаг 1: Если текущий юнит ранен, сначала лечим его до полного здоровья
+                    if living_unit.current_unit_hp < living_unit.unit_hp:
+                        hp_needed_to_full = living_unit.unit_hp - living_unit.current_unit_hp
+                        if remaining_heal >= hp_needed_to_full:
+                            remaining_heal -= hp_needed_to_full
+                            living_unit.current_unit_hp = living_unit.unit_hp
+                        else:
+                            # Если лечения недостаточно для полного лечения, просто лечим сколько можем
+                            living_unit.current_unit_hp += remaining_heal
+                            remaining_heal = 0
+                        # Обновляем общее здоровье отряда
+                        living_unit.health = (living_unit.squad_count - 1) * living_unit.unit_hp + living_unit.current_unit_hp
+                    
+                    # Шаг 2: Воскрешаем мертвых юнитов частично (даже если лечения недостаточно для полного воскрешения)
+                    squad_count_before_heal = living_unit.squad_count
+                    if remaining_heal > 0 and dead_units > 0:
+                        # Воскрешаем столько юнитов, сколько можем полностью (если есть достаточно лечения)
+                        full_resurrect_count = min(dead_units, remaining_heal // living_unit.unit_hp)
+                        if full_resurrect_count > 0:
+                            living_unit.squad_count += full_resurrect_count
+                            remaining_heal -= full_resurrect_count * living_unit.unit_hp
+                            event_msg = f"Воскрешено {full_resurrect_count} нежити в отряде {living_unit.unit_type.capitalize()}! (отряд: {squad_count_before_heal} -> {living_unit.squad_count}/{max_possible_units})"
+                            game.add_event(event_msg)
+                        
+                        # Если осталось лечение и еще есть мертвые юниты - воскрешаем частично последнего
+                        if remaining_heal > 0 and living_unit.squad_count < max_possible_units:
+                            # Воскрешаем еще одного юнита, но с частичным HP
+                            living_unit.squad_count += 1
+                            # Текущий юнит становится тем, кто был воскрешен с частичным HP
+                            living_unit.current_unit_hp = remaining_heal  # Новый юнит имеет только оставшееся лечение
+                            remaining_heal = 0
+                            event_msg = f"Воскрешена нежить {living_unit.unit_type.capitalize()} с частичным здоровьем! (отряд: {living_unit.squad_count - 1} -> {living_unit.squad_count}/{max_possible_units}, HP: {living_unit.current_unit_hp}/{living_unit.unit_hp})"
+                            game.add_event(event_msg)
+                    elif remaining_heal > 0 and dead_units > 0:
+                        # Если лечения недостаточно даже для одного полного воскрешения, воскрешаем частично
+                        living_unit.squad_count += 1
+                        living_unit.current_unit_hp = remaining_heal
+                        remaining_heal = 0
+                        event_msg = f"Воскрешена нежить {living_unit.unit_type.capitalize()} с частичным здоровьем! (отряд: {squad_count_before_heal} -> {living_unit.squad_count}/{max_possible_units}, HP: {living_unit.current_unit_hp}/{living_unit.unit_hp})"
+                        game.add_event(event_msg)
+                    
+                    # Обновляем структуру отряда
+                    if living_unit.squad_count > squad_count_before_heal:
+                        living_unit.base_squad_count = max_possible_units
+                        living_unit.max_health = max_possible_units * living_unit.unit_hp
+                        living_unit.health = (living_unit.squad_count - 1) * living_unit.unit_hp + living_unit.current_unit_hp
+                    
+                    # Анимация поднятия мёртвых
+                    try:
+                        game.animate_undead_heal_cast(living_unit)
+                    except:
+                        pass
+                    
+                    # Если воскресили хотя бы одного юнита (полностью или частично) - успех
+                    if living_unit.squad_count > squad_count_before_heal:
+                        return True
+                    elif remaining_heal == 0:
+                        # Все лечение потрачено на лечение текущего юнита (если был ранен)
+                        return True
+                    else:
+                        # Недостаточно силы даже для частичного воскрешения
+                        # Но если полечили текущего - это тоже успех
+                        if living_unit.current_unit_hp >= living_unit.unit_hp:
+                            game.add_event(f"{living_unit.unit_type.capitalize()} уже полностью здоров, но недостаточно лечения для воскрешения.")
+                        return False
                 else:
-                    # Недостаточно силы для воскрешения, просто лечим
-                    health_before = target.current_unit_hp
-                    target.current_unit_hp = min(target.unit_hp, target.current_unit_hp + heal)
-                    actual_heal = target.current_unit_hp - health_before
-                    target.health = (target.squad_count - 1) * target.unit_hp + target.current_unit_hp
-                    if hasattr(caster, 'game_ref'):
-                        caster.game_ref.add_event(f"Нежить {target.unit_type.capitalize()} исцелена на {actual_heal} HP!")
-                    return True
-            elif target.current_unit_hp < target.unit_hp:
-                # Лечим текущего юнита
-                health_before = target.current_unit_hp
-                target.current_unit_hp = min(target.unit_hp, target.current_unit_hp + heal)
-                actual_heal = target.current_unit_hp - health_before
-                target.health = (target.squad_count - 1) * target.unit_hp + target.current_unit_hp
-                if hasattr(caster, 'game_ref'):
-                    caster.game_ref.add_event(f"Нежить {target.unit_type.capitalize()} исцелена на {actual_heal} HP!")
-                return True
-            else:
-                return False  # Уже полное здоровье
+                    # unit_hp == 0 или нет мертвых юнитов, просто лечим текущего
+                    if living_unit.current_unit_hp < living_unit.unit_hp:
+                        health_before = living_unit.current_unit_hp
+                        living_unit.current_unit_hp = min(living_unit.unit_hp, living_unit.current_unit_hp + heal)
+                        actual_heal = living_unit.current_unit_hp - health_before
+                        living_unit.health = (living_unit.squad_count - 1) * living_unit.unit_hp + living_unit.current_unit_hp
+                        if actual_heal > 0:
+                            game.add_event(f"Нежить {living_unit.unit_type.capitalize()} исцелена на {actual_heal} HP!")
+                        # Анимация поднятия мёртвых
+                        try:
+                            game.animate_undead_heal_cast(living_unit)
+                        except:
+                            pass
+                        return True
+                    else:
+                        game.add_event(f"{living_unit.unit_type.capitalize()} уже полностью здоров!")
+                        return False
         else:
             # Старая система (без отрядов)
-            # Проверяем, нужно ли лечение
-            current_hp = getattr(target, 'health', 0)
-            max_hp = getattr(target, 'max_health', 0)
-            if current_hp >= max_hp:
-                return False  # Уже полное здоровье
-            target.health = min(max_hp, current_hp + heal)
-            return True  # Успешное применение
+                # Проверяем, что юнит ранен
+                if living_unit.health >= living_unit.max_health:
+                    game.add_event(f"{living_unit.unit_type.capitalize()} уже полностью здоров!")
+                    return False
+                
+                # Лечим
+                health_before = living_unit.health
+                living_unit.health = min(living_unit.max_health, living_unit.health + heal)
+                actual_heal = living_unit.health - health_before
+                
+                # Анимация поднятия мёртвых
+                try:
+                    game.animate_undead_heal_cast(living_unit)
+                except:
+                    pass
+                
+                game.add_event(f"{living_unit.unit_type.capitalize()} исцелен на {actual_heal} HP!")
+                return True
+        
+        # Если живого юнита нет, ищем труп нежити для воскрешения
+        if corpse_found:
+            # Воскрешаем труп нежити с частичным воскрешением отряда
+            unit_class = corpse_found.get('unit_class')
+            if unit_class:
+                try:
+                    # Создаем нового юнита того же класса
+                    new_unit = unit_class(corpse_found['x'], corpse_found['y'], 'undead')
+                    new_unit.game_ref = game
+                    # Инициализируем систему отрядов если нужно
+                    game._set_default_squad_count(new_unit)
+                    
+                    # Применяем частичное воскрешение отряда на основе лечения
+                    if hasattr(new_unit, 'squad_count') and hasattr(new_unit, 'unit_hp') and new_unit.unit_hp is not None:
+                        base_squad = getattr(new_unit, 'base_squad_count', new_unit.squad_count)
+                        max_possible_units = base_squad
+                        
+                        # Воскрешаем столько юнитов, сколько можем полностью
+                        remaining_heal = heal
+                        full_resurrect_count = min(max_possible_units, remaining_heal // new_unit.unit_hp)
+                        
+                        if full_resurrect_count > 0:
+                            new_unit.squad_count = full_resurrect_count
+                            remaining_heal -= full_resurrect_count * new_unit.unit_hp
+                            
+                            # Если осталось лечение - даем текущему юниту частичное HP
+                            if remaining_heal > 0:
+                                new_unit.current_unit_hp = min(new_unit.unit_hp, remaining_heal)
+                                remaining_heal = 0
+                            else:
+                                new_unit.current_unit_hp = new_unit.unit_hp
+                            
+                            new_unit.base_squad_count = max_possible_units
+                            new_unit.max_health = max_possible_units * new_unit.unit_hp
+                            new_unit.health = (new_unit.squad_count - 1) * new_unit.unit_hp + new_unit.current_unit_hp
+                            
+                            if full_resurrect_count < max_possible_units:
+                                event_msg = f"Воскрешена нежить {new_unit.unit_type.capitalize()} с частичным отрядом! (отряд: {new_unit.squad_count}/{max_possible_units}, HP: {new_unit.current_unit_hp}/{new_unit.unit_hp})"
+                            else:
+                                event_msg = f"Воскрешена нежить {new_unit.unit_type.capitalize()}! (отряд: {new_unit.squad_count}/{max_possible_units})"
+                        else:
+                            # Недостаточно лечения даже для одного юнита - воскрешаем частично
+                            new_unit.squad_count = 1
+                            new_unit.current_unit_hp = remaining_heal
+                            new_unit.base_squad_count = max_possible_units
+                            new_unit.max_health = max_possible_units * new_unit.unit_hp
+                            new_unit.health = new_unit.current_unit_hp
+                            event_msg = f"Воскрешена нежить {new_unit.unit_type.capitalize()} с частичным отрядом! (отряд: {new_unit.squad_count}/{max_possible_units}, HP: {new_unit.current_unit_hp}/{new_unit.unit_hp})"
+                    else:
+                        # Старая система (без отрядов)
+                        new_unit.health = min(new_unit.max_health, heal)
+                        event_msg = f"Герой воскресил {new_unit.unit_type}!"
+                    
+                    # Добавляем в игру
+                    game.units.append(new_unit)
+                    # Добавляем в очередь хода
+                    if hasattr(game, 'turn_queue') and hasattr(game, '_round_delimiter'):
+                        try:
+                            delim_index = game.turn_queue.index(game._round_delimiter)
+                            game.turn_queue.insert(delim_index, new_unit)
+                        except (ValueError, AttributeError):
+                            game.turn_queue.append(new_unit)
+                    # Удаляем труп
+                    game.corpses.remove(corpse_found)
+                    # Анимация
+                    try:
+                        game.animate_undead_heal_cast(new_unit)
+                    except:
+                        pass
+                    # Сообщение
+                    game.add_event(event_msg)
+                    return True
+                except Exception as e:
+                    game.add_event(f"Ошибка при воскрешении: {e}")
+                    return False
+            else:
+                game.add_event(f"Не удалось определить класс нежити из трупа")
+                return False
+        else:
+            # Нет ни живого юнита, ни трупа
+            return False
 
 class FireballSpell(Spell):
     def __init__(self):
@@ -652,16 +853,25 @@ class FireballSpell(Spell):
                 dmg += self.spell_power_multiplier * caster.spell_power
             
             health_before = unit.health
+            squad_count_before = getattr(unit, 'squad_count', 1)
             unit_died = unit.take_damage(dmg, attack_type='magical')
             actual_damage = health_before - unit.health
+            squad_count_after = getattr(unit, 'squad_count', 1)
+            units_lost = squad_count_before - squad_count_after
             
             if unit_died:
                 game.kill_unit(unit)
                 game.animation_manager.animate_queue_fade(unit)
-                game.add_event(f"Огненный шар убил {unit.unit_type} (урон: {actual_damage})")
+                event_msg = f"Огненный шар убил {unit.unit_type} (урон: {actual_damage})"
+                if units_lost > 0:
+                    event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                game.add_event(event_msg)
                 game.check_game_over()
             else:
-                game.add_event(f"Огненный шар поджёг {unit.unit_type} (урон: {actual_damage}, осталось: {unit.health}/{unit.max_health})")
+                event_msg = f"Огненный шар поджёг {unit.unit_type} (урон: {actual_damage})"
+                if units_lost > 0:
+                    event_msg += f", потеряно {units_lost} юнитов из отряда"
+                game.add_event(event_msg)
         
         return True  # Успешное применение
 
@@ -738,13 +948,28 @@ class ResurrectionSpell(Spell):
         self.heal_amount = 50
     
     def apply(self, center, caster=None):
+        # Импортируем модуль отладки
+        try:
+            import resurrection_debug as debug
+            debug.log_spell_cast(caster, self, center, has_target=False)
+        except:
+            pass
+        
         if not caster or not hasattr(caster, 'game_ref'):
+            try:
+                debug.log_result(False, "Нет кастера или game_ref")
+            except:
+                pass
             return False
         game = caster.game_ref
         x, y = center
         
         # Проверка границ
         if not (0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT):
+            try:
+                debug.log_result(False, "Выход за границы")
+            except:
+                pass
             return False
         
         # Вычисляем количество лечения: базовое + сила магии * 10
@@ -754,10 +979,22 @@ class ResurrectionSpell(Spell):
         
         # Сначала проверяем, есть ли живой юнит на клетке
         living_unit = None
+        corpse_found = None
         for u in game.units:
             if u.x == x and u.y == y:
                 living_unit = u
                 break
+        # Проверяем трупы
+        for corpse in game.corpses:
+            if corpse['x'] == x and corpse['y'] == y:
+                if corpse['team'] != 'undead':
+                    corpse_found = corpse
+                break
+        
+        try:
+            debug.log_spell_check(caster, self, center, living_unit, corpse_found)
+        except:
+            pass
         
         # Если есть живой юнит - лечим/воскрешаем его
         if living_unit:
@@ -767,33 +1004,118 @@ class ResurrectionSpell(Spell):
                 return False
             
             # Система отрядов: воскрешение может восстановить мертвых юнитов в отряде
-            if hasattr(living_unit, 'squad_count') and hasattr(living_unit, 'unit_hp'):
+            if hasattr(living_unit, 'squad_count') and hasattr(living_unit, 'unit_hp') and living_unit.unit_hp is not None:
                 # Проверяем, можем ли воскресить мертвых или вылечить раненого
-                max_possible_units = living_unit.base_squad_count
+                base_squad = getattr(living_unit, 'base_squad_count', None)
+                if base_squad is None or base_squad <= living_unit.squad_count:
+                    # Если base_squad_count не установлен, пытаемся определить из max_health
+                    # max_health должно быть base_squad_count * unit_hp
+                    if living_unit.unit_hp > 0:
+                        # Пытаемся определить из max_health
+                        calculated_base = living_unit.max_health // living_unit.unit_hp
+                        if calculated_base > 0:
+                            base_squad = max(calculated_base, living_unit.squad_count)
+                        else:
+                            # Если не удалось определить, используем текущий squad_count или значение по умолчанию
+                            base_squad = max(living_unit.squad_count, 1)
+                    else:
+                        base_squad = max(living_unit.squad_count, 1)
+                
+                # Всегда сохраняем base_squad_count если он был вычислен
+                if not hasattr(living_unit, 'base_squad_count') or living_unit.base_squad_count < base_squad:
+                    living_unit.base_squad_count = base_squad
+                
+                max_possible_units = base_squad
                 dead_units = max_possible_units - living_unit.squad_count
                 
-                if dead_units > 0:
-                    # Воскрешаем юнитов
-                    units_to_resurrect = min(dead_units, heal // living_unit.unit_hp)
-                    if units_to_resurrect > 0:
-                        living_unit.squad_count += units_to_resurrect
+                if dead_units > 0 and living_unit.unit_hp > 0:
+                    # Логика частичного воскрешения: сначала лечим текущего до полного, потом воскрешаем частично (даже если лечения недостаточно)
+                    remaining_heal = heal
+                    
+                    # Шаг 1: Если текущий юнит ранен, сначала лечим его до полного здоровья
+                    if living_unit.current_unit_hp < living_unit.unit_hp:
+                        hp_needed_to_full = living_unit.unit_hp - living_unit.current_unit_hp
+                        if remaining_heal >= hp_needed_to_full:
+                            remaining_heal -= hp_needed_to_full
+                            living_unit.current_unit_hp = living_unit.unit_hp
+                        else:
+                            # Если лечения недостаточно для полного лечения, просто лечим сколько можем
+                            living_unit.current_unit_hp += remaining_heal
+                            remaining_heal = 0
+                        # Обновляем общее здоровье отряда
                         living_unit.health = (living_unit.squad_count - 1) * living_unit.unit_hp + living_unit.current_unit_hp
-                        living_unit.max_health = living_unit.base_squad_count * living_unit.unit_hp
-                        game.add_event(f"Воскрешено {units_to_resurrect} юнитов в отряде {living_unit.unit_type.capitalize()}!")
+                    
+                    # Шаг 2: Воскрешаем мертвых юнитов частично (даже если лечения недостаточно для полного воскрешения)
+                    squad_count_before_heal = living_unit.squad_count
+                    if remaining_heal > 0 and dead_units > 0:
+                        # Воскрешаем столько юнитов, сколько можем полностью (если есть достаточно лечения)
+                        full_resurrect_count = min(dead_units, remaining_heal // living_unit.unit_hp)
+                        if full_resurrect_count > 0:
+                            living_unit.squad_count += full_resurrect_count
+                            remaining_heal -= full_resurrect_count * living_unit.unit_hp
+                            event_msg = f"Воскрешено {full_resurrect_count} юнитов в отряде {living_unit.unit_type.capitalize()}! (отряд: {squad_count_before_heal} -> {living_unit.squad_count}/{max_possible_units})"
+                            game.add_event(event_msg)
+                        
+                        # Если осталось лечение и еще есть мертвые юниты - воскрешаем частично последнего
+                        if remaining_heal > 0 and living_unit.squad_count < max_possible_units:
+                            # Воскрешаем еще одного юнита, но с частичным HP
+                            living_unit.squad_count += 1
+                            # Текущий юнит становится тем, кто был воскрешен с частичным HP
+                            living_unit.current_unit_hp = remaining_heal  # Новый юнит имеет только оставшееся лечение
+                            remaining_heal = 0
+                            event_msg = f"Воскрешен {living_unit.unit_type.capitalize()} с частичным здоровьем! (отряд: {living_unit.squad_count - 1} -> {living_unit.squad_count}/{max_possible_units}, HP: {living_unit.current_unit_hp}/{living_unit.unit_hp})"
+                            game.add_event(event_msg)
+                    elif remaining_heal > 0 and dead_units > 0:
+                        # Если лечения недостаточно даже для одного полного воскрешения, воскрешаем частично
+                        living_unit.squad_count += 1
+                        living_unit.current_unit_hp = remaining_heal
+                        remaining_heal = 0
+                        event_msg = f"Воскрешен {living_unit.unit_type.capitalize()} с частичным здоровьем! (отряд: {squad_count_before_heal} -> {living_unit.squad_count}/{max_possible_units}, HP: {living_unit.current_unit_hp}/{living_unit.unit_hp})"
+                        game.add_event(event_msg)
+                    
+                    # Обновляем структуру отряда
+                    if living_unit.squad_count > squad_count_before_heal:
+                        living_unit.base_squad_count = max_possible_units
+                        living_unit.max_health = max_possible_units * living_unit.unit_hp
+                        living_unit.health = (living_unit.squad_count - 1) * living_unit.unit_hp + living_unit.current_unit_hp
+                    
+                    # Если воскресили хотя бы одного юнита (полностью или частично) - успех
+                    if living_unit.squad_count > squad_count_before_heal:
+                        try:
+                            import resurrection_debug as debug
+                            debug.log_result(True, f"Воскрешено юнитов в отряде")
+                        except:
+                            pass
+                        return True
+                    elif remaining_heal == 0:
+                        # Все лечение потрачено на лечение текущего юнита (если был ранен)
+                        if living_unit.current_unit_hp < living_unit.unit_hp:
+                            # Лечили текущего юнита, но не смогли воскресить
+                            game.add_event(f"{living_unit.unit_type.capitalize()} исцелен на {heal} HP, но недостаточно лечения для воскрешения.")
+                        return True
                     else:
-                        # Недостаточно силы для воскрешения, просто лечим
+                        # Недостаточно силы даже для частичного воскрешения (это не должно произойти, но на всякий случай)
+                        game.add_event(f"Недостаточно силы для воскрешения {living_unit.unit_type.capitalize()}.")
+                        return False
+                else:
+                    # unit_hp == 0, просто лечим
+                    if living_unit.current_unit_hp < living_unit.unit_hp:
                         health_before = living_unit.current_unit_hp
                         living_unit.current_unit_hp = min(living_unit.unit_hp, living_unit.current_unit_hp + heal)
                         actual_heal = living_unit.current_unit_hp - health_before
                         living_unit.health = (living_unit.squad_count - 1) * living_unit.unit_hp + living_unit.current_unit_hp
                         game.add_event(f"{living_unit.unit_type.capitalize()} исцелен на {actual_heal} HP!")
-                elif living_unit.current_unit_hp < living_unit.unit_hp:
+                        return True
+                
+                # Если нет мертвых юнитов в отряде, просто лечим текущего
+                if dead_units == 0 and living_unit.current_unit_hp < living_unit.unit_hp:
                     # Лечим текущего юнита
                     health_before = living_unit.current_unit_hp
                     living_unit.current_unit_hp = min(living_unit.unit_hp, living_unit.current_unit_hp + heal)
                     actual_heal = living_unit.current_unit_hp - health_before
                     living_unit.health = (living_unit.squad_count - 1) * living_unit.unit_hp + living_unit.current_unit_hp
                     game.add_event(f"{living_unit.unit_type.capitalize()} исцелен на {actual_heal} HP!")
+                    return True
                 else:
                     game.add_event(f"{living_unit.unit_type.capitalize()} уже полностью здоров!")
                     return False
@@ -808,26 +1130,6 @@ class ResurrectionSpell(Spell):
                 health_before = living_unit.health
                 living_unit.health = min(living_unit.max_health, living_unit.health + heal)
                 actual_heal = living_unit.health - health_before
-            
-            # Простая анимация лечения (желтое свечение)
-            try:
-                import pygame, random
-                from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
-                cx = x * CELL_SIZE + CELL_SIZE // 2
-                cy = y * CELL_SIZE + CELL_SIZE // 2
-                
-                for step in range(15):
-                    pygame.event.pump()
-                    game.draw()
-                    s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-                    radius = 10 + step * 2
-                    alpha = max(0, 150 - step * 10)
-                    pygame.draw.circle(s, (255, 255, 200, alpha), (cx, cy), radius, 3)
-                    game.screen.blit(s, (0,0))
-                    pygame.display.flip()
-                    pygame.time.delay(25)
-            except Exception:
-                pass
             
             game.add_event(f"{living_unit.unit_type.capitalize()} исцелен на {actual_heal} HP!")
             return True
@@ -847,82 +1149,60 @@ class ResurrectionSpell(Spell):
             game.add_event("Воскрешение не действует на нежить!")
             return False
         
-        # Анимация воскрешения: белые и желтые частицы, божественное свечение
-        try:
-            import pygame, random, math
-            from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
-            cx = x * CELL_SIZE + CELL_SIZE // 2
-            cy = y * CELL_SIZE + CELL_SIZE // 2
-            
-            # Этап 1: божественный всплеск света
-            for step in range(10):
-                pygame.event.pump()
-                game.draw()
-                s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-                radius = 10 + step * 3
-                pygame.draw.circle(s, (255, 255, 200, 90), (cx, cy), radius, 3)
-                pygame.draw.circle(s, (255, 240, 120, 80), (cx, cy), max(2, radius-6), 2)
-                game.screen.blit(s, (0,0))
-                pygame.display.flip()
-                pygame.time.delay(16)
-            
-            # Этап 2: светлые частицы вращаются и стягиваются к центру
-            particles = []
-            for _ in range(36):
-                ang = random.random() * math.tau
-                rad = random.randint(10, CELL_SIZE//2 + 8)
-                speed = random.uniform(0.6, 1.2)
-                px = cx + int(math.cos(ang) * rad)
-                py = cy + int(math.sin(ang) * rad)
-                particles.append([px, py, ang, rad, speed])
-            
-            for step in range(24):
-                pygame.event.pump()
-                game.draw()
-                s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-                # Светлый вихрь
-                for p in particles:
-                    p[2] += 0.25  # вращение
-                    p[3] = max(2, p[3] - p[4])  # стягивание к центру
-                    p[0] = cx + int(math.cos(p[2]) * p[3])
-                    p[1] = cy + int(math.sin(p[2]) * p[3])
-                    pygame.draw.circle(s, (255, 250, 200, 170), (int(p[0]), int(p[1])), 3)
-                    pygame.draw.circle(s, (255, 255, 255, 110), (int(p[0]), int(p[1])), 1)
-                game.screen.blit(s, (0,0))
-                pygame.display.flip()
-                pygame.time.delay(18)
-            
-            # Этап 3: божественное свечение и восстановление
-            for step in range(16):
-                pygame.event.pump()
-                game.draw()
-                s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-                pulse_r = 8 + step * 2
-                pulse_a = max(0, 180 - step * 10)
-                pygame.draw.circle(s, (255, 255, 200, pulse_a), (cx, cy), pulse_r, 3)
-                pygame.draw.circle(s, (255, 240, 120, max(0, pulse_a-40)), (cx, cy), max(2, pulse_r-5), 2)
-                # Светлые огни
-                for i in range(6):
-                    ang = (step*0.4 + i) * 0.8
-                    rr = 10 + step
-                    fx = cx + int(math.cos(ang) * rr)
-                    fy = cy + int(math.sin(ang) * rr)
-                    pygame.draw.circle(s, (255, 255, 220, 90), (fx, fy), 4)
-                game.screen.blit(s, (0,0))
-                pygame.display.flip()
-                pygame.time.delay(18)
-        except Exception:
-            pass
+        # Анимация воскрешения вызывается в core.py перед apply
         
-        # Воскрешаем юнита
+        # Воскрешаем юнита с частичным воскрешением отряда
         unit_class = corpse.get('unit_class')
         if unit_class:
             try:
                 # Создаем нового юнита того же класса
                 new_unit = unit_class(x, y, corpse['team'])
-                # Восстанавливаем здоровье на heal_amount
-                new_unit.health = min(new_unit.max_health, heal)
                 new_unit.game_ref = game
+                # Инициализируем систему отрядов если нужно
+                game._set_default_squad_count(new_unit)
+                
+                # Применяем частичное воскрешение отряда на основе лечения
+                if hasattr(new_unit, 'squad_count') and hasattr(new_unit, 'unit_hp') and new_unit.unit_hp is not None:
+                    base_squad = getattr(new_unit, 'base_squad_count', new_unit.squad_count)
+                    max_possible_units = base_squad
+                    
+                    # Воскрешаем столько юнитов, сколько можем полностью
+                    remaining_heal = heal
+                    full_resurrect_count = min(max_possible_units, remaining_heal // new_unit.unit_hp)
+                    
+                    if full_resurrect_count > 0:
+                        new_unit.squad_count = full_resurrect_count
+                        remaining_heal -= full_resurrect_count * new_unit.unit_hp
+                        
+                        # Если осталось лечение - даем текущему юниту частичное HP
+                        if remaining_heal > 0:
+                            new_unit.current_unit_hp = min(new_unit.unit_hp, remaining_heal)
+                            remaining_heal = 0
+                        else:
+                            new_unit.current_unit_hp = new_unit.unit_hp
+                        
+                        new_unit.base_squad_count = max_possible_units
+                        new_unit.max_health = max_possible_units * new_unit.unit_hp
+                        new_unit.health = (new_unit.squad_count - 1) * new_unit.unit_hp + new_unit.current_unit_hp
+                        
+                        if full_resurrect_count < max_possible_units:
+                            event_msg = f"Воскрешен {new_unit.unit_type.capitalize()} с частичным отрядом! (отряд: {new_unit.squad_count}/{max_possible_units}, HP: {new_unit.current_unit_hp}/{new_unit.unit_hp})"
+                        else:
+                            event_msg = f"Воскрешен {new_unit.unit_type.capitalize()}! (отряд: {new_unit.squad_count}/{max_possible_units})"
+                    else:
+                        # Недостаточно лечения даже для одного юнита - воскрешаем частично
+                        new_unit.squad_count = 1
+                        new_unit.current_unit_hp = remaining_heal
+                        new_unit.base_squad_count = max_possible_units
+                        new_unit.max_health = max_possible_units * new_unit.unit_hp
+                        new_unit.health = new_unit.current_unit_hp
+                        event_msg = f"Воскрешен {new_unit.unit_type.capitalize()} с частичным отрядом! (отряд: {new_unit.squad_count}/{max_possible_units}, HP: {new_unit.current_unit_hp}/{new_unit.unit_hp})"
+                else:
+                    # Старая система (без отрядов)
+                    new_unit.health = min(new_unit.max_health, heal)
+                    event_msg = f"Воскрешен {new_unit.unit_type}!"
+                
+                # Добавляем в игру
                 game.units.append(new_unit)
                 # Добавляем в очередь хода
                 if hasattr(game, 'turn_queue') and hasattr(game, '_round_delimiter'):
@@ -932,10 +1212,11 @@ class ResurrectionSpell(Spell):
                     except (ValueError, AttributeError):
                         game.turn_queue.append(new_unit)
                 game.corpses.remove(corpse)
-                game.add_event(f"Воскрешен {new_unit.unit_type}!")
+                game.add_event(event_msg)
                 return True  # Успешное применение
-            except Exception:
-                pass
+            except Exception as e:
+                game.add_event(f"Ошибка при воскрешении: {e}")
+                return False
         return False  # Неудачное применение
 
 class HealSpell(Spell):
@@ -1217,9 +1498,14 @@ class LightningSpell(Spell):
         # Запоминаем здоровье до урона
         health_before = target.health
         
+        # Запоминаем squad_count ДО применения урона
+        squad_count_before = getattr(target, 'squad_count', 1)
+        
         # Наносим урон (магический)
         unit_died = target.take_damage(damage, attack_type='magical')
         actual_damage = health_before - target.health
+        squad_count_after = getattr(target, 'squad_count', 1)
+        units_lost = squad_count_before - squad_count_after
         
         # Анимация молнии
         if hasattr(caster, 'game_ref'):
@@ -1291,10 +1577,16 @@ class LightningSpell(Spell):
                 if unit_died:
                     game.kill_unit(target)
                     game.animation_manager.animate_queue_fade(target)
-                    game.add_event(f"Молния убила {target.unit_type} (урон: {actual_damage})")
+                    event_msg = f"Молния убила {target.unit_type} (урон: {actual_damage})"
+                    if units_lost > 0:
+                        event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                    game.add_event(event_msg)
                     game.check_game_over()
                 else:
-                    game.add_event(f"Молния ударила {target.unit_type} (урон: {actual_damage}, осталось: {target.health}/{target.max_health})")
+                    event_msg = f"Молния ударила {target.unit_type} (урон: {actual_damage})"
+                    if units_lost > 0:
+                        event_msg += f", потеряно {units_lost} юнитов из отряда"
+                    game.add_event(event_msg)
             except Exception:
                 pass
         else:
@@ -1303,7 +1595,10 @@ class LightningSpell(Spell):
                 game = caster.game_ref
                 game.kill_unit(target)
                 game.animation_manager.animate_queue_fade(target)
-                game.add_event(f"Молния убила {target.unit_type} (урон: {actual_damage})")
+                event_msg = f"Молния убила {target.unit_type} (урон: {actual_damage})"
+                if units_lost > 0:
+                    event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                game.add_event(event_msg)
                 game.check_game_over()
         
         return True  # Успешное применение
@@ -1464,15 +1759,24 @@ class EarthSpikesSpell(Spell):
         # Наносим урон всем юнитам в зоне
         for unit in affected_units:
             health_before = unit.health
+            squad_count_before = getattr(unit, 'squad_count', 1)
             unit_died = unit.take_damage(damage, attack_type='physical')
             actual_damage = health_before - unit.health
+            squad_count_after = getattr(unit, 'squad_count', 1)
+            units_lost = squad_count_before - squad_count_after
             
             if unit_died:
                 game.kill_unit(unit)
                 game.animation_manager.animate_queue_fade(unit)
-                game.add_event(f"Каменные шипы убили {unit.unit_type} (урон: {actual_damage})")
+                event_msg = f"Каменные шипы убили {unit.unit_type} (урон: {actual_damage})"
+                if units_lost > 0:
+                    event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                game.add_event(event_msg)
             else:
-                game.add_event(f"Каменные шипы ранили {unit.unit_type} (урон: {actual_damage})")
+                event_msg = f"Каменные шипы ранили {unit.unit_type} (урон: {actual_damage})"
+                if units_lost > 0:
+                    event_msg += f", потеряно {units_lost} юнитов из отряда"
+                game.add_event(event_msg)
         
         return True  # Успешное применение
 

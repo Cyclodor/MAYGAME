@@ -9,8 +9,8 @@
     "max_health": 26
   },
   "Ent": {
-    "health": 110,
-    "max_health": 110
+    "health": 101,
+    "max_health": 101
   },
   "Peasant": {
     "health": 22,
@@ -77,8 +77,18 @@
   },
   "Unicorn": {},
   "ElfArcher": {
-    "health": 40,
-    "max_health": 40
+    "health": 50,
+    "max_health": 50,
+    "squad_count": 10
   },
-  "Spearman": {}
+  "Spearman": {},
+  "Hero_elf_warrior": {},
+  "Hero_undead_mage": {
+    "max_mana": 90,
+    "spell_power": 5,
+    "knowledge": 5,
+    "defense": 1,
+    "attack": 1
+  },
+  "ElfScout": {}
 }

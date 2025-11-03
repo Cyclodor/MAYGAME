@@ -118,22 +118,42 @@ class Game:
         self.animation_manager = AnimationManager(self)
         # Режим разработчика (креатив)
         self.creative_selected_team = 'human'
-        self.creative_selected_unit = 'Hero_warrior'  # По умолчанию выбран герой-воин
-        # Пулы юнитов по расам
+        self.creative_selected_unit = 'Hero_human_warrior'  # По умолчанию выбран герой-воин людей
+        # Пулы юнитов по расам (включая героев для каждой расы)
         self.creative_units_by_race = {
-            'human': [('Peasant', Peasant), ('Spearman', Spearman), ('Swordsman', Swordsman), ('Crossbowman', Crossbowman), ('Gryphon', Gryphon), ('Monk', Monk), ('Angel', Angel), ('Cavalryman', Cavalryman)],
-            'elf': [('Pixie', Pixie), ('ElfScout', ElfScout), ('ElfArcher', ElfArcher), ('Dryad', Dryad), ('Ent', Ent), ('GreenDragon', GreenDragon), ('Druid', Druid), ('Unicorn', Unicorn)],
-            'undead': [('Skeleton', Skeleton), ('Zombie', Zombie), ('Ghost', Ghost), ('Vampire', Vampire), ('Lich', Lich), ('DeathKnight', DeathKnight), ('BoneDragon', BoneDragon), ('Reaper', Reaper)],
-            'demon': [('Imp', Imp), ('Gog', Gog), ('Demon', Demon), ('Cerberus', Cerberus), ('Succubus', Succubus), ('BloodPriestess', BloodPriestess), ('Devil', Devil), ('HellHorse', HellHorse)],
-            'dwarf': [('Miner', Miner), ('Spearthrower', Spearthrower), ('BearRider', BearRider), ('RuneMage', RuneMage), ('Jarl', Jarl), ('ForgeDragon', ForgeDragon), ('MountainRuler', MountainRuler), ('Volkhv', Volkhv)],
-            'shadow': [('Scout', Scout), ('Beast', Beast), ('Minotaur', Minotaur), ('Witch', Witch), ('LizardRider', LizardRider), ('Manticore', Manticore), ('RedDragon', RedDragon), ('Beholder', Beholder)],
+            'human': [
+                ('Hero_human_warrior', Hero), ('Hero_human_archer', Hero), ('Hero_human_mage', Hero),
+                ('Peasant', Peasant), ('Spearman', Spearman), ('Swordsman', Swordsman), ('Crossbowman', Crossbowman), 
+                ('Gryphon', Gryphon), ('Monk', Monk), ('Angel', Angel), ('Cavalryman', Cavalryman)
+            ],
+            'elf': [
+                ('Hero_elf_warrior', Hero), ('Hero_elf_archer', Hero), ('Hero_elf_mage', Hero),
+                ('Pixie', Pixie), ('ElfScout', ElfScout), ('ElfArcher', ElfArcher), ('Dryad', Dryad), 
+                ('Ent', Ent), ('GreenDragon', GreenDragon), ('Druid', Druid), ('Unicorn', Unicorn)
+            ],
+            'undead': [
+                ('Hero_undead_warrior', Hero), ('Hero_undead_archer', Hero), ('Hero_undead_mage', Hero),
+                ('Skeleton', Skeleton), ('Zombie', Zombie), ('Ghost', Ghost), ('Vampire', Vampire), 
+                ('Lich', Lich), ('DeathKnight', DeathKnight), ('BoneDragon', BoneDragon), ('Reaper', Reaper)
+            ],
+            'demon': [
+                ('Hero_demon_warrior', Hero), ('Hero_demon_archer', Hero), ('Hero_demon_mage', Hero),
+                ('Imp', Imp), ('Gog', Gog), ('Demon', Demon), ('Cerberus', Cerberus), 
+                ('Succubus', Succubus), ('BloodPriestess', BloodPriestess), ('Devil', Devil), ('HellHorse', HellHorse)
+            ],
+            'dwarf': [
+                ('Hero_dwarf_warrior', Hero), ('Hero_dwarf_archer', Hero), ('Hero_dwarf_mage', Hero),
+                ('Miner', Miner), ('Spearthrower', Spearthrower), ('BearRider', BearRider), ('RuneMage', RuneMage), 
+                ('Jarl', Jarl), ('ForgeDragon', ForgeDragon), ('MountainRuler', MountainRuler), ('Volkhv', Volkhv)
+            ],
+            'shadow': [
+                ('Hero_shadow_warrior', Hero), ('Hero_shadow_archer', Hero), ('Hero_shadow_mage', Hero),
+                ('Scout', Scout), ('Beast', Beast), ('Minotaur', Minotaur), ('Witch', Witch), 
+                ('LizardRider', LizardRider), ('Manticore', Manticore), ('RedDragon', RedDragon), ('Beholder', Beholder)
+            ],
         }
-        # Три класса героя вместо выпадающего списка
-        self.creative_units_common = [
-            ('Hero_warrior', Hero),
-            ('Hero_archer', Hero),
-            ('Hero_mage', Hero)
-        ]
+        # Общие герои (для обратной совместимости, но теперь герои есть в каждой расе)
+        self.creative_units_common = []
         self.creative_selected_hero_class = 'warrior'  # Для совместимости
         self.creative_panel_rect = pygame.Rect(SCREEN_WIDTH - 220, 0, 220, SCREEN_HEIGHT)
         # Уменьшенные кнопки внизу
@@ -174,6 +194,8 @@ class Game:
         self.combat_music_playing = False
         self.current_intro_sound = None
         self.intro_channel = None
+        # Очищаем трупы при сбросе состояния боя
+        self.corpses = []
         # Остановить любую текущую музыку (меню/бой)
         try:
             from pygame import mixer
@@ -222,6 +244,13 @@ class Game:
         ]
         # Убираем None из списка (на случай, если какой-то файл не загрузился)
         self.battle_intro_sounds = [s for s in self.battle_intro_sounds if s is not None]
+        # Устанавливаем громкость интро-звуков согласно настройкам музыки
+        intro_volume = 0.0 if getattr(self, 'muted', False) else getattr(self, 'music_volume', 0.6)
+        for s in self.battle_intro_sounds:
+            try:
+                s.set_volume(intro_volume)
+            except Exception:
+                pass
         self.battle_intro_playing = False
         self.current_intro_sound = None
         self.intro_channel = None  # Канал для отслеживания intro звука
@@ -1249,6 +1278,21 @@ class Game:
                             tip_lines.append(('param', f"Урон: {base_dmg} (+{bonus}) = {final_dmg}"))
                         else:
                             tip_lines.append(('param', f"Урон: {base_dmg}"))
+                    # Лечение (если есть - для Воскрешения и Поднятия мёртвых)
+                    if hasattr(spell, 'heal_amount') and spell.heal_amount > 0:
+                        base_heal = spell.heal_amount
+                        if hasattr(spell, 'spell_power_multiplier'):
+                            bonus_heal = spell_power * spell.spell_power_multiplier
+                        elif spell.icon == 'resurrection':
+                            # Для Воскрешения множитель = 10
+                            bonus_heal = spell_power * 10
+                        else:
+                            bonus_heal = 0
+                        final_heal = base_heal + bonus_heal
+                        if bonus_heal > 0:
+                            tip_lines.append(('param', f"Лечение: {base_heal} (+{bonus_heal}) = {final_heal}"))
+                        else:
+                            tip_lines.append(('param', f"Лечение: {base_heal}"))
                     # Длительность (если есть)
                     if hasattr(spell, 'duration') and spell.duration > 0:
                         base_dur = spell.duration
@@ -2214,17 +2258,58 @@ class Game:
         panel_y = (SCREEN_HEIGHT - panel_h)//2
         pygame.draw.rect(self.screen, (30,30,60), (panel_x, panel_y, panel_w, panel_h), border_radius=16)
         font = pygame.font.Font(None, 22)
-        lines = min(len(self.event_log), 18)
+        # Вычисляем сколько строк помещается (с учетом отступов)
+        max_text_width = panel_w - 80  # Ширина минус отступы и место под стрелки
+        line_height = 22
+        lines_visible = (panel_h - 80) // line_height  # Высота минус отступы, делим на высоту строки
         offset = self.event_log_offset
-        max_offset = max(0, len(self.event_log) - lines)
+        
+        # Вычисляем строки с учетом переносов
+        display_lines = []  # Список кортежей (idx события, список строк для отображения)
+        total_lines = 0
+        for idx in range(len(self.event_log) - 1 - offset, -1, -1):
+            if idx < 0:
+                break
+            text = self.event_log[idx]
+            display_text = text.replace('===','').strip() if text.startswith('===' ) else text
+            # Разбиваем на строки
+            wrapped_lines = []
+            words = display_text.split(' ')
+            current_line = ''
+            for word in words:
+                test_line = current_line + (' ' if current_line else '') + word
+                test_surf = font.render(test_line, True, (255,255,255))
+                if test_surf.get_width() <= max_text_width:
+                    current_line = test_line
+                else:
+                    if current_line:
+                        wrapped_lines.append(current_line)
+                    current_line = word
+            if current_line:
+                wrapped_lines.append(current_line)
+            # Максимум 2 строки на событие
+            wrapped_lines = wrapped_lines[:2]
+            if total_lines + len(wrapped_lines) <= lines_visible:
+                display_lines.append((idx, wrapped_lines))
+                total_lines += len(wrapped_lines)
+            else:
+                break
+        
+        # Обновляем offset
+        max_offset = max(0, len(self.event_log) - len(display_lines))
         offset = max(0, min(offset, max_offset))
-        for i in range(lines):
-            idx = len(self.event_log) - 1 - offset - i
-            if idx >= 0:
-                text = self.event_log[idx]
-                color = (255,220,120) if text.startswith('===') else (220,220,220)
-                surf = font.render(text.replace('===','').strip() if text.startswith('===' ) else text, True, color)
-                self.screen.blit(surf, (panel_x+30, panel_y+30 + i*22))
+        
+        # Выводим строки
+        y_offset = 0
+        for idx, wrapped_lines in display_lines:
+            text = self.event_log[idx]
+            color = (255,220,120) if text.startswith('===') else (220,220,220)
+            for line in wrapped_lines:
+                if y_offset < lines_visible:
+                    surf = font.render(line, True, color)
+                    self.screen.blit(surf, (panel_x+30, panel_y+30 + y_offset*line_height))
+                    y_offset += 1
+        
         # Кнопка закрытия
         close_rect = pygame.Rect(panel_x+panel_w-40, panel_y+10, 30, 30)
         pygame.draw.rect(self.screen, (200,60,60), close_rect, border_radius=8)
@@ -2232,7 +2317,7 @@ class Game:
         # Стрелки прокрутки
         arrow_up = None
         arrow_down = None
-        if len(self.event_log) > lines:
+        if len(self.event_log) > len(display_lines):
             arrow_up = pygame.Rect(panel_x+panel_w-40, panel_y+60, 30, 20)
             arrow_down = pygame.Rect(panel_x+panel_w-40, panel_y+panel_h-60, 30, 20)
             pygame.draw.polygon(self.screen, (200,200,120), [(arrow_up.x+15, arrow_up.y+4), (arrow_up.x+4, arrow_up.y+16), (arrow_up.x+26, arrow_up.y+16)])
@@ -2291,7 +2376,7 @@ class Game:
         unit_pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
         # Область списка и скролла
         list_top = y
-        list_height = SCREEN_HEIGHT - 260
+        list_height = SCREEN_HEIGHT - 340  # Уменьшена высота, чтобы нижняя часть скрывалась скроллом
         pygame.draw.rect(self.screen, (35, 35, 60), (self.creative_panel_rect.x + 8, list_top, self.creative_panel_rect.w - 16, list_height), border_radius=8)
         # Индекс прокрутки
         self.creative_units_scroll = getattr(self, 'creative_units_scroll', 0)
@@ -2305,21 +2390,33 @@ class Game:
         # Проверяем, что выбранный юнит существует в списке
         unit_names = [name for name, _ in unit_pool]
         if self.creative_selected_unit not in unit_names:
-            # Если выбранный юнит не найден (например, при смене расы), выбираем первый
+            # Если выбранный юнит не найден (например, при смене расы), выбираем первого героя или первый юнит
             if unit_pool:
-                self.creative_selected_unit = unit_pool[0][0]
+                # Ищем героя в списке, иначе берем первый элемент
+                hero_unit = next((name for name, _ in unit_pool if name.startswith('Hero_')), None)
+                self.creative_selected_unit = hero_unit if hero_unit else unit_pool[0][0]
             else:
-                self.creative_selected_unit = 'Hero_warrior'
+                # Формируем имя героя по формату Hero_race_warrior
+                self.creative_selected_unit = f'Hero_{self.creative_selected_team}_warrior'
         for name, _cls in unit_pool[start_idx:end_idx]:
             rect = pygame.Rect(self.creative_panel_rect.x + 12, draw_y, 180, 24)
             sel = (self.creative_selected_unit == name)
             pygame.draw.rect(self.screen, (100, 120, 160) if sel else (50, 60, 80), rect, border_radius=6)
             pygame.draw.rect(self.screen, (180, 180, 200), rect, 2, border_radius=6)
-            # Для героев показываем класс
+            # Для героев показываем класс и расу
             display_name = name
             if name.startswith('Hero_'):
                 parts = name.split('_')
-                if len(parts) == 2:  # Hero_class
+                # Формат: Hero_race_class (например, Hero_human_warrior) или Hero_class (например, Hero_warrior)
+                if len(parts) >= 3:  # Hero_race_class
+                    hero_race = parts[1]
+                    hero_class = parts[2]
+                    class_names = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
+                    class_name = class_names.get(hero_class, hero_class)
+                    from .units import TEAM_LABELS
+                    race_label = TEAM_LABELS.get(hero_race, hero_race)
+                    display_name = f"{class_name} ({race_label})"
+                elif len(parts) == 2:  # Hero_class
                     hero_class = parts[1]
                     class_names = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
                     class_name = class_names.get(hero_class, hero_class)
@@ -2613,7 +2710,8 @@ class Game:
                 pass
         for key in ['max_health','health','attack','defense','speed','initiative','attack_range','is_ranged',
                     'knowledge','spell_power','mana','max_mana','mana_regen',
-                    'phys_attack','magic_attack','phys_defense','magic_defense','magic_resist','attack_type','hero_class']:
+                    'phys_attack','magic_attack','phys_defense','magic_defense','magic_resist','attack_type','hero_class',
+                    'squad_count','base_squad_count']:
             if key in data:
                 try:
                     setattr(unit, key, data[key])
@@ -2643,16 +2741,50 @@ class Game:
                     unit.image = load_image(f'hero_{team}')
         except Exception:
             pass
-        # Корректируем здоровье в рамках max_health
+        # Если изменили attack или defense, нужно пересчитать phys_attack/magic_attack через convert_old_stats_to_new
+        if 'attack' in data or 'defense' in data:
+            try:
+                if hasattr(unit, 'convert_old_stats_to_new'):
+                    unit._needs_stat_conversion = True
+                    unit.convert_old_stats_to_new()
+            except Exception:
+                pass
+        # Корректируем здоровье в рамках max_health (НО только если health не был явно задан в overrides)
         if hasattr(unit, 'max_health') and hasattr(unit, 'health'):
             try:
-                unit.health = unit.max_health  # считать, что юнит полон после изменения параметров
+                # Если health явно не задан в overrides, устанавливаем его равным max_health
+                if 'health' not in data:
+                    unit.health = unit.max_health  # считать, что юнит полон после изменения параметров
             except Exception:
                 pass
         # Корректируем ману в рамках max_mana
         if hasattr(unit, 'max_mana') and hasattr(unit, 'mana'):
             try:
                 unit.mana = unit.max_mana
+            except Exception:
+                pass
+        # Если squad_count был изменен из overrides, нужно обновить структуру отряда
+        if 'squad_count' in data or 'base_squad_count' in data:
+            try:
+                # Если unit_hp еще не установлен, устанавливаем его из max_health
+                if not hasattr(unit, 'unit_hp') or unit.unit_hp is None:
+                    unit.unit_hp = unit.max_health
+                    unit.current_unit_hp = getattr(unit, 'health', unit.max_health)
+                    # Если base_squad_count еще не установлен, инициализируем его
+                    if not hasattr(unit, 'base_squad_count'):
+                        unit.base_squad_count = getattr(unit, 'squad_count', 1)
+                # Обновляем base_squad_count если он задан
+                if 'base_squad_count' in data:
+                    unit.base_squad_count = int(data['base_squad_count'])
+                # Обновляем squad_count если он задан
+                if 'squad_count' in data:
+                    unit.squad_count = int(data['squad_count'])
+                # Убеждаемся, что current_unit_hp установлен
+                if not hasattr(unit, 'current_unit_hp'):
+                    unit.current_unit_hp = getattr(unit, 'health', unit.max_health)
+                # Пересчитываем общее здоровье отряда
+                unit.health = (unit.squad_count - 1) * unit.unit_hp + unit.current_unit_hp
+                unit.max_health = unit.base_squad_count * unit.unit_hp
             except Exception:
                 pass
 
@@ -2970,7 +3102,7 @@ class Game:
         # Креатив: скролл списка юнитов
         if self.state == 'creative':
             list_top = 40 + race_view_h + 14 + 14  # приблизительно ниже блока рас и заголовка
-            list_height = SCREEN_HEIGHT - 260
+            list_height = SCREEN_HEIGHT - 340  # Обновлено для соответствия с draw_creative
             list_rect = pygame.Rect(self.creative_panel_rect.x + 8, list_top, self.creative_panel_rect.w - 16, list_height)
             if list_rect.collidepoint(mx, my):
                 unit_pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
@@ -3010,6 +3142,21 @@ class Game:
                     if not hasattr(self, '_unit_editor_scroll'):
                         self._unit_editor_scroll = 0
                     self._unit_editor_scroll = int(max(0, min(max_scroll, self._unit_editor_scroll - y_delta)))
+                return
+        # История событий: скролл колесом мыши
+        if self.history_panel_open:
+            panel_w, panel_h = 600, 400
+            panel_x = (SCREEN_WIDTH - panel_w)//2
+            panel_y = (SCREEN_HEIGHT - panel_h)//2
+            history_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
+            if history_rect.collidepoint(mx, my):
+                max_lines = (panel_h - 80) // 22
+                max_offset = max(0, len(self.event_log) - max_lines)
+                # y_delta > 0 = прокрутка вверх (старые события), < 0 = вниз (новые)
+                if y_delta > 0:
+                    self.event_log_offset = min(self.event_log_offset + y_delta, max_offset)
+                else:
+                    self.event_log_offset = max(self.event_log_offset + y_delta, 0)
                 return
         # Spellbook: доступные
         if self.state == 'spellbook_editor':
@@ -3408,7 +3555,7 @@ class Game:
         if hasattr(self, 'creative_scroll_down') and self.creative_scroll_down.collidepoint(pos):
             unit_pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
             list_top = 0  # не нужен для расчёта
-            list_height = SCREEN_HEIGHT - 260
+            list_height = SCREEN_HEIGHT - 340  # Обновлено для соответствия с draw_creative
             visible_count = max(1, (list_height - 16) // 30)
             max_scroll = max(0, len(unit_pool) - visible_count)
             self.creative_units_scroll = min(max_scroll, getattr(self, 'creative_units_scroll', 0) + 1)
@@ -3486,18 +3633,25 @@ class Game:
             pool = self.creative_units_by_race.get(self.creative_selected_team, []) + self.creative_units_common
             ctor = next((_cls for name, _cls in pool if name == self.creative_selected_unit), None)
             if ctor:
-                # Особый случай героя - класс из имени (Hero_class)
+                # Особый случай героя - класс из имени (Hero_race_class или Hero_class)
                 if ctor is Hero:
                     hero_class = 'warrior'  # По умолчанию
                     # Пытаемся извлечь класс из имени
                     if self.creative_selected_unit.startswith('Hero_'):
                         parts = self.creative_selected_unit.split('_')
-                        if len(parts) >= 2:
+                        # Формат: Hero_race_class (например, Hero_human_warrior) или Hero_class (например, Hero_warrior)
+                        if len(parts) >= 3:
+                            # Hero_race_class - берем последнюю часть как класс
+                            hero_class = parts[2]
+                        elif len(parts) >= 2:
+                            # Hero_class - берем вторую часть как класс
                             hero_class = parts[1]
                     unit = Hero(gx, gy, self.creative_selected_team, hero_class=hero_class)
                 else:
                     unit = ctor(gx, gy, self.creative_selected_team)
                 self._apply_unit_overrides_to_instance(unit)
+                # Устанавливаем размер отряда для юнитов
+                self._set_default_squad_count(unit)
                 if hasattr(unit, 'game_ref'):
                     unit.game_ref = self
                 self.units.append(unit)
@@ -4228,8 +4382,8 @@ class Game:
                     self.current_intro_sound = random.choice(self.battle_intro_sounds)
                     if self.current_intro_sound:
                         try:
-                            # Устанавливаем громкость intro звука согласно настройкам
-                            intro_volume = 0.0 if self.muted else self.sfx_volume
+                            # Устанавливаем громкость intro звука согласно настройкам музыки
+                            intro_volume = 0.0 if self.muted else self.music_volume
                             self.current_intro_sound.set_volume(intro_volume)
                             # Ищем свободный канал для intro звука
                             self.intro_channel = self.current_intro_sound.play()
@@ -4243,7 +4397,7 @@ class Game:
                                     try:
                                         mixer.music.load(self.current_combat_music)
                                         mixer.music.play(-1)
-                                        mixer.music.set_volume(0.6)
+                                        mixer.music.set_volume(0.0 if self.muted else self.music_volume)
                                         self.combat_music_playing = True
                                     except Exception as e2:
                                         print(f"Ошибка загрузки боевой музыки: {e2}")
@@ -4256,7 +4410,7 @@ class Game:
                                 try:
                                     mixer.music.load(self.current_combat_music)
                                     mixer.music.play(-1)
-                                    mixer.music.set_volume(0.6)
+                                    mixer.music.set_volume(0.0 if self.muted else self.music_volume)
                                     self.combat_music_playing = True
                                 except Exception as e2:
                                     print(f"Ошибка загрузки боевой музыки: {e2}")
@@ -4602,6 +4756,34 @@ class Game:
     def animate_curse(self, caster, target):
         self.animate_spell_flash(target, (200,0,0), redraw_callback=self.draw)
 
+    def animate_resurrection(self, center_pos):
+        """Анимация воскрешения: золотое свечение с частицами света"""
+        import math
+        cx = center_pos[0] * CELL_SIZE + CELL_SIZE // 2
+        cy = center_pos[1] * CELL_SIZE + CELL_SIZE // 2
+        frames = 20
+        for i in range(frames):
+            pygame.event.pump()
+            self.draw()
+            s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            # Золотые частицы света, вращающиеся и стягивающиеся к центру
+            for k in range(12):
+                ang = (i * 0.3 + k) * 0.6
+                rad = 20 + max(0, 30 - i * 1.5)
+                px = cx + int(math.cos(ang) * rad)
+                py = cy + int(math.sin(ang) * rad)
+                # Золотые/желтые частицы
+                pygame.draw.circle(s, (255, 255, 180, 150), (px, py), 4)
+                pygame.draw.circle(s, (255, 255, 220, 100), (px, py), 2)
+            # Золотое лечебное свечение
+            r = 10 + i * 1.5
+            a = max(0, 200 - i * 8)
+            pygame.draw.circle(s, (255, 255, 150, a), (cx, cy), int(r), 4)
+            pygame.draw.circle(s, (255, 255, 200, max(0, a - 40)), (cx, cy), int(max(2, r - 5)), 2)
+            self.screen.blit(s, (0, 0))
+            pygame.display.flip()
+            pygame.time.delay(20)
+    
     def animate_undead_heal_cast(self, target):
         # Анимация исцеления нежити: призрачные кости и голубоватое свечение
         cx = target.x*CELL_SIZE+CELL_SIZE//2
@@ -4783,16 +4965,25 @@ class Game:
         
         # Сохраняем здоровье для вычисления урона
         health_before = attacker.health
+        squad_count_before = getattr(attacker, 'squad_count', 1)
         attacker_died = attacker.take_damage(counter_damage, attack_type=defender_attack_type)
         actual_damage = health_before - attacker.health
+        squad_count_after = getattr(attacker, 'squad_count', 1)
+        units_lost = squad_count_before - squad_count_after
         
         if attacker_died:
             self.kill_unit(attacker)
             self.animate_queue_fade(attacker)
-            self.add_event(f"{defender.unit_type.capitalize()} контратаковал и убил {attacker.unit_type.capitalize()} (урон: {actual_damage})")
+            event_msg = f"{defender.unit_type.capitalize()} контратаковал и убил {attacker.unit_type.capitalize()} (урон: {actual_damage})"
+            if units_lost > 0:
+                event_msg += f", уничтожено {units_lost} юнитов из отряда"
+            self.add_event(event_msg)
             self.check_game_over()
         else:
-            self.add_event(f"{defender.unit_type.capitalize()} контратаковал {attacker.unit_type.capitalize()} (урон: {actual_damage}, осталось: {attacker.health}/{attacker.max_health})")
+            event_msg = f"{defender.unit_type.capitalize()} контратаковал {attacker.unit_type.capitalize()} (урон: {actual_damage})"
+            if units_lost > 0:
+                event_msg += f", потеряно {units_lost} юнитов из отряда"
+            self.add_event(event_msg)
             
             # 3) Проверяем огненный щит АТАКУЮЩЕГО после получения урона от контратаки
             # Это ближний бой (контратака), поэтому щит срабатывает
@@ -4896,6 +5087,26 @@ class Game:
                 self.intro_channel = None
             self.menu_music_playing = False  # Сброс для перезапуска музыки меню
             return
+        
+        # Если открыта книга заклинаний - обрабатываем только клики внутри книги
+        if self.spellbook_open and isinstance(self.selected_unit, Hero) and self.selected_unit.spells:
+            book_w, book_h = 600, 400
+            book_x = (SCREEN_WIDTH - book_w)//2
+            book_y = (SCREEN_HEIGHT - book_h)//2
+            book_rect = pygame.Rect(book_x, book_y, book_w, book_h)
+            # Также разрешаем клики по закладкам школ (они выше книги)
+            tab_w, tab_h = 56, 48
+            tab_y = book_y - 36
+            school_list = ['all', 'fire', 'water', 'earth', 'air', 'light', 'darkness', 'rune']
+            tabs_rect = pygame.Rect(book_x, tab_y, len(school_list) * (tab_w + 8) + 20, tab_h)
+            
+            # Если клик не внутри книги и не в закладках - блокируем обработку
+            if not book_rect.collidepoint(pos) and not tabs_rect.collidepoint(pos):
+                # Разрешаем только клик по крестику закрытия
+                if hasattr(self, 'spellbook_close_rect') and self.spellbook_close_rect.collidepoint(pos):
+                    pass  # Разрешаем обработку
+                else:
+                    return  # Блокируем все остальные клики
         
         # Проверяем меню ПЕРЕД блокировкой паузы, чтобы кнопки меню работали
         if self.menu_open:
@@ -5061,7 +5272,10 @@ class Game:
                     except:
                         pass
                     self.button_click_sound.play()
-                self.event_log_offset = min(self.event_log_offset + 1, max(0, len(self.event_log)-18))
+                # Стрелка вверх = прокрутка вверх (показываем более старые события)
+                max_lines = (400 - 80) // 22
+                max_offset = max(0, len(self.event_log) - max_lines)
+                self.event_log_offset = min(self.event_log_offset + 1, max_offset)
                 return
             if self.history_panel_arrow_down and self.history_panel_arrow_down.collidepoint(pos):
                 # Звук нажатия на кнопку - мгновенное воспроизведение
@@ -5071,6 +5285,7 @@ class Game:
                     except:
                         pass
                     self.button_click_sound.play()
+                # Стрелка вниз = прокрутка вниз (показываем более новые события)
                 self.event_log_offset = max(self.event_log_offset - 1, 0)
                 return
         if self.state == 'menu':
@@ -5500,63 +5715,166 @@ class Game:
                 self.area_preview_dismiss = True
                 self.next_turn()
                 return
-            elif spell.target_type == 'ally':
-                # Разрешаем Снятие чар по врагу для развеивания баффов
-                if target and target.team != caster.team and not (hasattr(spell, 'icon') and spell.icon == 'dispel'):
-                    return
-                # Специальная логика для raise_undead: воскрешение трупов или лечение живых
+            elif spell.target_type == 'both':
+                # Обработка заклинаний, которые могут применяться и к союзникам, и к врагам (например, воскрешение, поднятие мёртвых)
+                # Специальная логика для raise_undead: воскрешение трупов или лечение живых нежить
                 if hasattr(spell, 'icon') and spell.icon == 'raise_undead' and caster.mana >= spell.mana_cost:
                     # Получаем координаты клика
                     mx, my = pos[0] // CELL_SIZE, pos[1] // CELL_SIZE
-                    # Ищем труп нежити на этой клетке
+                    
+                    # Сначала проверяем труп нежити на этой клетке
                     corpse_found = None
                     for corpse in self.corpses:
-                        if corpse['x'] == mx and corpse['y'] == my and corpse['team'] == 'undead':
-                            corpse_found = corpse
-                            break
+                        if corpse['x'] == mx and corpse['y'] == my:
+                            # Поднятие мёртвых работает только на нежить
+                            if corpse['team'] == 'undead':
+                                corpse_found = corpse
+                                break
                     
                     if corpse_found:
-                        # Воскрешаем труп
-                        from .units import Skeleton, Zombie, Ghost, Vampire, Lich
-                        unit_map = {
-                            'skeleton': Skeleton,
-                            'zombie': Zombie,
-                            'ghost': Ghost,
-                            'vampire': Vampire,
-                            'lich': Lich
-                        }
-                        unit_class = unit_map.get(corpse_found['unit_type'])
-                        if unit_class:
-                            # Создаем нового юнита
-                            new_unit = unit_class(corpse_found['x'], corpse_found['y'], 'undead')
-                            # Здоровье = 25 HP
-                            heal = 25
-                            new_unit.health = min(new_unit.max_health, heal)
-                            # Добавляем в игру
-                            self.units.append(new_unit)
-                            # Удаляем труп
-                            self.corpses.remove(corpse_found)
-                            # Анимация
-                            self.animate_undead_heal_cast(new_unit)
-                            # Сообщение
-                            self.add_event(f"Герой воскресил {new_unit.unit_type}")
-                            # Тратим ману и заканчиваем ход
+                        # Анимация поднятия мёртвых (до применения)
+                        try:
+                            # Используем анимацию для нежити
+                            for unit in self.units:
+                                if unit.x == mx and unit.y == my:
+                                    self.animate_undead_heal_cast(unit)
+                                    break
+                            else:
+                                # Если нет юнита на клетке, создаем временный объект для анимации
+                                class TempUnit:
+                                    def __init__(self, x, y):
+                                        self.x = x
+                                        self.y = y
+                                temp_unit = TempUnit(mx, my)
+                                self.animate_undead_heal_cast(temp_unit)
+                        except:
+                            pass
+                        # Воскрешаем труп через метод apply заклинания
+                        spell_success = spell.apply((mx, my), caster=caster)
+                        if spell_success:
                             caster.mana = max(0, caster.mana - spell.mana_cost)
                             caster.selected_spell = None
                             caster.used_spell_this_round = True
                             self.area_preview_dismiss = True
                             self.next_turn()
-                            return
+                        else:
+                            # Если не удалось воскресить, не тратим ману
+                            caster.selected_spell = None
+                            self.area_preview_dismiss = True
+                        return
                     
-                    # Если трупа нет, проверяем живую нежить
-                    if target and getattr(target, 'team', None) == 'undead':
-                        current_hp = getattr(target, 'health', 0)
-                        max_hp = getattr(target, 'max_health', 0)
-                        if current_hp >= max_hp:
-                            return  # Уже полное здоровье, не тратим ману
-                        # Лечим живую нежить (обычная логика ниже)
+                    # Если трупа нет, проверяем живую нежить на этой клетке
+                    # Проверяем напрямую через список юнитов, а не через target
+                    living_unit = None
+                    for unit in self.units:
+                        if unit.x == mx and unit.y == my:
+                            if unit.team == 'undead':
+                                living_unit = unit
+                                break
+                    
+                    if living_unit:
+                        # Анимация поднятия мёртвых (до применения)
+                        try:
+                            self.animate_undead_heal_cast(living_unit)
+                        except:
+                            pass
+                        # Лечим/воскрешаем живую нежить через метод apply заклинания
+                        spell_success = spell.apply((mx, my), caster=caster)
+                        if spell_success:
+                            caster.mana = max(0, caster.mana - spell.mana_cost)
+                            caster.selected_spell = None
+                            caster.used_spell_this_round = True
+                            self.area_preview_dismiss = True
+                            self.next_turn()
+                        else:
+                            caster.selected_spell = None
+                            self.area_preview_dismiss = True
+                        return
                     else:
-                        return  # Нет ни трупа, ни живой нежити
+                        # Нет ни трупа, ни живой нежити для лечения/воскрешения
+                        caster.selected_spell = None
+                        self.area_preview_dismiss = True
+                        return
+                # Специальная логика для resurrection: воскрешение трупов или лечение живых союзников (не нежить)
+                elif hasattr(spell, 'icon') and spell.icon == 'resurrection' and caster.mana >= spell.mana_cost:
+                    # Получаем координаты клика
+                    mx, my = pos[0] // CELL_SIZE, pos[1] // CELL_SIZE
+                    
+                    # Логирование попытки каста
+                    try:
+                        import resurrection_debug as debug
+                        target_unit = None
+                        for u in self.units:
+                            if u.x == mx and u.y == my:
+                                target_unit = u
+                                break
+                        debug.log_spell_cast(caster, spell, (mx, my), target_unit is not None)
+                    except:
+                        pass
+                    
+                    # Сначала проверяем труп на этой клетке
+                    corpse_found = None
+                    for corpse in self.corpses:
+                        if corpse['x'] == mx and corpse['y'] == my:
+                            # Воскрешение не работает на нежить
+                            if corpse['team'] != 'undead':
+                                corpse_found = corpse
+                                break
+                    
+                    if corpse_found:
+                        # Воскрешаем труп через метод apply заклинания
+                        # Анимация воскрешения (до применения)
+                        try:
+                            self.animate_resurrection((mx, my))
+                        except:
+                            pass
+                        spell_success = spell.apply((mx, my), caster=caster)
+                        if spell_success:
+                            caster.mana = max(0, caster.mana - spell.mana_cost)
+                            caster.selected_spell = None
+                            caster.used_spell_this_round = True
+                            self.area_preview_dismiss = True
+                            self.next_turn()
+                        else:
+                            # Если не удалось воскресить, не тратим ману
+                            caster.selected_spell = None
+                            self.area_preview_dismiss = True
+                        return
+                    
+                    # Если трупа нет, проверяем живого союзника на этой клетке
+                    # Проверяем напрямую через список юнитов, а не через target
+                    living_unit = None
+                    for unit in self.units:
+                        if unit.x == mx and unit.y == my:
+                            if unit.team == caster.team and unit.team != 'undead':
+                                living_unit = unit
+                                break
+                    
+                    if living_unit:
+                        # Анимация воскрешения (до применения)
+                        try:
+                            self.animate_resurrection((mx, my))
+                        except:
+                            pass
+                        # Лечим/воскрешаем живого союзника через метод apply заклинания
+                        spell_success = spell.apply((mx, my), caster=caster)
+                        if spell_success:
+                            caster.mana = max(0, caster.mana - spell.mana_cost)
+                            caster.selected_spell = None
+                            caster.used_spell_this_round = True
+                            self.area_preview_dismiss = True
+                            self.next_turn()
+                        else:
+                            caster.selected_spell = None
+                            self.area_preview_dismiss = True
+                        return
+                    else:
+                        # Нет ни трупа, ни живого союзника для лечения/воскрешения
+                        return
+            elif spell.target_type == 'ally':
+                # Разрешаем Снятие чар по врагу для развеивания баффов
+                if target and target.team != caster.team and not (hasattr(spell, 'icon') and spell.icon == 'dispel'):
+                    return
                 
                 if target and target.team == caster.team and caster.mana >= spell.mana_cost:
                     self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
@@ -5762,6 +6080,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -5795,13 +6115,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -5820,16 +6148,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -6166,6 +6503,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -6199,13 +6538,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -6224,16 +6571,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -6472,6 +6828,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -6505,13 +6863,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -6530,16 +6896,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -6778,6 +7153,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -6811,13 +7188,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -6836,16 +7221,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -7084,6 +7478,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -7117,13 +7513,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -7142,16 +7546,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -7390,6 +7803,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -7423,13 +7838,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -7448,16 +7871,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -7696,6 +8128,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -7729,13 +8163,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -7754,16 +8196,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -8002,6 +8453,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -8035,13 +8488,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -8060,16 +8521,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -8308,6 +8778,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -8341,13 +8813,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -8366,16 +8846,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -8614,6 +9103,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -8647,13 +9138,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -8672,16 +9171,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -8920,6 +9428,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -8953,13 +9463,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:
@@ -8978,16 +9496,25 @@ class Game:
                 if not damage_already_applied:
                     # Сохраняем здоровье до атаки
                     health_before = clicked_unit.health
+                    squad_count_before = getattr(clicked_unit, 'squad_count', 1)
                     unit_died = clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                     actual_damage = health_before - clicked_unit.health
+                    squad_count_after = getattr(clicked_unit, 'squad_count', 1)
+                    units_lost = squad_count_before - squad_count_after
                     
                     if unit_died:
                         self.kill_unit(clicked_unit)
                         self.animate_queue_fade(clicked_unit)
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", уничтожено {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         self.check_game_over()
                     else:
-                        self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                        event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                        if units_lost > 0:
+                            event_msg += f", потеряно {units_lost} юнитов из отряда"
+                        self.add_event(event_msg)
                         
                         # Контратака (не для воина, у него контратака в callback)
                         self.perform_counterattack(self.selected_unit, clicked_unit, is_melee, target_is_melee_unit)
@@ -9226,6 +9753,8 @@ class Game:
                         
                         # Сохраняем здоровье до атаки для вычисления урона
                         health_before = clicked_unit.health
+                        # Сохраняем squad_count ДО нанесения урона (для отслеживания потерь)
+                        squad_count_before_warrior = getattr(clicked_unit, 'squad_count', 1)
                         
                         # Создаем callback для применения урона (ТОЛЬКО урон, без последствий)
                         def apply_warrior_damage():
@@ -9259,13 +9788,21 @@ class Game:
                         actual_damage = health_before - clicked_unit.health
                         
                         # ПОСЛЕ анимации обрабатываем последствия
+                        squad_count_after_warrior = getattr(clicked_unit, 'squad_count', 1)
+                        units_lost_warrior = squad_count_before_warrior - squad_count_after_warrior
                         if clicked_unit.health <= 0:
                             self.kill_unit(clicked_unit)
                             self.animate_queue_fade(clicked_unit)
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} убил {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", уничтожено {units_lost_warrior} юнитов из отряда"
+                            self.add_event(event_msg)
                             self.check_game_over()
                         else:
-                            self.add_event(f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage}, осталось: {clicked_unit.health}/{clicked_unit.max_health})")
+                            event_msg = f"{self.selected_unit.unit_type.capitalize()} атаковал {clicked_unit.unit_type} (урон: {actual_damage})"
+                            if units_lost_warrior > 0:
+                                event_msg += f", потеряно {units_lost_warrior} юнитов из отряда ({squad_count_after_warrior}/{squad_count_before_warrior})"
+                            self.add_event(event_msg)
                             # Контратака происходит ПОСЛЕ анимации
                             self.perform_counterattack(self.selected_unit, clicked_unit, True, target_is_melee_unit)
                     else:

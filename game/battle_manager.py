@@ -214,7 +214,7 @@ class BattleManager:
             self.game.add_event(f"{defender.unit_type.capitalize()} контратаковал и убил {attacker.unit_type.capitalize()} (урон: {actual_damage})")
             self.check_game_over()
         else:
-            self.game.add_event(f"{defender.unit_type.capitalize()} контратаковал {attacker.unit_type.capitalize()} (урон: {actual_damage}, осталось: {attacker.health}/{attacker.max_health})")
+            self.game.add_event(f"{defender.unit_type.capitalize()} контратаковал {attacker.unit_type.capitalize()} (урон: {actual_damage})")
             
             # 3) Проверяем огненный щит АТАКУЮЩЕГО после получения урона от контратаки
             # Это ближний бой (контратака), поэтому щит срабатывает
