@@ -277,6 +277,28 @@ class DispelSpell(Spell):
             if hasattr(target, 'weakness_magic_penalty'):
                 target.magic_attack += getattr(target, 'weakness_magic_penalty', 0)
                 target.weakness_magic_penalty = 0
+        # Снимаем ослепление
+        if hasattr(target, 'blindness_turns'):
+            target.blindness_turns = 0
+            target.blindness_active = False
+        # Снимаем молитву
+        if hasattr(target, 'prayer_turns'):
+            target.prayer_turns = 0
+            if hasattr(target, 'prayer_applied') and target.prayer_applied:
+                # Восстанавливаем значения атаки и защиты
+                if hasattr(target, 'attack_type') and target.attack_type == 'physical':
+                    target.phys_attack = max(0, target.phys_attack - 2)
+                else:
+                    target.magic_attack = max(0, target.magic_attack - 2)
+                target.phys_defense = max(0, target.phys_defense - 2)
+                target.magic_defense = max(0, target.magic_defense - 2)
+                target.speed = max(1, target.speed - 2)
+                target.initiative = max(1, target.initiative - 2)
+                target.prayer_applied = False
+        # Снимаем точность
+        if hasattr(target, 'accuracy_turns'):
+            target.accuracy_turns = 0
+            target.accuracy_active = False
         # Пересчитываем скорость и инициативу от базовых значений
         if hasattr(target, 'initiative') and hasattr(target, 'base_initiative'):
             target.initiative = getattr(target, 'base_initiative', target.initiative)
@@ -2081,6 +2103,103 @@ class RuneWallSpell(Spell):
         
         return True  # Успешное применение
 
+class RuneMagicSpell(Spell):
+    """Заклинание рун: Руна магии - зачаровывает урон, добавляет магическую атаку"""
+    def __init__(self):
+        super().__init__(
+            name="Руна магии",
+            damage=0,
+            mana_cost=8,
+            cooldown=0,
+            target_type='ally',
+            description="Зачаровывает урон юнита, добавляя магическую атаку равную физической. Длительность зависит от силы магии.",
+            icon='rune_magic',
+            duration=3,
+            school='rune'
+        )
+    
+    def apply(self, target, caster=None):
+        if not target or not hasattr(target, 'phys_attack'):
+            return False
+        
+        turns = self.duration
+        if caster and hasattr(caster, 'spell_power'):
+            turns += caster.spell_power
+        
+        # Если у юнита только физическая атака, добавляем магическую равную физической
+        if target.magic_attack == 0 and target.phys_attack > 0:
+            # Сохраняем базовую магическую атаку (если была)
+            if not hasattr(target, 'base_magic_attack'):
+                target.base_magic_attack = target.magic_attack
+            # Добавляем магическую атаку равную физической
+            target.magic_attack = target.phys_attack
+            target.rune_magic_bonus = target.phys_attack
+            target.rune_magic_turns = turns
+            
+            # Анимация каста уже вызывается в core.py при применении заклинания
+            
+            if hasattr(target, 'game_ref') and target.game_ref and hasattr(target.game_ref, 'add_event'):
+                target.game_ref.add_event(f"Руна магии зачаровала {target.unit_type.capitalize()}!")
+            return True
+        
+        # Если уже есть магическая атака, просто продлеваем эффект
+        if hasattr(target, 'rune_magic_turns'):
+            target.rune_magic_turns = turns
+        
+        return True
+
+class RuneBerserkerSpell(Spell):
+    """Заклинание рун: Руна берсерка - юнит становится враждебным для всех, +40% урон, -25% защита"""
+    def __init__(self):
+        super().__init__(
+            name="Руна берсерка",
+            damage=0,
+            mana_cost=10,
+            cooldown=0,
+            target_type='enemy',
+            description="Вражеский юнит становится враждебным для всех и атакует ближайший юнит. +40% физ/маг урон, -25% физ/маг защита.",
+            icon='rune_berserker',
+            duration=2,
+            school='rune'
+        )
+    
+    def apply(self, target, caster=None):
+        if not target:
+            return False
+        
+        turns = self.duration
+        if caster and hasattr(caster, 'spell_power'):
+            turns += caster.spell_power
+        
+        # Сохраняем базовые значения если еще не сохранены
+        if not hasattr(target, 'rune_berserker_active'):
+            target.base_phys_attack_berserker = target.phys_attack
+            target.base_magic_attack_berserker = target.magic_attack
+            target.base_phys_defense_berserker = target.phys_defense
+            target.base_magic_defense_berserker = target.magic_defense
+        
+        # Увеличиваем урон на 40%
+        target.phys_attack = int(target.base_phys_attack_berserker * 1.4)
+        target.magic_attack = int(target.base_magic_attack_berserker * 1.4)
+        
+        # Уменьшаем защиту на 25%
+        target.phys_defense = int(target.base_phys_defense_berserker * 0.75)
+        target.magic_defense = int(target.base_magic_defense_berserker * 0.75)
+        
+        # Устанавливаем флаг враждебности и меняем команду на уникальную
+        target.rune_berserker_active = True
+        target.rune_berserker_turns = turns
+        target.rune_berserker_original_team = target.team  # Сохраняем оригинальную команду
+        # Меняем команду на уникальную - берсерк атакует всех
+        target.team = f'berserker_{id(target)}'  # Уникальная команда для каждого берсерка
+        
+        # Анимация каста уже вызывается в core.py при применении заклинания
+        
+        if hasattr(target, 'game_ref') and target.game_ref and hasattr(target.game_ref, 'add_event'):
+            target.game_ref.add_event(f"Руна берсерка активирована на {target.unit_type.capitalize()}!")
+        
+        return True
+
 class WeaknessSpell(Spell):
     """Заклинание тьмы: Слабость - уменьшает атаку врага"""
     def __init__(self):
@@ -3182,9 +3301,9 @@ class BlindnessSpell(Spell):
             except Exception as e:
                 print(f"Ошибка анимации отражения: {e}")
             
-            # Применяем ослепление к кастеру
-            target = caster
-            game.add_event(f"Ослепление отражено! {caster.unit_type.capitalize()} ослеплён!")
+            # Заклинание отражено, эффект не накладывается (ни на цель, ни на кастера)
+            game.add_event(f"Ослепление отражено! {target.unit_type.capitalize()} не был ослеплён!")
+            return False  # Заклинание отражено, не применено
         
         # Длительность зависит от силы магии
         turns = self.duration

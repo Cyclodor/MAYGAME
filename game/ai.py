@@ -45,6 +45,7 @@ class AIController:
         """
         Проверяет, свободен ли путь от start до target (перекрыт ли другими юнитами)
         Использует манхэттенское расстояние (движение только по осям X и Y)
+        Оптимизированная версия - проверяет только критичные клетки
         :param start_x, start_y: Начальная позиция
         :param target_x, target_y: Целевая позиция
         :param unit: Юнит, который двигается (исключаем его из проверки)
@@ -60,42 +61,53 @@ class AIController:
         if distance == 1:
             return True
         
+        # Для дальних перемещений проверяем только первые несколько клеток пути
+        # Это ускоряет работу и позволяет боту не тупить
+        max_check_distance = min(5, distance // 2)  # Проверяем только первые 5 клеток или половину пути
+        
+        # Создаем множество занятых клеток для быстрой проверки
+        occupied_cells = set()
+        for u in self.game.units:
+            if u != unit and u.health > 0:
+                occupied_cells.add((u.x, u.y))
+        
         # Строим путь пошагово (сначала по X, затем по Y)
         path_cells = []
         current_x, current_y = start_x, start_y
+        checked = 0
         
         # Двигаемся по оси X от start_x к target_x
-        while current_x != target_x:
-            # Добавляем промежуточные клетки (но не начальную)
-            if current_x != start_x or current_y != start_y:
-                path_cells.append((current_x, current_y))
+        while current_x != target_x and checked < max_check_distance:
             # Перемещаемся на одну клетку ближе к target_x
             if current_x < target_x:
                 current_x += 1
             else:
                 current_x -= 1
+            
+            # Проверяем только промежуточные клетки (не начальную и не конечную)
+            if (current_x, current_y) != (start_x, start_y) and (current_x, current_y) != (target_x, target_y):
+                if (current_x, current_y) in occupied_cells:
+                    return False
+                checked += 1
+        
+        # Сбрасываем счетчик для проверки по Y
+        checked = 0
         
         # Двигаемся по оси Y от start_y к target_y
-        while current_y != target_y:
-            # Добавляем промежуточные клетки (но не начальную и не дубликаты)
-            if (current_x, current_y) != (start_x, start_y) and (current_x, current_y) not in path_cells:
-                path_cells.append((current_x, current_y))
+        while current_y != target_y and checked < max_check_distance:
             # Перемещаемся на одну клетку ближе к target_y
             if current_y < target_y:
                 current_y += 1
             else:
                 current_y -= 1
-        
-        # Проверяем каждую клетку на пути на наличие других юнитов
-        # (конечная позиция не проверяется, т.к. она уже проверяется в get_reachable_cells)
-        for px, py in path_cells:
-            # Проверяем, есть ли юнит на этой клетке (кроме самого двигающегося юнита)
-            for u in self.game.units:
-                if u != unit and u.x == px and u.y == py:
-                    # Путь перекрыт другим юнитом
+            
+            # Проверяем только промежуточные клетки
+            if (current_x, current_y) != (start_x, start_y) and (current_x, current_y) != (target_x, target_y):
+                if (current_x, current_y) in occupied_cells:
                     return False
+                checked += 1
         
-        # Путь свободен
+        # Путь свободен (проверили критические клетки)
         return True
     
     def can_reach_cell(self, unit, target_x, target_y):
@@ -149,6 +161,39 @@ class AIController:
         Находит лучшую цель для атаки текущего юнита
         :return: (target, damage_estimate) или (None, 0)
         """
+        # Если юнит под берсерком, атакует ближайший юнит без разбора
+        if getattr(attacker, 'rune_berserker_active', False):
+            all_units = [u for u in self.game.units if u != attacker and u.health > 0]
+            if not all_units:
+                return None, 0
+            
+            best_target = None
+            min_distance = float('inf')
+            
+            for unit in all_units:
+                if not attacker.can_attack(unit.x, unit.y, self.game.units):
+                    continue
+                
+                distance = self.get_distance(attacker, unit)
+                if distance < min_distance:
+                    min_distance = distance
+                    best_target = unit
+            
+            # Оцениваем урон
+            damage = 0
+            if best_target:
+                if hasattr(attacker, 'is_ranged') and attacker.is_ranged:
+                    distance = self.get_distance(attacker, best_target)
+                    if distance == 1:
+                        damage = max(1, attacker.get_current_attack() // 2)
+                    else:
+                        damage = attacker.ranged_damage(best_target.x, best_target.y)
+                else:
+                    damage = attacker.get_current_attack()
+            
+            return best_target, damage
+        
+        # Обычная логика - только враги
         enemies = self.get_enemies()
         if not enemies:
             return None, 0
@@ -454,6 +499,21 @@ class AIController:
             self.current_state = "Нет активного юнита"
             self.current_action = "Ожидание"
             return False
+        
+        # КРИТИЧНО: Проверяем, что юнит НЕ является берсерком
+        # Берсерк обрабатывается отдельно в next_turn, AI не должен его трогать
+        if (not isinstance(unit, Hero) and
+            hasattr(unit, 'rune_berserker_active') and
+            hasattr(unit, 'rune_berserker_turns') and
+            hasattr(unit, 'team')):
+            if (getattr(unit, 'rune_berserker_active', False) and 
+                getattr(unit, 'rune_berserker_turns', 0) > 0 and
+                isinstance(unit.team, str) and 
+                unit.team.startswith('berserker_')):
+                # Это берсерк - не обрабатываем через AI
+                self.current_state = "Берсерк (обрабатывается отдельно)"
+                self.current_action = "Пропуск AI"
+                return False
         
         self.current_state = f"Ход {unit.unit_type} ({unit.team})"
         

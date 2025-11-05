@@ -1,28 +1,33 @@
 {
   "Pixie": {
-    "health": 26,
-    "magic_attack": 8,
-    "phys_defense": 2,
-    "magic_defense": 3,
+    "health": 29,
+    "magic_attack": 4,
+    "phys_defense": 6,
+    "magic_defense": 6,
     "squad_count": 13,
     "base_squad_count": 13,
-    "max_health": 26
+    "max_health": 26,
+    "phys_attack": 3,
+    "magic_resist": 20,
+    "initiative": 18
   },
   "Ent": {
-    "health": 101,
-    "max_health": 101
-},
+    "health": 90,
+    "max_health": 101,
+    "squad_count": 11
+  },
   "Peasant": {
-    "health": 22,
+    "health": 40,
     "base_squad_count": 31,
-    "squad_count": 31,
+    "squad_count": 27,
     "max_health": 22
   },
   "Hero": {
     "knowledge": 3,
     "spell_power": 3,
     "defense": 3,
-    "attack": 3
+    "attack": 3,
+    "luck": 0
   },
   "Hero_undead": {
     "knowledge": 4,
@@ -71,9 +76,13 @@
     "health": 70
   },
   "Hero_human_mage": {
-    "knowledge": 5,
-    "spell_power": 5,
-    "max_mana": 150
+    "knowledge": 6,
+    "spell_power": 6,
+    "max_mana": 140,
+    "combat_spirit": 3,
+    "luck": 3,
+    "defense": 1,
+    "attack": 1
   },
   "Unicorn": {},
   "ElfArcher": {
@@ -90,5 +99,17 @@
     "defense": 1,
     "attack": 1
   },
-  "ElfScout": {}
+  "ElfScout": {},
+  "Vampire": {
+    "health": 65,
+    "max_health": 65,
+    "phys_attack": 16
+  },
+  "Hero_human_warrior": {
+    "attack": 4,
+    "defense": 6,
+    "knowledge": 2,
+    "spell_power": 2,
+    "max_mana": 30
+  }
 }

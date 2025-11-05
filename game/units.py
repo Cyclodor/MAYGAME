@@ -62,6 +62,9 @@ class Unit:
         self.base_defense = 15 if unit_type == 'hero' else 5
         self.rune_shield_turns = 0  # Только руна защиты
         self.squad_count = 1  # Количество юнитов в отряде (по умолчанию 1)
+        self.luck = 0  # Удача (передается от героя, ограничение +6/-6)
+        self.combat_spirit = 0  # Боевой дух (передается от героя)
+        self.used_combat_spirit_this_round = False  # Флаг использования боевого духа в текущем раунде
         # Система здоровья отряда
         self.base_squad_count = 1  # Изначальное количество юнитов в отряде
         self.unit_hp = None  # HP одного юнита (будет установлено после инициализации)
@@ -173,6 +176,11 @@ class Unit:
     def draw(self, surface):
         # Рисуем текстуру юнита сначала
         surface.blit(self.image, (self.x * CELL_SIZE, self.y * CELL_SIZE))
+        # Если юнит под берсерком - накладываем красный оттенок
+        if getattr(self, 'rune_berserker_active', False):
+            red_overlay = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            red_overlay.fill((255, 100, 100, 120))  # Красный полупрозрачный слой
+            surface.blit(red_overlay, (self.x * CELL_SIZE, self.y * CELL_SIZE))
         # Полоска здоровья поверх текстуры юнита
         # Для отрядов показываем HP текущего юнита, для одиночных - общее
         if hasattr(self, 'squad_count') and hasattr(self, 'unit_hp') and self.unit_hp is not None and self.squad_count > 1:
@@ -188,23 +196,21 @@ class Unit:
         # Отображение количества юнитов в отряде (если больше 1)
         squad_count = getattr(self, 'squad_count', 1)
         if squad_count > 1 and not isinstance(self, Hero):
-            # Определяем цвет фона в зависимости от текущего хода
-            is_current_player = False
-            if hasattr(self, 'game_ref') and self.game_ref:
-                # Проверяем, является ли этот юнит текущим в очереди
-                if hasattr(self.game_ref, 'turn_queue') and self.game_ref.turn_queue:
-                    current_unit = self.game_ref.turn_queue[0]
-                    if current_unit is not None and hasattr(current_unit, 'team'):
-                        is_current_player = (current_unit.team == self.team)
-                # Если нет активного юнита, проверяем через selected_unit
-                elif hasattr(self.game_ref, 'selected_unit') and self.game_ref.selected_unit:
-                    if hasattr(self.game_ref.selected_unit, 'team'):
-                        is_current_player = (self.game_ref.selected_unit.team == self.team)
-            
-            if is_current_player:
-                bg_color = (0, 100, 200, 220)  # Синий для текущего игрока
+            # Если юнит под берсерком - всегда красный для всех
+            if getattr(self, 'rune_berserker_active', False):
+                bg_color = (200, 0, 0, 220)  # Красный для берсерка
             else:
-                bg_color = (200, 0, 0, 220)  # Красный для противника
+                # Определяем цвет по текущему ходу: синий для своего хода, красный для вражеского
+                is_current_turn = False
+                if hasattr(self, 'game_ref') and self.game_ref:
+                    # Проверяем, чей сейчас ход (selected_unit)
+                    if hasattr(self.game_ref, 'selected_unit') and self.game_ref.selected_unit:
+                        is_current_turn = (self.team == self.game_ref.selected_unit.team)
+                
+                if is_current_turn:
+                    bg_color = (0, 100, 200, 220)  # Синий для своего хода
+                else:
+                    bg_color = (200, 0, 0, 220)  # Красный для вражеского хода
             
             # Уменьшенный размер экранчика
             font = pygame.font.Font(None, 16)
@@ -272,10 +278,16 @@ class Unit:
         else:
             health_display = f"Здоровье: {self.health}/{self.max_health}"
         
+        # Определяем тип атаки для отображения - если руна магии активна, показываем оба типа
+        if getattr(self, 'rune_magic_turns', 0) > 0 and self.magic_attack > 0:
+            attack_display = f"Физ. атака: {self.phys_attack} | Маг. атака: {self.magic_attack}"
+        else:
+            attack_display = f"{attack_type_text} атака: {self.phys_attack if self.attack_type == 'physical' else self.magic_attack}"
+        
         tooltip_text = [
             (f"Тип: {self.unit_type}", (255,255,255)),
             (health_display, fade_color(self.fade_health)),
-            (f"{attack_type_text} атака: {self.phys_attack if self.attack_type == 'physical' else self.magic_attack}", (255,180,180)),
+            (attack_display, (255,180,180)),
             (f"Физ. защита: {self.phys_defense}", (180,180,255)),
             (f"Маг. защита: {self.magic_defense}", (200,180,255)),
             (f"Сопр. магии: {self.magic_resist}%", (255,200,255)),
@@ -296,6 +308,14 @@ class Unit:
         # Только руна защиты
         if getattr(self, 'rune_shield_turns', 0) > 0:
             tooltip_text.append((f"Руна защиты: {self.rune_shield_turns} хода", (80,255,120)))
+        # Руна магии
+        if getattr(self, 'rune_magic_turns', 0) > 0:
+            magic_bonus = getattr(self, 'rune_magic_bonus', 0)
+            tooltip_text.append((f"Руна магии: {self.rune_magic_turns} хода", (200,150,255)))
+            tooltip_text.append((f"Маг. атака: {self.magic_attack}", (200,150,255)))
+        # Руна берсерка
+        if getattr(self, 'rune_berserker_turns', 0) > 0:
+            tooltip_text.append((f"Руна берсерка: {self.rune_berserker_turns} хода", (255,100,100)))
         # Огненный щит
         if hasattr(self, 'fire_shield_turns') and getattr(self, 'fire_shield_turns', 0) > 0:
             tooltip_text.append((f"Огненный щит: {self.fire_shield_turns} хода", (255,180,120)))
@@ -430,6 +450,58 @@ class Unit:
         except Exception:
             pass
         return self.health <= 0
+    
+    def apply_precalculated_damage(self, total_damage):
+        """
+        Применяет уже рассчитанный урон (с учетом защиты) через систему отрядов.
+        Используется для смешанного урона руны магии, где урон уже рассчитан.
+        """
+        # Система отрядов: обрабатываем урон по юнитам
+        if hasattr(self, 'squad_count') and hasattr(self, 'unit_hp') and self.unit_hp is not None and self.squad_count > 1:
+            # Инициализируем current_unit_hp если нужно
+            if self.current_unit_hp is None:
+                self.current_unit_hp = self.unit_hp
+            
+            # Обрабатываем урон по текущему юниту
+            remaining_damage = total_damage
+            while remaining_damage > 0 and self.squad_count > 0:
+                if remaining_damage >= self.current_unit_hp:
+                    # Убиваем текущего юнита
+                    remaining_damage -= self.current_unit_hp
+                    self.squad_count -= 1
+                    if self.squad_count > 0:
+                        # Переходим к следующему юниту с полным здоровьем
+                        self.current_unit_hp = self.unit_hp
+                    else:
+                        # Отряд уничтожен
+                        self.current_unit_hp = 0
+                        self.health = 0
+                        break
+                else:
+                    # Текущий юнит ранен, но жив
+                    self.current_unit_hp -= remaining_damage
+                    remaining_damage = 0
+            
+            # Обновляем общее здоровье отряда
+            if self.squad_count > 0:
+                self.health = (self.squad_count - 1) * self.unit_hp + self.current_unit_hp
+                self.max_health = self.base_squad_count * self.unit_hp
+            else:
+                self.health = 0
+                self.max_health = self.base_squad_count * self.unit_hp
+        else:
+            # Стандартная система (без отрядов или одиночный юнит)
+            self.health = max(0, self.health - total_damage)
+            # Инициализируем unit_hp если это одиночный юнит
+            if not hasattr(self, 'unit_hp') or self.unit_hp is None:
+                self.unit_hp = self.max_health
+                self.current_unit_hp = self.health
+        
+        try:
+            self.last_damage_received = total_damage
+        except Exception:
+            pass
+        return self.health <= 0
 
     def end_turn_effects(self):
         """Уменьшает длительность эффектов в КОНЦЕ хода юнита"""
@@ -556,6 +628,24 @@ class Unit:
                 self.rune_shield_phys_bonus = 0
                 self.rune_shield_magic_bonus = 0
                 print(f'Руна защиты рассеялась у {self.unit_type} ({self.x},{self.y})')
+        # Руна берсерка: тикаем длительность
+        if getattr(self, 'rune_berserker_turns', 0) > 0:
+            self.rune_berserker_turns -= 1
+            if self.rune_berserker_turns == 0:
+                # Восстанавливаем базовые значения атаки и защиты
+                if hasattr(self, 'base_phys_attack_berserker'):
+                    self.phys_attack = self.base_phys_attack_berserker
+                if hasattr(self, 'base_magic_attack_berserker'):
+                    self.magic_attack = self.base_magic_attack_berserker
+                if hasattr(self, 'base_phys_defense_berserker'):
+                    self.phys_defense = self.base_phys_defense_berserker
+                if hasattr(self, 'base_magic_defense_berserker'):
+                    self.magic_defense = self.base_magic_defense_berserker
+                # Восстанавливаем оригинальную команду
+                if hasattr(self, 'rune_berserker_original_team'):
+                    self.team = self.rune_berserker_original_team
+                self.rune_berserker_active = False
+                print(f'Руна берсерка рассеялась у {self.unit_type} ({self.x},{self.y})')
         # Контрудар: тикаем длительность
         if hasattr(self, 'counterstrike_turns') and self.counterstrike_turns > 0:
             self.counterstrike_turns -= 1
@@ -618,7 +708,10 @@ class Unit:
         self.has_moved = False
         self.has_attacked = False
         self.has_counterattacked = False
-        self.move_points_left = self.speed
+        # НЕ перезаписываем move_points_left если юнит ожидал и у него есть сохраненные ОД
+        # move_points_left будет установлен в next_turn на основе _saved_move_points
+        if not (hasattr(self, '_saved_move_points') or (hasattr(self, 'has_waited') and self.has_waited)):
+            self.move_points_left = self.speed
         
         # Если юнит под забвением - блокируем его действия
         if hasattr(self, 'forget_turns') and self.forget_turns > 0:
@@ -629,6 +722,15 @@ class Unit:
     def can_attack(self, target_x, target_y, units=None):
         if hasattr(self, 'forget_turns') and getattr(self, 'forget_turns', 0) > 0:
             return False
+        # Проверяем, находится ли юнит в зыбучих песках
+        if getattr(self, 'stuck_in_quicksand', False):
+            # Проверяем, что юнит всё ещё на клетке с зыбучими песками
+            if hasattr(self, 'game_ref') and self.game_ref and hasattr(self.game_ref, 'quicksands'):
+                for quicksand in self.game_ref.quicksands:
+                    if quicksand['x'] == self.x and quicksand['y'] == self.y:
+                        return False  # Юнит в зыбучих песках, не может атаковать
+                # Если зыбучих песков на этой клетке больше нет, сбрасываем флаг
+                self.stuck_in_quicksand = False
         # Ослепление: дальнобойные теряют возможность дальнобойной атаки
         if getattr(self, 'is_ranged', False) and getattr(self, 'blindness_active', False):
             # Ослепленные дальнобойные могут атаковать только в ближнем бою
@@ -695,6 +797,15 @@ class Unit:
     def can_move(self, target_x, target_y, units, barriers=None):
         if hasattr(self, 'forget_turns') and getattr(self, 'forget_turns', 0) > 0:
             return False
+        # Юнит, застрявший в зыбучих песках, не может перемещаться
+        if getattr(self, 'stuck_in_quicksand', False):
+            # Проверяем, что юнит всё ещё на клетке с зыбучими песками
+            if hasattr(self, 'game_ref') and self.game_ref and hasattr(self.game_ref, 'quicksands'):
+                for quicksand in self.game_ref.quicksands:
+                    if quicksand['x'] == self.x and quicksand['y'] == self.y:
+                        return False  # Юнит в зыбучих песках, не может перемещаться
+                # Если зыбучих песков на этой клетке больше нет, сбрасываем флаг
+                self.stuck_in_quicksand = False
         from collections import deque
         if self.move_points_left <= 0:
             return False
@@ -953,7 +1064,7 @@ class Lich(Unit):
 # Старые классы Warrior, Archer, Knight больше не нужны 
 
 class Hero(Unit):
-    def __init__(self, x, y, team, spells=None, attack=0, defense=0, knowledge=3, spell_power=1, hero_class=None):
+    def __init__(self, x, y, team, spells=None, attack=0, defense=0, knowledge=3, spell_power=1, hero_class=None, luck=0, combat_spirit=0):
         super().__init__(x, y, team, 'hero')
         
         # Определяем класс героя по умолчанию для каждой расы
@@ -973,6 +1084,8 @@ class Hero(Unit):
         self.defense = defense
         self.knowledge = knowledge
         self.spell_power = spell_power
+        self.luck = max(-6, min(6, luck))  # Ограничение +6/-6
+        self.combat_spirit = combat_spirit  # Боевой дух (по умолчанию 0, передается юнитам)
         self.mana = knowledge * 10
         self.max_mana = knowledge * 10
         self.mana_regen = 2
@@ -1009,6 +1122,11 @@ class Hero(Unit):
     def draw(self, surface):
         # Рисуем героя на поле (без полоски здоровья)
         surface.blit(self.image, (self.x * CELL_SIZE, self.y * CELL_SIZE))
+        # Если герой под берсерком - накладываем красный оттенок
+        if getattr(self, 'rune_berserker_active', False):
+            red_overlay = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            red_overlay.fill((255, 100, 100, 120))  # Красный полупрозрачный слой
+            surface.blit(red_overlay, (self.x * CELL_SIZE, self.y * CELL_SIZE))
         # Типтул только при наведении
         if getattr(self, 'show_tooltip', False):
             mouse_pos = pygame.mouse.get_pos()
@@ -1036,12 +1154,13 @@ class Hero(Unit):
         
         tooltip_text = [
             (f"Герой - {class_name} ({TEAM_LABELS.get(self.team, self.team)})", (255,255,255)),
-            (f"Атака: {self.attack}", (255,220,120)),
             (f"Базовая атака: {base_attack}", (255,180,120)),
+            (f"Атака: {self.attack}", (255,220,120)),
             (f"Защита: {self.defense}", (180,180,255)),
-            (f"Знания: {self.knowledge}", (120,255,255)),
             (f"Сила магии: {self.spell_power}", (180,120,255)),
+            (f"Знания: {self.knowledge}", (120,255,255)),
             (f"Мана: {self.mana}/{self.max_mana}", (120,220,255)),
+            (f"Удача: {self.luck:+d} ({abs(self.luck) * 5}% шанс двойного урона)", (255,255,100)),
             (f"Регенерация: {max(1, int(self.knowledge * 0.5))} маны/ход", (180,220,255)),
         ]
         max_width = max(font.size(line[0])[0] for line in tooltip_text)
@@ -1065,6 +1184,15 @@ class Hero(Unit):
         # Герой может атаковать дальнобойно, если не атаковал в этом ходу
         if self.has_attacked:
             return False
+        # Проверяем, находится ли герой в зыбучих песках
+        if getattr(self, 'stuck_in_quicksand', False):
+            # Проверяем, что герой всё ещё на клетке с зыбучими песками
+            if hasattr(self, 'game_ref') and self.game_ref and hasattr(self.game_ref, 'quicksands'):
+                for quicksand in self.game_ref.quicksands:
+                    if quicksand['x'] == self.x and quicksand['y'] == self.y:
+                        return False  # Герой в зыбучих песках, не может атаковать
+                # Если зыбучих песков на этой клетке больше нет, сбрасываем флаг
+                self.stuck_in_quicksand = False
         dx = abs(self.x - target_x)
         dy = abs(self.y - target_y)
         # Проверяем, что цель не на той же клетке
@@ -1114,6 +1242,8 @@ class Hero(Unit):
             if unit.team == self.team:
                 unit.attack += self.attack
                 unit.defense += self.defense
+                # Передаем удачу от героя юнитам
+                unit.luck = self.luck
 
 class Pixie(Unit):
     def __init__(self, x, y, team):
@@ -1656,3 +1786,120 @@ class Corpse:
             # Делаем полупрозрачным
             gray_surface.set_alpha(150)
             screen.blit(gray_surface, (self.x * CELL_SIZE, self.y * CELL_SIZE))
+
+
+def get_unit_race(unit):
+    """
+    Возвращает расу юнита на основе его команды.
+    :param unit: Объект юнита
+    :return: Раса юнита (human, undead, elf, demon, dwarf, shadow)
+    """
+    return getattr(unit, 'team', None)
+
+
+def calculate_morale(unit, all_units):
+    """
+    Рассчитывает мораль юнита на основе расового состава команды.
+    Мораль зависит только от состава своей команды, не от врагов.
+    
+    Правила:
+    - Если команда состоит полностью из своей расы → мораль "good"
+    - Нежить всегда имеет мораль "neutral"
+    - Нежить понижает мораль на 1 для любой расы (кроме нежити)
+    - Система нетерпимостей: на 3 юнитов с терпимостью приходится 1 нетерпимый → мораль -1
+    
+    :param unit: Объект юнита
+    :param all_units: Список всех юнитов на поле
+    :return: Значение морали ('excellent', 'good', 'neutral', 'bad', 'awful')
+    """
+    from .units import get_unit_race
+    
+    # У нежити мораль всегда нейтральная
+    unit_race = get_unit_race(unit)
+    if unit_race == 'undead':
+        return 'neutral'
+    
+    # Проверяем, является ли юнит героем
+    is_hero = lambda u: getattr(u, 'unit_type', None) == 'hero'
+    
+    # Получаем всех союзников (только обычных юнитов, не героев)
+    allies = [u for u in all_units if u.team == unit.team and not is_hero(u)]
+    
+    # Если нет союзников - ужасная мораль
+    if len(allies) == 0:
+        return 'awful'
+    
+    # Подсчитываем количество юнитов каждой расы в команде
+    race_counts = {}
+    for ally in allies:
+        race = get_unit_race(ally)
+        race_counts[race] = race_counts.get(race, 0) + 1
+    
+    # Если команда состоит полностью из своей расы - хорошая мораль
+    if len(race_counts) == 1 and unit_race in race_counts:
+        return 'good'
+    
+    # Базовая мораль при смешанном составе
+    base_morale = 'good'
+    morale_levels = ['awful', 'bad', 'neutral', 'good', 'excellent']
+    current_index = morale_levels.index(base_morale)
+    
+    # Нежить понижает мораль на 1 для любой расы
+    if 'undead' in race_counts and race_counts['undead'] > 0:
+        current_index -= 1
+    
+    # Система нетерпимостей: на каждые 3 юнита своей расы приходится 1 нетерпимый → мораль -1
+    # Подсчитываем количество юнитов своей расы и других рас
+    own_race_count = race_counts.get(unit_race, 0)
+    other_races_count = sum(count for race, count in race_counts.items() if race != unit_race)
+    
+    # Если есть другие расы, проверяем соотношение нетерпимостей
+    if other_races_count > 0 and own_race_count > 0:
+        # На каждые 3 юнита своей расы приходится 1 нетерпимый → мораль -1
+        # Примеры:
+        # - 3 свои + 1 другой = 1 на 3 → -1 мораль
+        # - 6 свои + 1 другой = 1 на 6 → -1 мораль (есть 1 нетерпимый на 3+ своих)
+        # - 6 свои + 2 другие = 2 на 6 = 1 на 3 → -1 мораль
+        # - 6 свои + 3 другие = 3 на 6 = 1 на 2 → -2 мораль (3 на 6 = больше чем 1 на 3)
+        # - 9 свои + 3 другие = 3 на 9 = 1 на 3 → -1 мораль
+        # - 9 свои + 4 другие = 4 на 9 → -2 мораль (4 на 9 = больше чем 1 на 3)
+        
+        # Вычисляем: сколько групп "3 свои + 1 нетерпимый" можно составить
+        # Количество штрафов = ceil(нетерпимых * 3 / свои)
+        import math
+        if own_race_count >= 3:
+            # Для каждых 3 своих может быть 1 нетерпимый без штрафа
+            # Если нетерпимых больше - штраф за каждую "лишнюю" группу
+            # Количество групп соотношения 1:3 = ceil(нетерпимых * 3 / свои)
+            morale_penalty = math.ceil(other_races_count * 3.0 / own_race_count)
+        else:
+            # Если своих меньше 3, но есть нетерпимые - все равно -1 мораль
+            morale_penalty = 1
+        
+        current_index -= morale_penalty
+    
+    # Ограничиваем индекс в пределах допустимых значений
+    current_index = max(0, min(len(morale_levels) - 1, current_index))
+    
+    return morale_levels[current_index]
+
+
+def apply_morale_modifiers(unit):
+    """
+    Применяет модификаторы морали к юниту.
+    :param unit: Объект юнита
+    """
+    # Базовое значение морали уже установлено через calculate_morale
+    # Здесь можно применять дополнительные модификаторы:
+    # - от героев (если есть герой с бонусом к морали)
+    # - от заклинаний (благословение, проклятие и т.д.)
+    # - от артефактов
+    
+    # Пока что функция пустая, но можно расширить в будущем
+    # Например, если у героя есть бонус к морали:
+    # if hasattr(unit, 'game_ref') and unit.game_ref:
+    #     heroes = [u for u in unit.game_ref.units if isinstance(u, Hero) and u.team == unit.team]
+    #     for hero in heroes:
+    #         if hasattr(hero, 'morale_bonus'):
+    #             # Применяем бонус
+    pass

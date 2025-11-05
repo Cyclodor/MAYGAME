@@ -3830,14 +3830,441 @@ def animate_rune_haste_spell(screen, start, end, redraw_callback=None):
         pygame.display.flip()
         pygame.time.delay(30) 
 
+def animate_rune_magic_spell(screen, start, end, redraw_callback=None):
+    """Анимация руны магии: фиолетовый магический глиф над целью"""
+    import random
+    import math
+    from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
+    
+    frames = 28
+    for i in range(frames):
+        pygame.event.pump()
+        if redraw_callback:
+            redraw_callback()
+        
+        # Позиция над целью
+        x = int(end[0])
+        y = int(end[1] - CELL_SIZE * 0.7)
+        top_margin = int(CELL_SIZE * 0.5)
+        bottom_margin = int(CELL_SIZE * 0.5)
+        ui_panel = 80
+        y = max(top_margin, min(SCREEN_HEIGHT - ui_panel - bottom_margin, y))
+        
+        # Создаем эффект руны магии
+        rune_surface = pygame.Surface((CELL_SIZE*3, CELL_SIZE*3), pygame.SRCALPHA)
+        center_x, center_y = CELL_SIZE*1.5, CELL_SIZE*1.5
+        
+        # Основной эффект руны
+        t = i / (frames-1)
+        base_alpha = int(220 * (1 - abs(t - 0.5) * 2))
+        base_alpha = max(0, min(255, base_alpha))
+        flicker = 0.75 + 0.25 * (math.sin(i * 0.8) + 1) / 2
+        alpha = int(base_alpha * flicker)
+        
+        # Фаза появления (первые 8 кадров)
+        if i < 8:
+            appear_alpha = int(alpha * (i / 8))
+            
+            # Многоуровневая аура (фиолетово-магическая)
+            pygame.draw.circle(rune_surface, (180, 100, 255, appear_alpha//3), (center_x, center_y), 36)
+            pygame.draw.circle(rune_surface, (200, 120, 255, appear_alpha//2), (center_x, center_y), 30)
+            pygame.draw.circle(rune_surface, (220, 140, 255, appear_alpha//1), (center_x, center_y), 24)
+            
+            # Внешнее свечение
+            pygame.draw.circle(rune_surface, (240, 160, 255, appear_alpha//2), (center_x, center_y), 18)
+            
+            # Центральный камень
+            stone_rect = pygame.Rect(0, 0, 22, 16)
+            stone_rect.center = (center_x, center_y)
+            pygame.draw.ellipse(rune_surface, (160, 100, 200, appear_alpha), stone_rect)
+            pygame.draw.ellipse(rune_surface, (120, 60, 150, appear_alpha), stone_rect.inflate(-6, -6), 2)
+            
+            # Глиф магии: круг с магическими символами
+            pygame.draw.circle(rune_surface, (255, 200, 255, appear_alpha), (center_x, center_y), 16, 3)
+            # Звездочка магии
+            for j in range(8):
+                angle = j * (math.pi / 4)
+                px = center_x + int(10 * math.cos(angle))
+                py = center_y + int(10 * math.sin(angle))
+                pygame.draw.circle(rune_surface, (255, 255, 255, appear_alpha), (px, py), 2)
+        
+        # Фаза мерцания (кадры 8-17)
+        elif i < 17:
+            flicker_alpha = alpha
+            
+            # Многоуровневая аура
+            pygame.draw.circle(rune_surface, (180, 100, 255, flicker_alpha//4), (center_x, center_y), 38)
+            pygame.draw.circle(rune_surface, (200, 120, 255, flicker_alpha//3), (center_x, center_y), 32)
+            pygame.draw.circle(rune_surface, (220, 140, 255, flicker_alpha//2), (center_x, center_y), 26)
+            
+            # Пульсирующее свечение
+            pulse = int(3 * math.sin(i * 0.9))
+            pygame.draw.circle(rune_surface, (240, 160, 255, flicker_alpha//2), (center_x, center_y), 18 + pulse)
+            
+            # Центральный камень
+            stone_rect = pygame.Rect(0, 0, 22, 16)
+            stone_rect.center = (center_x, center_y)
+            pygame.draw.ellipse(rune_surface, (160, 100, 200, flicker_alpha), stone_rect)
+            pygame.draw.ellipse(rune_surface, (120, 60, 150, flicker_alpha), stone_rect.inflate(-6, -6), 2)
+            
+            # Глиф магии (ярче)
+            pygame.draw.circle(rune_surface, (255, 220, 255, flicker_alpha), (center_x, center_y), 16, 3)
+            # Вращающаяся звездочка магии
+            for j in range(8):
+                angle = j * (math.pi / 4) + i * 0.15
+                px = center_x + int(10 * math.cos(angle))
+                py = center_y + int(10 * math.sin(angle))
+                pygame.draw.circle(rune_surface, (255, 255, 255, flicker_alpha), (px, py), 2)
+            
+            # Вращающееся кольцо рун
+            for j in range(6):
+                a = j * (math.pi/3) + i * 0.15
+                rx = center_x + int(12 * math.cos(a))
+                ry = center_y + int(12 * math.sin(a))
+                pygame.draw.circle(rune_surface, (255, 200, 255, flicker_alpha), (rx, ry), 2)
+        
+        # Фаза исчезновения (последние 8 кадров)
+        else:
+            tail = 8
+            disappear_ratio = max(0.0, min(1.0, (frames - 1 - i) / tail))
+            disappear_alpha = int(alpha * disappear_ratio)
+            
+            # Исчезающая аура и глиф
+            pygame.draw.circle(rune_surface, (200, 120, 255, disappear_alpha//3), (center_x, center_y), 30)
+            pygame.draw.circle(rune_surface, (220, 140, 255, disappear_alpha//2), (center_x, center_y), 22)
+            pygame.draw.circle(rune_surface, (255, 200, 255, disappear_alpha), (center_x, center_y), 16, 2)
+            
+            # Камень и звездочка при исчезновении
+            stone_rect = pygame.Rect(0, 0, 22, 16)
+            stone_rect.center = (center_x, center_y)
+            pygame.draw.ellipse(rune_surface, (160, 100, 200, disappear_alpha), stone_rect)
+            for j in range(8):
+                angle = j * (math.pi / 4)
+                px = center_x + int(10 * math.cos(angle))
+                py = center_y + int(10 * math.sin(angle))
+                pygame.draw.circle(rune_surface, (255, 255, 255, disappear_alpha), (px, py), 2)
+        
+        # Эффект пульсации
+        pulse = int(5 * math.sin(i * 0.5))
+        pygame.draw.circle(rune_surface, (200, 120, 255, alpha//4), 
+                         (center_x, center_y), 25 + pulse)
+        
+        # Частицы магии
+        for j in range(8):
+            angle = j * 0.785 + i * 0.3
+            radius = 15 + random.randint(-5, 5)
+            particle_x = center_x + int(radius * math.cos(angle))
+            particle_y = center_y + int(radius * math.sin(angle))
+            particle_alpha = int(alpha * 0.6)
+            pygame.draw.circle(rune_surface, (240, 160, 255, particle_alpha), 
+                             (particle_x, particle_y), 2)
+        
+        # Применяем эффект к экрану
+        screen.blit(rune_surface, (x - CELL_SIZE*1.5, y - CELL_SIZE*1.5))
+        
+        pygame.display.flip()
+        pygame.time.delay(30)
+
+def animate_rune_berserker_spell(screen, start, end, redraw_callback=None):
+    """Простая анимация руны берсерка: красное свечение прямо на юните (без полета снаряда)"""
+    import random
+    import math
+    from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
+    
+    # Игнорируем start - анимация проигрывается сразу на цели (end)
+    frames = 20
+    cx, cy = int(end[0]), int(end[1])
+    
+    for i in range(frames):
+        pygame.event.pump()
+        if redraw_callback:
+            redraw_callback()
+        
+        # Создаем поверхность для эффекта
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        
+        # Плавное появление и исчезновение
+        t = i / (frames - 1)
+        if t < 0.3:
+            alpha = int(255 * (t / 0.3))
+        elif t > 0.7:
+            alpha = int(255 * ((1 - t) / 0.3))
+        else:
+            alpha = 255
+        
+        # Пульсирующее красное свечение вокруг юнита
+        pulse = int(5 * math.sin(i * 0.8))
+        radius = 20 + pulse
+        
+        # Внешнее свечение
+        pygame.draw.circle(overlay, (255, 60, 60, alpha // 3), (cx, cy), radius + 8)
+        # Среднее свечение
+        pygame.draw.circle(overlay, (255, 80, 40, alpha // 2), (cx, cy), radius + 4)
+        # Внутреннее яркое свечение
+        pygame.draw.circle(overlay, (255, 100, 20, alpha), (cx, cy), radius)
+        
+        # Вращающиеся частицы ярости
+        for j in range(6):
+            angle = j * (math.pi / 3) + i * 0.5
+            px = cx + int(radius * 0.6 * math.cos(angle))
+            py = cy + int(radius * 0.6 * math.sin(angle))
+            pygame.draw.circle(overlay, (255, 150, 50, alpha), (px, py), 3)
+        
+        # Применяем эффект к экрану
+        screen.blit(overlay, (0, 0))
+        pygame.display.flip()
+        pygame.time.delay(25)
+
+def animate_luck_horseshoe(screen, unit_pos, redraw_callback=None):
+    """Анимация подковы при срабатывании удачи - подкова крутится по вертикальной оси над юнитом"""
+    import math
+    from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
+    
+    frames = 30
+    cx, cy = int(unit_pos[0]), int(unit_pos[1])
+    
+    for i in range(frames):
+        pygame.event.pump()
+        if redraw_callback:
+            redraw_callback()
+        
+        # Создаем поверхность для эффекта
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        
+        # Плавное появление и исчезновение
+        t = i / (frames - 1)
+        if t < 0.2:
+            alpha = int(255 * (t / 0.2))
+        elif t > 0.7:
+            alpha = int(255 * ((1 - t) / 0.3))
+        else:
+            alpha = 255
+        
+        # Позиция подковы над юнитом (выше на 30-50 пикселей)
+        horseshoe_y = cy - 40 - int(10 * math.sin(i * 0.3))  # Небольшое покачивание вверх-вниз
+        horseshoe_x = cx
+        
+        # Вращение подковы по вертикальной оси (от 0 до 360 градусов)
+        rotation_angle = (i * 360 / frames) * (math.pi / 180)  # В радианах
+        
+        # Размер подковы
+        horseshoe_size = 40
+        horseshoe_thickness = 4
+        
+        # Рисуем подкову (форма подковы с вращением)
+        # Подкова состоит из дуги и двух "ножек"
+        # При вращении по вертикальной оси она выглядит как эллипс, который меняет ширину
+        
+        # Вычисляем ширину эллипса в зависимости от угла вращения
+        # Когда подкова повернута на 90 градусов - она видна сбоку (узкая)
+        # Когда на 0/180 градусов - видна спереди (широкая)
+        ellipse_width = int(horseshoe_size * abs(math.cos(rotation_angle)))
+        ellipse_height = horseshoe_size
+        
+        # Цвет подковы (золотой/бронзовый)
+        horseshoe_color = (255, 215, 0, alpha)  # Золотой
+        glow_color = (255, 255, 200, alpha // 2)  # Свечение
+        
+        # Внешнее свечение
+        pygame.draw.ellipse(overlay, glow_color, 
+                          (horseshoe_x - ellipse_width//2 - 5, horseshoe_y - ellipse_height//2 - 5,
+                           ellipse_width + 10, ellipse_height + 10), 2)
+        
+        # Основная подкова (дуга сверху)
+        if ellipse_width > 5:  # Рисуем только если подкова видна
+            # Верхняя дуга подковы
+            pygame.draw.arc(overlay, horseshoe_color,
+                          (horseshoe_x - ellipse_width//2, horseshoe_y - ellipse_height//2,
+                           ellipse_width, ellipse_height),
+                          math.pi * 0.2, math.pi * 0.8, horseshoe_thickness)
+            
+            # Левая "ножка" подковы
+            left_leg_x = horseshoe_x - ellipse_width//2
+            left_leg_y1 = horseshoe_y + int(ellipse_height * 0.3)
+            left_leg_y2 = horseshoe_y + int(ellipse_height * 0.6)
+            pygame.draw.line(overlay, horseshoe_color,
+                           (left_leg_x, left_leg_y1), (left_leg_x, left_leg_y2), horseshoe_thickness)
+            
+            # Правая "ножка" подковы
+            right_leg_x = horseshoe_x + ellipse_width//2
+            right_leg_y1 = horseshoe_y + int(ellipse_height * 0.3)
+            right_leg_y2 = horseshoe_y + int(ellipse_height * 0.6)
+            pygame.draw.line(overlay, horseshoe_color,
+                           (right_leg_x, right_leg_y1), (right_leg_x, right_leg_y2), horseshoe_thickness)
+        
+        # Звездочки удачи вокруг подковы
+        for star_idx in range(6):
+            star_angle = (star_idx * 2 * math.pi / 6) + i * 0.3
+            star_radius = 25
+            star_x = cx + int(star_radius * math.cos(star_angle))
+            star_y = cy - 40 + int(star_radius * 0.5 * math.sin(star_angle))
+            star_alpha = int(alpha * (0.6 + 0.4 * math.sin(i * 0.5 + star_idx)))
+            pygame.draw.circle(overlay, (255, 255, 200, star_alpha), (star_x, star_y), 3)
+        
+        # Применяем эффект к экрану
+        screen.blit(overlay, (0, 0))
+        pygame.display.flip()
+        pygame.time.delay(20)
+
+def animate_combat_spirit_bird(screen, unit_pos, redraw_callback=None):
+    """Анимация золотой птицы при срабатывании боевого духа - птица поднимает крылья"""
+    from .config import SCREEN_WIDTH, SCREEN_HEIGHT
+    
+    frames = 40
+    cx, cy = int(unit_pos[0]), int(unit_pos[1])
+    
+    for i in range(frames):
+        pygame.event.pump()
+        if redraw_callback:
+            redraw_callback()
+        
+        # Создаем поверхность для эффекта
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        
+        # Плавное появление и исчезновение
+        t = i / (frames - 1)
+        if t < 0.15:
+            alpha = int(255 * (t / 0.15))
+        elif t > 0.75:
+            alpha = int(255 * ((1 - t) / 0.25))
+        else:
+            alpha = 255
+        
+        # Позиция птицы над юнитом (выше на 50-60 пикселей)
+        bird_y = cy - 55 - int(8 * math.sin(i * 0.2))  # Покачивание вверх-вниз
+        bird_x = cx
+        
+        # Анимация крыльев: от поднятых (0) до опущенных (1) и обратно
+        wing_cycle = (i % 20) / 20.0  # Цикл каждые 20 кадров
+        if wing_cycle < 0.5:
+            # Крылья поднимаются (0 -> 0.5)
+            wing_angle = math.pi * (1 - wing_cycle * 2)  # От π до 0
+        else:
+            # Крылья опускаются (0.5 -> 1.0)
+            wing_angle = math.pi * ((wing_cycle - 0.5) * 2)  # От 0 до π
+        
+        # Размер птицы
+        bird_size = 35
+        body_size = 12
+        
+        # Цвета (золотой)
+        bird_color = (255, 215, 0, alpha)  # Золотой
+        glow_color = (255, 255, 180, alpha // 3)  # Свечение
+        body_color = (255, 200, 50, alpha)  # Более темное золото для тела
+        
+        # Внешнее свечение
+        glow_radius = bird_size + 8
+        pygame.draw.circle(overlay, glow_color, (bird_x, bird_y), glow_radius)
+        
+        # Тело птицы (эллипс)
+        body_rect = pygame.Rect(bird_x - body_size//2, bird_y - body_size//2, 
+                               body_size, body_size)
+        pygame.draw.ellipse(overlay, body_color, body_rect)
+        
+        # Голова птицы (маленький круг)
+        head_radius = 5
+        head_x = bird_x + body_size // 3
+        head_y = bird_y - body_size // 3
+        pygame.draw.circle(overlay, body_color, (head_x, head_y), head_radius)
+        
+        # Клюв (маленький треугольник)
+        beak_points = [
+            (head_x + head_radius, head_y),
+            (head_x + head_radius + 4, head_y - 2),
+            (head_x + head_radius + 4, head_y + 2)
+        ]
+        pygame.draw.polygon(overlay, (255, 180, 0, alpha), beak_points)
+        
+        # Крылья (поднимаются и опускаются)
+        wing_length = 18
+        wing_width = 8
+        
+        # Левое крыло
+        left_wing_base_x = bird_x - body_size // 2
+        left_wing_base_y = bird_y
+        left_wing_end_x = left_wing_base_x + int(wing_length * math.cos(wing_angle))
+        left_wing_end_y = left_wing_base_y - int(wing_length * math.sin(wing_angle))
+        # Рисуем крыло как эллипс
+        left_wing_center_x = (left_wing_base_x + left_wing_end_x) // 2
+        left_wing_center_y = (left_wing_base_y + left_wing_end_y) // 2
+        wing_rect = pygame.Rect(left_wing_center_x - wing_width//2, 
+                               left_wing_center_y - wing_length//2,
+                               wing_width, wing_length)
+        # Поворачиваем крыло (упрощенная версия - просто рисуем линию с расширением)
+        pygame.draw.line(overlay, bird_color, 
+                        (left_wing_base_x, left_wing_base_y),
+                        (left_wing_end_x, left_wing_end_y), 6)
+        
+        # Правое крыло
+        right_wing_base_x = bird_x + body_size // 2
+        right_wing_base_y = bird_y
+        right_wing_end_x = right_wing_base_x - int(wing_length * math.cos(wing_angle))
+        right_wing_end_y = right_wing_base_y - int(wing_length * math.sin(wing_angle))
+        pygame.draw.line(overlay, bird_color,
+                        (right_wing_base_x, right_wing_base_y),
+                        (right_wing_end_x, right_wing_end_y), 6)
+        
+        # Хвост (небольшой веер)
+        tail_base_x = bird_x - body_size // 2
+        tail_base_y = bird_y + body_size // 2
+        for tail_idx in range(3):
+            tail_angle = math.pi * 0.3 + tail_idx * 0.2
+            tail_length = 10
+            tail_end_x = tail_base_x - int(tail_length * math.cos(tail_angle))
+            tail_end_y = tail_base_y + int(tail_length * math.sin(tail_angle))
+            pygame.draw.line(overlay, bird_color,
+                           (tail_base_x, tail_base_y),
+                           (tail_end_x, tail_end_y), 3)
+        
+        # Золотые частицы вокруг птицы
+        for particle_idx in range(8):
+            particle_angle = (particle_idx * 2 * math.pi / 8) + i * 0.4
+            particle_radius = 30 + int(10 * math.sin(i * 0.3 + particle_idx))
+            particle_x = cx + int(particle_radius * math.cos(particle_angle))
+            particle_y = cy - 55 + int(particle_radius * 0.6 * math.sin(particle_angle))
+            particle_alpha = int(alpha * (0.5 + 0.5 * math.sin(i * 0.4 + particle_idx)))
+            pygame.draw.circle(overlay, (255, 255, 150, particle_alpha), 
+                             (particle_x, particle_y), 2)
+        
+        # Применяем эффект к экрану
+        screen.blit(overlay, (0, 0))
+        pygame.display.flip()
+        pygame.time.delay(25)
+
 def animate_spell_reflection(screen, target_px, caster_px, redraw_callback=None):
-    """Анимация отражения заклинания - появляется щит, в него летит мана, отражается обратно"""
+    """Анимация предотвращения заклинания - поток маны прилетает к щиту рядом с юнитом и отталкивается"""
     import random
     import math
     from .config import SCREEN_WIDTH, SCREEN_HEIGHT
     
-    frames = 30
+    frames = 25
     cx, cy = target_px
+    
+    # Определяем позицию щита рядом с юнитом (не в центр юнита)
+    # Если есть кастер, щит будет на стороне от кастера
+    if caster_px:
+        # Вычисляем направление от кастера к цели
+        dx = cx - caster_px[0]
+        dy = cy - caster_px[1]
+        dist = math.sqrt(dx*dx + dy*dy) if (dx*dx + dy*dy) > 0 else 1
+        # Позиция щита рядом с юнитом, на пути от кастера
+        shield_offset = 25  # Смещение от центра юнита
+        shield_x = cx - int((dx / dist) * shield_offset)
+        shield_y = cy - int((dy / dist) * shield_offset)
+    else:
+        # Если кастера нет, щит справа от юнита
+        shield_x = cx + 20
+        shield_y = cy
+    
+    # Позиция, откуда прилетает поток маны (дальше от кастера, если есть)
+    if caster_px:
+        # Поток маны прилетает с направления кастера, но к позиции рядом с юнитом
+        start_offset = 60
+        start_x = shield_x - int((dx / dist) * start_offset) if dist > 0 else shield_x - start_offset
+        start_y = shield_y - int((dy / dist) * start_offset) if dist > 0 else shield_y
+    else:
+        start_x = shield_x - 50
+        start_y = shield_y
     
     for i in range(frames):
         pygame.event.pump()
@@ -3847,76 +4274,81 @@ def animate_spell_reflection(screen, target_px, caster_px, redraw_callback=None)
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         t = i / (frames - 1) if frames > 1 else 1.0
         
-        # Щит появляется и растёт
-        if t < 0.4:
-            shield_alpha = int(200 * (t / 0.4))
-            shield_size = int(30 * (t / 0.4))
+        # Щит появляется и растёт (рядом с юнитом)
+        if t < 0.3:
+            shield_alpha = int(220 * (t / 0.3))
+            shield_size = int(25 * (t / 0.3))
         else:
-            shield_alpha = 200
-            shield_size = 30
+            shield_alpha = 220
+            shield_size = 25
         
-        # Рисуем щит (круг с магическим свечением)
-        pygame.draw.circle(overlay, (150, 200, 255, shield_alpha), (cx, cy), shield_size)
-        pygame.draw.circle(overlay, (200, 230, 255, int(shield_alpha*0.7)), (cx, cy), shield_size + 5, 2)
-        pygame.draw.circle(overlay, (100, 150, 255, int(shield_alpha*0.5)), (cx, cy), shield_size + 10, 2)
+        # Рисуем щит рядом с юнитом (круг с магическим свечением)
+        pygame.draw.circle(overlay, (150, 200, 255, shield_alpha), (shield_x, shield_y), shield_size)
+        pygame.draw.circle(overlay, (200, 230, 255, int(shield_alpha*0.8)), (shield_x, shield_y), shield_size + 4, 2)
+        pygame.draw.circle(overlay, (100, 150, 255, int(shield_alpha*0.6)), (shield_x, shield_y), shield_size + 8, 2)
         
-        # Мана летит к щиту (если есть кастер)
-        if caster_px and t < 0.6:
-            mana_t = t / 0.6
-            mana_x = int(caster_px[0] * (1 - mana_t) + cx * mana_t)
-            mana_y = int(caster_px[1] * (1 - mana_t) + cy * mana_t)
+        # Поток маны летит к щиту
+        if t < 0.5:
+            mana_t = t / 0.5
+            mana_x = int(start_x * (1 - mana_t) + shield_x * mana_t)
+            mana_y = int(start_y * (1 - mana_t) + shield_y * mana_t)
             
-            # Магический шар
-            for j in range(3):
-                mana_size = 8 - j * 2
-                mana_alpha = int(180 * (1 - mana_t * 0.5))
+            # Магический поток (не шар, а поток энергии)
+            for j in range(4):
+                mana_size = 10 - j * 2
+                mana_alpha = int(200 * (1 - j * 0.2) * (1 - mana_t * 0.3))
                 pygame.draw.circle(overlay, (100, 150, 255, mana_alpha), (mana_x, mana_y), mana_size)
             
-            # След маны
-            for k in range(5):
-                trail_t = mana_t - k * 0.1
+            # След потока маны
+            for k in range(6):
+                trail_t = mana_t - k * 0.08
                 if trail_t > 0:
-                    trail_x = int(caster_px[0] * (1 - trail_t) + cx * trail_t)
-                    trail_y = int(caster_px[1] * (1 - trail_t) + cy * trail_t)
-                    trail_alpha = int(100 * (1 - trail_t))
-                    pygame.draw.circle(overlay, (150, 200, 255, trail_alpha), (trail_x, trail_y), 4)
+                    trail_x = int(start_x * (1 - trail_t) + shield_x * trail_t)
+                    trail_y = int(start_y * (1 - trail_t) + shield_y * trail_t)
+                    trail_alpha = int(120 * (1 - trail_t))
+                    trail_size = 6 - k
+                    if trail_size > 0:
+                        pygame.draw.circle(overlay, (150, 200, 255, trail_alpha), (trail_x, trail_y), trail_size)
         
-        # Мана отражается обратно
-        if caster_px and t > 0.6:
-            reflect_t = (t - 0.6) / 0.4
-            reflect_x = int(cx * (1 - reflect_t) + caster_px[0] * reflect_t)
-            reflect_y = int(cy * (1 - reflect_t) + caster_px[1] * reflect_t)
+        # Поток отталкивается от щита (рассеивается в стороны)
+        if t > 0.5:
+            bounce_t = (t - 0.5) / 0.5
+            # Вычисляем направление от кастера для определения угла отскока
+            if caster_px:
+                angle_to_caster = math.atan2(dy, dx) if dist > 0 else 0
+            else:
+                angle_to_caster = 0
             
-            # Отражённый магический шар
-            for j in range(3):
-                reflect_size = 10 - j * 2
-                reflect_alpha = int(200 * (1 - reflect_t * 0.5))
-                pygame.draw.circle(overlay, (255, 200, 100, reflect_alpha), (reflect_x, reflect_y), reflect_size)
-            
-            # След отражённой маны
-            for k in range(5):
-                trail_t = reflect_t - k * 0.1
-                if trail_t > 0:
-                    trail_x = int(cx * (1 - trail_t) + caster_px[0] * trail_t)
-                    trail_y = int(cy * (1 - trail_t) + caster_px[1] * trail_t)
-                    trail_alpha = int(150 * (1 - trail_t))
-                    pygame.draw.circle(overlay, (255, 220, 150, trail_alpha), (trail_x, trail_y), 5)
+            # Поток рассеивается в стороны от щита
+            for particle_idx in range(8):
+                # Частицы разлетаются в разные стороны
+                particle_angle = (particle_idx * (2*math.pi / 8.0)) + angle_to_caster + math.pi/2
+                particle_dist = int(30 * bounce_t)
+                particle_x = shield_x + int(particle_dist * math.cos(particle_angle))
+                particle_y = shield_y + int(particle_dist * math.sin(particle_angle))
+                
+                particle_size = int(6 * (1 - bounce_t))
+                particle_alpha = int(180 * (1 - bounce_t))
+                if particle_size > 0:
+                    pygame.draw.circle(overlay, (150, 200, 255, particle_alpha), (particle_x, particle_y), particle_size)
+                    pygame.draw.circle(overlay, (200, 230, 255, int(particle_alpha*0.7)), (particle_x, particle_y), particle_size + 2, 1)
         
-        # Искры при отражении
-        if 0.5 < t < 0.8:
-            spark_t = (t - 0.5) / 0.3
-            for spark_idx in range(12):
-                spark_angle = (spark_idx * (2*math.pi / 12.0)) + random.uniform(-0.2, 0.2)
-                spark_dist = int(20 * spark_t)
-                spark_x = cx + int(spark_dist * math.cos(spark_angle))
-                spark_y = cy + int(spark_dist * math.sin(spark_angle))
-                spark_alpha = int(200 * (1 - spark_t))
+        # Искры при столкновении со щитом
+        if 0.45 < t < 0.7:
+            spark_t = (t - 0.45) / 0.25
+            for spark_idx in range(16):
+                spark_angle = (spark_idx * (2*math.pi / 16.0)) + random.uniform(-0.3, 0.3)
+                spark_dist = int(25 * spark_t)
+                spark_x = shield_x + int(spark_dist * math.cos(spark_angle))
+                spark_y = shield_y + int(spark_dist * math.sin(spark_angle))
+                spark_alpha = int(220 * (1 - spark_t))
                 spark_size = random.randint(2, 4)
                 pygame.draw.circle(overlay, (255, 255, 255, spark_alpha), (spark_x, spark_y), spark_size)
+                pygame.draw.circle(overlay, (200, 230, 255, int(spark_alpha*0.8)), (spark_x, spark_y), spark_size + 1, 1)
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(20)
 
 def animate_quicksand_cast(screen, center_px, redraw_callback=None):
     """Анимация каста зыбучих песков - земля трясётся, появляются трещины"""
@@ -4214,8 +4646,8 @@ def animate_earth_shock(screen, target_px, redraw_callback=None):
         pygame.display.flip()
         pygame.time.delay(20)  # Ускорено с 30 до 20
     
-    # Этап 4: Эпичный фиолетовый взрыв (25 кадров) - улучшено
-    phase4_frames = 25
+    # Этап 4: Эпичный фиолетовый взрыв (15 кадров) - ускорено
+    phase4_frames = 15
     for i in range(phase4_frames):
         pygame.event.pump()
         if redraw_callback:
@@ -4298,7 +4730,7 @@ def animate_earth_shock(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(18)
+        pygame.time.delay(10)
 
 
 def animate_prayer(screen, target_px, redraw_callback=None):

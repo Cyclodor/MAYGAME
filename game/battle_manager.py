@@ -256,29 +256,41 @@ class BattleManager:
                 self.game.winner_team = winner_team
                 # Определяем победителя по расе
                 # Правильная логика определения победы/поражения
-                # Победа показывается относительно игрока 1 (кто запустил игру)
-                if self.game.player1_race and winner_team == self.game.player1_race:
-                    # Победила раса игрока 1
-                    if self.game.player1_type == 'human':
-                        # Игрок 1 (человек) выиграл
-                        self.game.victory_state = 'victory'
+                # Определяем, есть ли игроки-люди
+                has_human_player = (self.game.player1_type == 'human') or (self.game.player2_type == 'human')
+                
+                if has_human_player:
+                    # Если есть хотя бы один игрок-человек
+                    if self.game.player1_race and winner_team == self.game.player1_race:
+                        # Победила команда игрока 1
+                        if self.game.player1_type == 'human':
+                            # Игрок 1 (человек) выиграл
+                            self.game.victory_state = 'victory'
+                        else:
+                            # Бот 1 победил, игрок 2 проиграл (если есть)
+                            if self.game.player2_type == 'human':
+                                self.game.victory_state = 'defeat'
+                            else:
+                                # Оба боты
+                                self.game.victory_state = 'defeat'
+                    elif self.game.player2_race and winner_team == self.game.player2_race:
+                        # Победила команда игрока 2
+                        if self.game.player2_type == 'human':
+                            # Игрок 2 (человек) выиграл
+                            self.game.victory_state = 'victory'
+                        else:
+                            # Бот 2 победил, игрок 1 проиграл (если есть)
+                            if self.game.player1_type == 'human':
+                                self.game.victory_state = 'defeat'
+                            else:
+                                # Оба боты
+                                self.game.victory_state = 'defeat'
                     else:
-                        # Бот выиграл, игрок 1 проиграл
+                        # Неизвестная раса победила - поражение для игрока
                         self.game.victory_state = 'defeat'
-                elif self.game.player2_race and winner_team == self.game.player2_race:
-                    # Победила раса игрока 2
-                    if self.game.player1_type == 'human' and self.game.player2_type == 'human':
-                        # Оба игрока - люди, игрок 1 проиграл игроку 2
-                        self.game.victory_state = 'defeat'
-                    elif self.game.player1_type == 'human' and self.game.player2_type == 'ai':
-                        # Игрок проиграл боту
-                        self.game.victory_state = 'defeat'
-                    elif self.game.player1_type == 'ai' and self.game.player2_type == 'human':
-                        # Игрок (player2) выиграл бота (player1)
-                        self.game.victory_state = 'victory'
-                    else:
-                        # Оба бота - поражение для наблюдателя
-                        self.game.victory_state = 'defeat'
+                else:
+                    # Оба боты - поражение для наблюдателя
+                    self.game.victory_state = 'defeat'
             else:
                 # Ничья (все погибли)
                 self.game.victory_state = 'defeat'
