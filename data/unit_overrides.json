@@ -63,8 +63,8 @@
     "defense": 2,
     "knowledge": 2
   },
-  "Hero_shadow_mage": {
-    "hero_class": "mage"
+  "Hero_shadow_mage":{
+
   },
   "Hero_elf_mage": {
     "hero_class": "mage",

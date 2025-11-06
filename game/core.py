@@ -405,6 +405,8 @@ class Game:
             # Добавляем класс героя
             hero1_params['hero_class'] = self.player1_hero_class
             self.hero1 = Hero(GRID_WIDTH-1, 0, p1_race, spells=hero1_spells, **hero1_params)
+            # Сохраняем реальную расу героя для правильного расчета морали
+            self.hero1.unit_race = p1_race
             self.hero1.used_spell_this_round = False
             self.hero1.game_ref = self
             # Применяем оверрайды к герою расы 1
@@ -415,6 +417,8 @@ class Game:
             army = []
             for i, unit_cls in enumerate(races[p1_race]):
                 unit = unit_cls(GRID_WIDTH-2, 1 + i*2, p1_race)
+                # Сохраняем реальную расу юнита для правильного расчета морали
+                unit.unit_race = p1_race
                 unit.game_ref = self
                 # Устанавливаем размер отряда (это также инициализирует unit_hp)
                 self._set_default_squad_count(unit)
@@ -452,6 +456,8 @@ class Game:
             # Добавляем класс героя
             hero2_params['hero_class'] = self.player2_hero_class
             self.hero2 = Hero(0, 0, p2_race, spells=hero2_spells, **hero2_params)
+            # Сохраняем реальную расу героя для правильного расчета морали
+            self.hero2.unit_race = p2_race
             self.hero2.used_spell_this_round = False
             self.hero2.game_ref = self
             # Применяем оверрайды к герою расы 2
@@ -462,6 +468,8 @@ class Game:
             army = []
             for i, unit_cls in enumerate(races[p2_race]):
                 unit = unit_cls(1, 1 + i*2, p2_race)
+                # Сохраняем реальную расу юнита для правильного расчета морали
+                unit.unit_race = p2_race
                 unit.game_ref = self
                 # Устанавливаем размер отряда (это также инициализирует unit_hp)
                 self._set_default_squad_count(unit)
@@ -581,55 +589,55 @@ class Game:
             
             # Кнопка ожидания (вторая слева) - песочные часы
             if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                pygame.draw.rect(self.screen, (220, 200, 120), self.defend_button_rect, border_radius=8)
+                pygame.draw.rect(self.screen, (220, 200, 120), self.skip_button_rect, border_radius=8)
                 # Песочные часы
                 # Верхняя часть
                 pygame.draw.polygon(self.screen, (240, 220, 140), [
-                    (self.defend_button_rect.x+14, self.defend_button_rect.y+8),
-                    (self.defend_button_rect.x+34, self.defend_button_rect.y+8),
-                    (self.defend_button_rect.x+24, self.defend_button_rect.y+20)
+                    (self.skip_button_rect.x+14, self.skip_button_rect.y+8),
+                    (self.skip_button_rect.x+34, self.skip_button_rect.y+8),
+                    (self.skip_button_rect.x+24, self.skip_button_rect.y+20)
                 ])
                 # Нижняя часть
                 pygame.draw.polygon(self.screen, (240, 220, 140), [
-                    (self.defend_button_rect.x+24, self.defend_button_rect.y+28),
-                    (self.defend_button_rect.x+14, self.defend_button_rect.y+40),
-                    (self.defend_button_rect.x+34, self.defend_button_rect.y+40)
+                    (self.skip_button_rect.x+24, self.skip_button_rect.y+28),
+                    (self.skip_button_rect.x+14, self.skip_button_rect.y+40),
+                    (self.skip_button_rect.x+34, self.skip_button_rect.y+40)
                 ])
                 # Песок
-                pygame.draw.circle(self.screen, (200, 180, 100), (self.defend_button_rect.x+24, self.defend_button_rect.y+35), 6)
+                pygame.draw.circle(self.screen, (200, 180, 100), (self.skip_button_rect.x+24, self.skip_button_rect.y+35), 6)
             else:
-                pygame.draw.rect(self.screen, (80, 80, 80), self.defend_button_rect, border_radius=8)
+                pygame.draw.rect(self.screen, (80, 80, 80), self.skip_button_rect, border_radius=8)
                 pygame.draw.polygon(self.screen, (120, 120, 120), [
-                    (self.defend_button_rect.x+14, self.defend_button_rect.y+8),
-                    (self.defend_button_rect.x+34, self.defend_button_rect.y+8),
-                    (self.defend_button_rect.x+24, self.defend_button_rect.y+20)
+                    (self.skip_button_rect.x+14, self.skip_button_rect.y+8),
+                    (self.skip_button_rect.x+34, self.skip_button_rect.y+8),
+                    (self.skip_button_rect.x+24, self.skip_button_rect.y+20)
                 ])
                 pygame.draw.polygon(self.screen, (120, 120, 120), [
-                    (self.defend_button_rect.x+24, self.defend_button_rect.y+28),
-                    (self.defend_button_rect.x+14, self.defend_button_rect.y+40),
-                    (self.defend_button_rect.x+34, self.defend_button_rect.y+40)
+                    (self.skip_button_rect.x+24, self.skip_button_rect.y+28),
+                    (self.skip_button_rect.x+14, self.skip_button_rect.y+40),
+                    (self.skip_button_rect.x+34, self.skip_button_rect.y+40)
                 ])
             
             # Кнопка защиты (третья) - красивый щит
             if self.selected_unit and not isinstance(self.selected_unit, Hero):
-                pygame.draw.rect(self.screen, (100, 150, 200), self.skip_button_rect, border_radius=8)
+                pygame.draw.rect(self.screen, (100, 150, 200), self.defend_button_rect, border_radius=8)
                 # Щит
-                pygame.draw.ellipse(self.screen, (140, 180, 240), (self.skip_button_rect.x+8, self.skip_button_rect.y+8, 32, 20))
+                pygame.draw.ellipse(self.screen, (140, 180, 240), (self.defend_button_rect.x+8, self.defend_button_rect.y+8, 32, 20))
                 pygame.draw.polygon(self.screen, (140, 180, 240), [
-                    (self.skip_button_rect.x+10, self.skip_button_rect.y+18),
-                    (self.skip_button_rect.x+38, self.skip_button_rect.y+18),
-                    (self.skip_button_rect.x+24, self.skip_button_rect.y+38)
+                    (self.defend_button_rect.x+10, self.defend_button_rect.y+18),
+                    (self.defend_button_rect.x+38, self.defend_button_rect.y+18),
+                    (self.defend_button_rect.x+24, self.defend_button_rect.y+38)
                 ])
                 # Крест на щите
-                pygame.draw.line(self.screen, (180, 220, 255), (self.skip_button_rect.x+24, self.skip_button_rect.y+14), (self.skip_button_rect.x+24, self.skip_button_rect.y+28), 2)
-                pygame.draw.line(self.screen, (180, 220, 255), (self.skip_button_rect.x+18, self.skip_button_rect.y+21), (self.skip_button_rect.x+30, self.skip_button_rect.y+21), 2)
+                pygame.draw.line(self.screen, (180, 220, 255), (self.defend_button_rect.x+24, self.defend_button_rect.y+14), (self.defend_button_rect.x+24, self.defend_button_rect.y+28), 2)
+                pygame.draw.line(self.screen, (180, 220, 255), (self.defend_button_rect.x+18, self.defend_button_rect.y+21), (self.defend_button_rect.x+30, self.defend_button_rect.y+21), 2)
             else:
-                pygame.draw.rect(self.screen, (80, 80, 80), self.skip_button_rect, border_radius=8)
-                pygame.draw.ellipse(self.screen, (120, 120, 120), (self.skip_button_rect.x+8, self.skip_button_rect.y+8, 32, 20))
+                pygame.draw.rect(self.screen, (80, 80, 80), self.defend_button_rect, border_radius=8)
+                pygame.draw.ellipse(self.screen, (120, 120, 120), (self.defend_button_rect.x+8, self.defend_button_rect.y+8, 32, 20))
                 pygame.draw.polygon(self.screen, (120, 120, 120), [
-                    (self.skip_button_rect.x+10, self.skip_button_rect.y+18),
-                    (self.skip_button_rect.x+38, self.skip_button_rect.y+18),
-                    (self.skip_button_rect.x+24, self.skip_button_rect.y+38)
+                    (self.defend_button_rect.x+10, self.defend_button_rect.y+18),
+                    (self.defend_button_rect.x+38, self.defend_button_rect.y+18),
+                    (self.defend_button_rect.x+24, self.defend_button_rect.y+38)
                 ])
             mouse = pygame.mouse.get_pos()
             if self.book_button_rect.collidepoint(mouse):
@@ -3032,8 +3040,16 @@ class Game:
                         unit_race = get_unit_race(unit)
                         if unit_race == 'undead':
                             continue  # Не применяем изменение боевого духа для нежити
-                    # Применяем значение из JSON напрямую
-                    setattr(unit, key, data[key])
+                        # Ограничиваем боевой дух до -6/+6
+                        value = max(-6, min(6, int(data[key])))
+                        setattr(unit, key, value)
+                    elif key == 'luck':
+                        # Ограничиваем удачу до -6/+6
+                        value = max(-6, min(6, int(data[key])))
+                        setattr(unit, key, value)
+                    else:
+                        # Применяем значение из JSON напрямую
+                        setattr(unit, key, data[key])
                     applied_params.append(key)
                 except Exception as e:
                     # Логируем ошибки применения параметров для отладки
@@ -4100,7 +4116,46 @@ class Game:
                         elif len(parts) >= 2:
                             # Hero_class - берем вторую часть как класс
                             hero_class = parts[1]
-                    unit = Hero(gx, gy, self.creative_selected_team, hero_class=hero_class)
+                    
+                    # Создаем заклинания для героя (как в обычной игре)
+                    def create_spells_for_race(race):
+                        """Создает список заклинаний для расы и применяет оверрайды"""
+                        spell_classes = {
+                            'human': [BlessSpell, DispelSpell, HasteSpell, HealSpell, ResurrectionSpell, PrayerSpell, BlindnessSpell],
+                            'undead': [CurseSpell, RaiseDeadSpell, UndeadHealSpell, WeaknessSpell],
+                            'elf': [SlowSpell, StoneSkinSpell, IceShieldSpell, LightningSpell, CounterstrikeSpell, ChainLightningSpell, AccuracySpell],
+                            'demon': [FireArrowSpell, FireballSpell, FireShieldSpell],
+                            'dwarf': [RuneShieldSpell, RuneHasteSpell, EarthSpikesSpell, RuneWallSpell, RuneMagicSpell, RuneBerserkerSpell, QuicksandSpell, EarthShockSpell],
+                            'shadow': [ForgetSpell, FrostRingSpell]
+                        }
+                        spells = []
+                        for spell_class in spell_classes.get(race, []):
+                            spell = spell_class()
+                            # ПРИМЕНЯЕМ ОВЕРРАЙДЫ СРАЗУ ПОСЛЕ СОЗДАНИЯ ЗАКЛИНАНИЯ
+                            self._apply_spell_overrides_to_instance(spell)
+                            spells.append(spell)
+                        return spells
+                    
+                    # Создаем параметры героя по умолчанию (как в обычной игре)
+                    race = self.creative_selected_team
+                    if race == 'human':
+                        hero_params = dict(attack=3, defense=3, knowledge=2, spell_power=1)
+                    elif race == 'elf':
+                        hero_params = dict(attack=2, defense=2, knowledge=2, spell_power=2)
+                    elif race == 'undead':
+                        hero_params = dict(attack=1, defense=1, knowledge=3, spell_power=3)
+                    elif race == 'demon':
+                        hero_params = dict(attack=2, defense=1, knowledge=2, spell_power=3)
+                    elif race == 'dwarf':
+                        hero_params = dict(attack=3, defense=4, knowledge=2, spell_power=1)
+                    elif race == 'shadow':
+                        hero_params = dict(attack=2, defense=2, knowledge=3, spell_power=2)
+                    else:
+                        hero_params = dict(attack=0, defense=0, knowledge=3, spell_power=1)
+                    
+                    hero_params['hero_class'] = hero_class
+                    hero_spells = create_spells_for_race(race)
+                    unit = Hero(gx, gy, race, spells=hero_spells, **hero_params)
                 else:
                     unit = ctor(gx, gy, self.creative_selected_team)
                 # Если выбрана первая команда, можно добавлять любых юнитов (независимо от расы героя)
@@ -4111,11 +4166,36 @@ class Game:
                 else:
                     # Вторая команда - используем выбранную расу
                     unit.team = 'player2'
-                self._apply_unit_overrides_to_instance(unit)
-                # Устанавливаем размер отряда для юнитов
-                self._set_default_squad_count(unit)
-                if hasattr(unit, 'game_ref'):
+                
+                # Сохраняем реальную расу юнита для правильного расчета морали (до изменения team)
+                if isinstance(unit, Hero):
+                    unit.unit_race = race  # race определяется выше при создании героя
+                else:
+                    unit.unit_race = self.creative_selected_team  # Реальная раса из выбранной команды
+                
+                # Для героев: применяем оверрайды и устанавливаем game_ref
+                if isinstance(unit, Hero):
+                    unit.used_spell_this_round = False
                     unit.game_ref = self
+                    try:
+                        self._apply_unit_overrides_to_instance(unit)
+                    except Exception:
+                        pass
+                else:
+                    # Для обычных юнитов: применяем те же настройки что и в обычной игре
+                    unit.game_ref = self
+                    # Устанавливаем размер отряда (это также инициализирует unit_hp)
+                    self._set_default_squad_count(unit)
+                    # Убеждаемся, что unit_hp инициализирован даже для одиночных юнитов
+                    if not hasattr(unit, 'unit_hp') or unit.unit_hp is None:
+                        unit.unit_hp = unit.max_health
+                        unit.current_unit_hp = unit.health
+                        unit.base_squad_count = getattr(unit, 'squad_count', 1)
+                    try:
+                        self._apply_unit_overrides_to_instance(unit)
+                    except Exception:
+                        pass
+                
                 self.units.append(unit)
 
     def start_simulation_from_creative(self):
@@ -4130,12 +4210,20 @@ class Game:
         self._apply_audio_volumes()
         # Найти героев (если есть)
         heroes = [u for u in self.units if isinstance(u, Hero)]
-        self.hero1 = next((h for h in heroes if h.team in ['human','elf']), heroes[0] if heroes else None)
+        self.hero1 = next((h for h in heroes if h.team in ['human','elf', 'player1']), heroes[0] if heroes else None)
         self.hero2 = next((h for h in heroes if h is not self.hero1), None)
         if hasattr(self, 'hero1') and self.hero1:
             self.hero1.game_ref = self
+            # Применяем бонусы героя к армии (как в обычной игре)
+            team1_units = [u for u in self.units if not isinstance(u, Hero) and u.team == self.hero1.team]
+            if team1_units:
+                self.hero1.apply_bonuses_to_army(team1_units)
         if hasattr(self, 'hero2') and self.hero2:
             self.hero2.game_ref = self
+            # Применяем бонусы героя к армии (как в обычной игре)
+            team2_units = [u for u in self.units if not isinstance(u, Hero) and u.team == self.hero2.team]
+            if team2_units:
+                self.hero2.apply_bonuses_to_army(team2_units)
         # Инициативная очередь
         self.prepare_initiative_queue()
 
@@ -4397,7 +4485,11 @@ class Game:
                             p = self.num_input.get('param')
                             key = self._unit_editor_selected_unit
                             self.unit_overrides.setdefault(key, {})
-                            self.unit_overrides[key][p] = int(self.num_input.get('value') or 0)
+                            value = int(self.num_input.get('value') or 0)
+                            # Ограничиваем luck и combat_spirit до -6/+6
+                            if p == 'luck' or p == 'combat_spirit':
+                                value = max(-6, min(6, value))
+                            self.unit_overrides[key][p] = value
                             self._save_unit_overrides()
                             self._apply_overrides_to_all_units()
                         except Exception:
@@ -5211,8 +5303,10 @@ class Game:
                 if unit_race == 'undead':
                     unit.combat_spirit = 0
                 else:
-                    unit.combat_spirit = hero.combat_spirit
-                unit.luck = hero.luck
+                    # Ограничиваем боевой дух до -6/+6
+                    unit.combat_spirit = max(-6, min(6, hero.combat_spirit))
+                # Ограничиваем удачу до -6/+6
+                unit.luck = max(-6, min(6, hero.luck))
         
         # Обновляем мораль для всех юнитов
         for unit in self.units:
@@ -5236,12 +5330,28 @@ class Game:
         for unit in self.units:
             if hasattr(unit, 'reset_turn'):
                 unit.reset_turn()
+        
+        # КРИТИЧНО: Создаем очередь из ВСЕХ живых юнитов (кроме героев)
+        # Включаем всех юнитов независимо от has_waited, состояния здоровья или других флагов
+        # Они все должны быть в очереди нового раунда
+        # Фильтруем только по типу (не герои) и наличию атрибута initiative
+        # ВАЖНО: Проверяем что юнит действительно в self.units и не удален
+        all_units = []
+        for u in list(self.units):  # Используем list() для копии чтобы избежать проблем при изменении
+            if not isinstance(u, Hero) and hasattr(u, 'initiative'):
+                # Включаем всех не-героев с инициативой, независимо от любых других флагов
+                # Проверяем что юнит все еще в self.units (может быть удален в процессе)
+                if u in self.units:
+                    all_units.append(u)
+        
         # Сортируем по инициативе (выше — раньше). При равенстве — стабильно.
-        self.turn_queue = sorted([u for u in self.units if not isinstance(u, Hero)], key=lambda u: getattr(u, 'initiative', 0), reverse=True)
+        self.turn_queue = sorted(all_units, key=lambda u: getattr(u, 'initiative', 0), reverse=True)
+        
         # Вставляем героев в начало своих команд, чтобы они могли кастовать первыми
         heroes = [u for u in self.units if isinstance(u, Hero)]
         for hero in heroes:
             self.turn_queue.insert(0, hero)
+        
         # Добавляем разделитель конца раунда
         if self.turn_queue:
             self.turn_queue.append(self._round_delimiter)
@@ -5282,6 +5392,7 @@ class Game:
                     animate_combat_spirit_bird(self.screen, unit_pos, redraw_callback=self.draw)
                     self.add_event(f"Боевой дух! {finished.unit_type.capitalize()} получает дополнительный ход!")
                     # Вставляем юнита в начало очереди для немедленного дополнительного хода
+                    # (он уже был удален из очереди в начале функции через pop(0))
                     self.turn_queue.insert(0, finished)
                     # Сбрасываем флаги действий для дополнительного хода
                     finished.has_moved = False
@@ -5290,6 +5401,8 @@ class Game:
                     # Сразу делаем юнита активным для дополнительного хода
                     self.selected_unit = finished
                     # Прерываем выполнение next_turn, чтобы юнит сразу начал дополнительный ход
+                    # НЕ добавляем юнита в конец очереди, так как он уже в начале для дополнительного хода
+                    # ВАЖНО: return предотвращает добавление юнита в конец очереди в блоке else ниже
                     return
         
         # Обрабатываем фантомов - уменьшаем время существования и удаляем при истечении
@@ -5315,16 +5428,31 @@ class Game:
             if hasattr(self, 'anim_logger'):
                 self.anim_logger.log_round_start(self.round_number)
             
+            # КРИТИЧНО: Сначала сбрасываем флаги ожидания для всех юнитов
             for unit in self.units:
                 # сбрасываем ожидание в новом раунде
                 if hasattr(unit, 'has_waited'):
                     unit.has_waited = False
+                # Удаляем сохраненные ОД если они остались
+                if hasattr(unit, '_saved_move_points'):
+                    delattr(unit, '_saved_move_points')
+            
+            # КРИТИЧНО: Пересоздаем очередь на основе инициативы
+            # ВАЖНО: prepare_initiative_queue() включает ВСЕХ живых юнитов независимо от предыдущего состояния
+            # Юниты которые ожидали переносятся в конец раунда, ходят там,
+            # и в следующем раунде независимо вставляются в очередь в соответствии с инициативой
+            self.prepare_initiative_queue()
+            
+            for unit in self.units:
                 # сбрасываем контратаку в новом раунде
                 if hasattr(unit, 'has_counterattacked'):
                     unit.has_counterattacked = False
                 # сбрасываем флаг использования боевого духа в новом раунде
                 if hasattr(unit, 'used_combat_spirit_this_round'):
                     unit.used_combat_spirit_this_round = False
+                # сбрасываем флаг использования заклинания для героев в новом раунде
+                if isinstance(unit, Hero):
+                    unit.used_spell_this_round = False
                 
                 # Сброс флага защиты (бонус действует только 1 раунд)
                 if not isinstance(unit, Hero) and getattr(unit, '_defend_this_round', False):
@@ -5385,19 +5513,30 @@ class Game:
                             if unit.x == quicksand['x'] and unit.y == quicksand['y']:
                                 unit.stuck_in_quicksand = False
                     self.quicksands.remove(quicksand)
-            # Разделитель отправляем в конец очереди текущего раунда
-            self.turn_queue.append(self._round_delimiter)
+            # Разделитель уже добавлен в prepare_initiative_queue(), не нужно добавлять снова
         else:
-            # Обычный юнит: если жив — в начало следующего раунда (после разделителя)
-            if finished in self.units:
-                try:
-                    delim_index = self.turn_queue.index(self._round_delimiter)
-                except ValueError:
-                    # На всякий случай — если разделитель потерялся
-                    self.turn_queue.append(self._round_delimiter)
-                    delim_index = len(self.turn_queue) - 1
-                # Добавляем в конец очереди (это область после разделителя)
-            self.turn_queue.append(finished)
+            # Обычный юнит: если жив — добавляем в конец очереди для следующего раунда
+            # КРИТИЧНО: Если юнит ожидал - он уже ходил в конце текущего раунда
+            # После его хода он НЕ добавляется обратно в очередь для следующего раунда
+            # В следующем раунде он будет добавлен через prepare_initiative_queue() по инициативе
+            # ВАЖНО: has_waited проверяем только если он еще True (т.е. в текущем раунде)
+            if finished in self.units and finished not in self.turn_queue:
+                # Проверяем, ожидал ли юнит в текущем раунде
+                # Если has_waited уже False (новый раунд начался), то добавляем юнита
+                if hasattr(finished, 'has_waited') and finished.has_waited:
+                    # Юнит ожидал и уже ходил в конце раунда - НЕ добавляем его обратно в очередь
+                    # В следующем раунде prepare_initiative_queue() добавит его по инициативе
+                    pass
+                else:
+                    # Юнит не ожидал ИЛИ новый раунд уже начался (has_waited сброшен) - добавляем в очередь
+                    try:
+                        delim_index = self.turn_queue.index(self._round_delimiter)
+                    except ValueError:
+                        # На всякий случай — если разделитель потерялся
+                        self.turn_queue.append(self._round_delimiter)
+                        delim_index = len(self.turn_queue) - 1
+                    # Добавляем в конец очереди (это область после разделителя, для следующего раунда)
+                    self.turn_queue.append(finished)
         # Назначаем активного юнита (пропуская разделитель)
         while self.turn_queue and self.turn_queue[0] is self._round_delimiter:
             # если разделитель оказался в начале — сдвигаем и начинаем новый раунд
@@ -5408,6 +5547,7 @@ class Game:
             if hasattr(self, 'anim_logger'):
                 self.anim_logger.log_round_start(self.round_number)
             
+            # КРИТИЧНО: Сначала сбрасываем флаги ожидания для всех юнитов
             for unit in self.units:
                 if hasattr(unit, 'has_waited'):
                     unit.has_waited = False
@@ -5419,6 +5559,9 @@ class Game:
                         delattr(unit, '_saved_move_points')
                     # Даем полные ОД всем юнитам в новом раунде
                     unit.move_points_left = unit.speed
+                # сбрасываем флаг использования заклинания для героев в новом раунде
+                if isinstance(unit, Hero):
+                    unit.used_spell_this_round = False
                 
                 # Сброс флага защиты (бонус действует только 1 раунд)
                 if not isinstance(unit, Hero) and getattr(unit, '_defend_this_round', False):
@@ -5453,8 +5596,85 @@ class Game:
                     if hasattr(self, 'anim_logger'):
                         details = f"{unit.unit_type}: Физ.защ {old_phys}->{getattr(unit, 'phys_defense', 0)}, Маг.защ {old_mag}->{getattr(unit, 'magic_defense', 0)}, Сопр.маг {old_res}->{getattr(unit, 'magic_resist', 0)}"
                         self.anim_logger.log("DEFENSE_RESET", details)
+            
+            # КРИТИЧНО: Пересоздаем очередь на основе инициативы для нового раунда
+            # ВАЖНО: prepare_initiative_queue() включает ВСЕХ живых юнитов независимо от предыдущего состояния
+            # Это гарантирует, что юниты, которые ожидали, будут добавлены в очередь нового раунда
+            self.prepare_initiative_queue()
         if self.turn_queue:
+            # КРИТИЧНО: Проверяем всю очередь на наличие неправильных команд берсерка ПЕРЕД установкой selected_unit
+            for unit in self.turn_queue:
+                if (unit != self._round_delimiter and
+                    not isinstance(unit, Hero) and
+                    hasattr(unit, 'team') and
+                    isinstance(unit.team, str) and
+                    unit.team.startswith('berserker_') and
+                    not (hasattr(unit, 'rune_berserker_active') and 
+                         getattr(unit, 'rune_berserker_active', False))):
+                    # Юнит имеет команду берсерка, но не является берсерком - исправляем
+                    from .units import get_unit_race
+                    if hasattr(unit, 'rune_berserker_original_team'):
+                        unit.team = unit.rune_berserker_original_team
+                    else:
+                        race = get_unit_race(unit)
+                        if race:
+                            for other_unit in self.units:
+                                if (other_unit != unit and
+                                    not isinstance(other_unit, Hero) and
+                                    not (hasattr(other_unit, 'team') and isinstance(other_unit.team, str) and other_unit.team.startswith('berserker_'))):
+                                    unit_race = get_unit_race(other_unit)
+                                    if unit_race == race:
+                                        unit.team = other_unit.team
+                                        break
+            
             self.selected_unit = self.turn_queue[0]
+            # КРИТИЧНО: Если следующий юнит получил ЛЮБЫЕ флаги связанные с берсерком - удаляем их нахуй
+            if (self.selected_unit and 
+                not isinstance(self.selected_unit, Hero)):
+                # Проверяем все возможные флаги берсерка
+                berserker_flags_found = False
+                
+                # Проверяем команду берсерка
+                if (hasattr(self.selected_unit, 'team') and
+                    isinstance(self.selected_unit.team, str) and
+                    self.selected_unit.team.startswith('berserker_') and
+                    not (hasattr(self.selected_unit, 'rune_berserker_active') and 
+                         getattr(self.selected_unit, 'rune_berserker_active', False))):
+                    berserker_flags_found = True
+                    # Восстанавливаем оригинальную команду
+                    if hasattr(self.selected_unit, 'rune_berserker_original_team'):
+                        self.selected_unit.team = self.selected_unit.rune_berserker_original_team
+                    else:
+                        # Ищем других юнитов той же расы
+                        from .units import get_unit_race
+                        race = get_unit_race(self.selected_unit)
+                        if race:
+                            for unit in self.units:
+                                if (unit != self.selected_unit and
+                                    not isinstance(unit, Hero) and
+                                    not (hasattr(unit, 'team') and isinstance(unit.team, str) and unit.team.startswith('berserker_'))):
+                                    unit_race = get_unit_race(unit)
+                                    if unit_race == race:
+                                        self.selected_unit.team = unit.team
+                                        break
+                
+                # Удаляем все флаги берсерка если они есть но берсерк не активен
+                if hasattr(self.selected_unit, 'rune_berserker_active'):
+                    if not getattr(self.selected_unit, 'rune_berserker_active', False):
+                        delattr(self.selected_unit, 'rune_berserker_active')
+                        berserker_flags_found = True
+                if hasattr(self.selected_unit, 'rune_berserker_turns'):
+                    if not (hasattr(self.selected_unit, 'rune_berserker_active') and getattr(self.selected_unit, 'rune_berserker_active', False)):
+                        delattr(self.selected_unit, 'rune_berserker_turns')
+                        berserker_flags_found = True
+                if hasattr(self.selected_unit, 'rune_berserker_original_team'):
+                    if not (hasattr(self.selected_unit, 'rune_berserker_active') and getattr(self.selected_unit, 'rune_berserker_active', False)):
+                        delattr(self.selected_unit, 'rune_berserker_original_team')
+                        berserker_flags_found = True
+                
+                if berserker_flags_found:
+                    self.add_event(f"ИСПРАВЛЕНО: {self.selected_unit.unit_type.capitalize()} получил флаги берсерка по ошибке - удалены")
+            
             # КРИТИЧНО: Проверяем, что следующий юнит НЕ является берсерком (если он не должен быть)
             # Если это не берсерк, но он имеет флаги берсерка - это ошибка, сбрасываем их
             if (self.selected_unit and 
@@ -5482,35 +5702,47 @@ class Game:
                             # Если оригинальная команда не сохранена, пытаемся определить её по умолчанию
                             # Это не должно произойти, но на всякий случай
                             if hasattr(self.selected_unit, 'game_ref') and self.selected_unit.game_ref:
-                                # Пытаемся определить команду по другим юнитам той же расы
-                                for unit in self.units:
-                                    if (unit.unit_type == self.selected_unit.unit_type and 
-                                        unit != self.selected_unit and
+                                # Пытаемся определить команду по другим юнитам той же расы или используем unit_race
+                                race = get_unit_race(self.selected_unit)
+                                if race:
+                                    # Ищем других юнитов той же расы в той же команде (если это не креативный режим)
+                                    for unit in self.units:
+                                        if (unit != self.selected_unit and
                                         not isinstance(unit, Hero) and
-                                        not (hasattr(unit, 'team') and isinstance(unit.team, str) and unit.team.startswith('berserker_'))):
-                                        self.selected_unit.team = unit.team
-                                        break
+                                            not (hasattr(unit, 'team') and isinstance(unit.team, str) and unit.team.startswith('berserker_'))):
+                                            unit_race = get_unit_race(unit)
+                                            if unit_race == race:
+                                                self.selected_unit.team = unit.team
+                                                break
+                                # Если не нашли, используем сохраненную расу для определения команды
+                                if (hasattr(self.selected_unit, 'team') and 
+                                    isinstance(self.selected_unit.team, str) and 
+                                    self.selected_unit.team.startswith('berserker_')):
+                                    # Все еще не восстановили - используем player1/player2 по умолчанию
+                                    if hasattr(self.selected_unit, 'unit_race'):
+                                        # Для креативного режима используем player1/player2
+                                        if self.selected_unit.unit_race:
+                                            # Пытаемся найти команду по другим юнитам
+                                            for unit in self.units:
+                                                if (unit != self.selected_unit and 
+                                                    unit.team in ['player1', 'player2'] and
+                                                    not (hasattr(unit, 'team') and isinstance(unit.team, str) and unit.team.startswith('berserker_'))):
+                                                    self.selected_unit.team = unit.team
+                                                    break
             # Сначала сбрасываем флаги действий в НАЧАЛЕ хода юнита
             if hasattr(self.selected_unit, 'reset_turn'):
                 self.selected_unit.reset_turn()
-            # ПОСЛЕ reset_turn восстанавливаем сохраненные ОД если юнит ожидал (только для не-героев)
+            
+            # КРИТИЧНО: Восстанавливаем сохраненные ОД если юнит ожидал (только для не-героев)
+            # Это должно быть ПОСЛЕ reset_turn, но ПЕРЕД проверкой огненной стены
             if not isinstance(self.selected_unit, Hero):
                 if hasattr(self.selected_unit, '_saved_move_points'):
-                    # Юнит ожидал - присваиваем конкретно те ОД, которые были сохранены при нажатии ожидания
+                    # Юнит ожидал - восстанавливаем те ОД, которые были сохранены при нажатии ожидания
                     saved_points = self.selected_unit._saved_move_points
-                    self.selected_unit.move_points_left = saved_points  # Конкретное присваивание
+                    self.selected_unit.move_points_left = saved_points
+                    # Удаляем сохраненные ОД после восстановления
                     delattr(self.selected_unit, '_saved_move_points')
-                    # Сбрасываем флаг ожидания после восстановления ОД
-                    if hasattr(self.selected_unit, 'has_waited'):
-                        self.selected_unit.has_waited = False
-                elif hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
-                    # Юнит ожидал, но сохраненные ОД уже были использованы - не восстанавливаем полные ОД
-                    # Оставляем текущие ОД (которые могли быть потрачены)
-                    if not hasattr(self.selected_unit, 'move_points_left') or self.selected_unit.move_points_left <= 0:
-                        # Если ОД уже полностью потрачены, оставляем 0
-                        self.selected_unit.move_points_left = 0
-                    # Сбрасываем флаг ожидания
-                    self.selected_unit.has_waited = False
+                    # ВАЖНО: Флаг has_waited НЕ сбрасываем здесь - он сбрасывается только в начале нового раунда
             # Проверяем огненную стену в начале хода юнита (не раунда)
             if hasattr(self, 'barriers') and not isinstance(self.selected_unit, Hero):
                 for barrier in self.barriers:
@@ -5669,12 +5901,113 @@ class Game:
                 self.add_event(f"{self.selected_unit.unit_type.capitalize()} (берсерк) завершил ход")
                 # Сохраняем ссылку на текущего берсерка для проверки
                 berserker_unit = self.selected_unit
+                # Сохраняем команду берсерка для проверки
+                berserker_team = berserker_unit.team if hasattr(berserker_unit, 'team') else None
+                # КРИТИЧНО: Сохраняем ссылку на следующий юнит ДО next_turn(), чтобы проверить что его команда не изменилась
+                next_unit_index = 0
+                if self.turn_queue and len(self.turn_queue) > 1:
+                    # Находим индекс берсерка в очереди
+                    if berserker_unit in self.turn_queue:
+                        berserker_index = self.turn_queue.index(berserker_unit)
+                        if berserker_index < len(self.turn_queue) - 1:
+                            # Следующий юнит - это следующий после берсерка (или разделитель раунда)
+                            next_index = berserker_index + 1
+                            if next_index < len(self.turn_queue):
+                                next_unit = self.turn_queue[next_index]
+                                # Если следующий - не разделитель, сохраняем его команду для проверки
+                                if next_unit != self._round_delimiter and hasattr(next_unit, 'team'):
+                                    next_unit_original_team = next_unit.team
+                                    # Проверяем что команда не начинается с berserker_
+                                    if (isinstance(next_unit_original_team, str) and 
+                                        next_unit_original_team.startswith('berserker_') and
+                                        not (hasattr(next_unit, 'rune_berserker_active') and 
+                                             getattr(next_unit, 'rune_berserker_active', False))):
+                                        # Ошибка: следующий юнит уже имеет команду берсерка - исправляем
+                                        if hasattr(next_unit, 'rune_berserker_original_team'):
+                                            next_unit.team = next_unit.rune_berserker_original_team
+                                        else:
+                                            # Ищем команду по другим юнитам
+                                            from .units import get_unit_race
+                                            race = get_unit_race(next_unit)
+                                            if race:
+                                                for unit in self.units:
+                                                    if (unit != next_unit and
+                                                        unit != berserker_unit and
+                                                        not isinstance(unit, Hero) and
+                                                        not (hasattr(unit, 'team') and isinstance(unit.team, str) and unit.team.startswith('berserker_'))):
+                                                        unit_race = get_unit_race(unit)
+                                                        if unit_race == race:
+                                                            next_unit.team = unit.team
+                                                            break
+                                        self.add_event(f"ИСПРАВЛЕНО: {next_unit.unit_type.capitalize()} имел неправильную команду берсерка")
                 # Сбрасываем флаги движения перед переходом к следующему юниту
                 if hasattr(berserker_unit, 'has_moved'):
                     berserker_unit.has_moved = True  # Берсерк завершил движение
                 if hasattr(berserker_unit, 'has_attacked'):
                     berserker_unit.has_attacked = True  # Берсерк завершил атаку
                 self.next_turn()
+                # КРИТИЧНО: Если следующий юнит в очереди после берсерка получил ЛЮБЫЕ флаги связанные с берсерком - удаляем их нахуй
+                if (self.selected_unit and 
+                    self.selected_unit != berserker_unit):
+                    # Проверяем все возможные флаги берсерка
+                    berserker_flags_found = False
+                    
+                    # Проверяем команду берсерка
+                    if (hasattr(self.selected_unit, 'team') and
+                        isinstance(self.selected_unit.team, str) and
+                        self.selected_unit.team.startswith('berserker_') and
+                        not (hasattr(self.selected_unit, 'rune_berserker_active') and 
+                             getattr(self.selected_unit, 'rune_berserker_active', False))):
+                        berserker_flags_found = True
+                        # Восстанавливаем оригинальную команду
+                        if hasattr(self.selected_unit, 'rune_berserker_original_team'):
+                            self.selected_unit.team = self.selected_unit.rune_berserker_original_team
+                        else:
+                            # Ищем других юнитов той же расы для восстановления команды
+                            from .units import get_unit_race
+                            race = get_unit_race(self.selected_unit)
+                            if race:
+                                for unit in self.units:
+                                    if (unit != self.selected_unit and
+                                        unit != berserker_unit and
+                                        not isinstance(unit, Hero) and
+                                        not (hasattr(unit, 'team') and isinstance(unit.team, str) and unit.team.startswith('berserker_'))):
+                                        unit_race = get_unit_race(unit)
+                                        if unit_race == race:
+                                            self.selected_unit.team = unit.team
+                                            break
+                            # Если не нашли, используем unit_race для определения команды
+                            if (hasattr(self.selected_unit, 'team') and 
+                                isinstance(self.selected_unit.team, str) and
+                                self.selected_unit.team.startswith('berserker_')):
+                                if hasattr(self.selected_unit, 'unit_race') and self.selected_unit.unit_race:
+                                    # Ищем команду по другим юнитам
+                                    for unit in self.units:
+                                        if (unit != self.selected_unit and 
+                                            unit.team in ['player1', 'player2'] and
+                                            not (hasattr(unit, 'team') and isinstance(unit.team, str) and unit.team.startswith('berserker_'))):
+                                            self.selected_unit.team = unit.team
+                                            break
+                    
+                    # Удаляем все флаги берсерка если они есть
+                    if hasattr(self.selected_unit, 'rune_berserker_active'):
+                        if not getattr(self.selected_unit, 'rune_berserker_active', False):
+                            # Если флаг есть но не активен - это ошибка, удаляем
+                            delattr(self.selected_unit, 'rune_berserker_active')
+                            berserker_flags_found = True
+                    if hasattr(self.selected_unit, 'rune_berserker_turns'):
+                        if not (hasattr(self.selected_unit, 'rune_berserker_active') and getattr(self.selected_unit, 'rune_berserker_active', False)):
+                            # Если turns есть но берсерк не активен - это ошибка, удаляем
+                            delattr(self.selected_unit, 'rune_berserker_turns')
+                            berserker_flags_found = True
+                    if hasattr(self.selected_unit, 'rune_berserker_original_team'):
+                        if not (hasattr(self.selected_unit, 'rune_berserker_active') and getattr(self.selected_unit, 'rune_berserker_active', False)):
+                            # Если original_team есть но берсерк не активен - это ошибка, удаляем
+                            delattr(self.selected_unit, 'rune_berserker_original_team')
+                            berserker_flags_found = True
+                    
+                    if berserker_flags_found:
+                        self.add_event(f"ИСПРАВЛЕНО: {self.selected_unit.unit_type.capitalize()} получил флаги берсерка по ошибке - удалены")
                 # ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: Убеждаемся, что следующий юнит НЕ является берсерком
                 # Если следующий юнит - это тот же берсерк, это ошибка, пропускаем его
                 if (self.selected_unit and 
@@ -5746,7 +6079,11 @@ class Game:
             magic_damage = max(0, magic_damage)  # Магический урон может быть 0
             
             # Применяем удачу (шанс двойного урона = luck * 5%)
-            luck = getattr(attacker, 'luck', 0)
+            # ВАЖНО: Герои не могут использовать удачу
+            if isinstance(attacker, Hero):
+                luck = 0
+            else:
+                luck = getattr(attacker, 'luck', 0)
             if luck > 0:
                 import random
                 luck_chance = luck * 5  # Шанс в процентах
@@ -6147,13 +6484,29 @@ class Game:
         else:
             counter_damage = defender.get_current_attack()
         
+        # Применяем удачу к контратаке (шанс двойного урона = luck * 5%)
+        # ВАЖНО: Герои не могут использовать удачу
+        if isinstance(defender, Hero):
+            luck = 0
+        else:
+            luck = getattr(defender, 'luck', 0)
+        final_counter_damage = counter_damage
+        if luck > 0:
+            luck_chance = luck * 5  # Шанс в процентах
+            if random.randint(1, 100) <= luck_chance:
+                final_counter_damage = counter_damage * 2
+                self.add_event(f"Удача! {defender.unit_type.capitalize()} наносит двойной урон при контратаке!")
+                # Анимация подковы над защитником
+                defender_pos = (defender.x * CELL_SIZE + CELL_SIZE//2, defender.y * CELL_SIZE + CELL_SIZE//2)
+                animate_luck_horseshoe(self.screen, defender_pos, redraw_callback=self.draw)
+        
         # Передаем тип атаки защитника
         defender_attack_type = getattr(defender, 'attack_type', 'physical')
         
         # Сохраняем здоровье для вычисления урона
         health_before = attacker.health
         squad_count_before = getattr(attacker, 'squad_count', 1)
-        attacker_died = attacker.take_damage(counter_damage, attack_type=defender_attack_type)
+        attacker_died = attacker.take_damage(final_counter_damage, attack_type=defender_attack_type)
         actual_damage = health_before - attacker.health
         squad_count_after = getattr(attacker, 'squad_count', 1)
         units_lost = squad_count_before - squad_count_after
@@ -6838,14 +7191,41 @@ class Game:
         if self.spellbook_open and isinstance(self.selected_unit, Hero) and self.selected_unit.spells:
             return  # Блокируем все клики вне книги - нельзя взаимодействовать с игрой пока открыта книга
         
-        # Обработка кнопки "Пропустить" (ожидание)
+        # Обработка кнопки "Ожидание" (последняя справа - skip_button_rect)
         if self.skip_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
+            # КРИТИЧНО: Проверяем, не ожидал ли уже юнит в этом раунде
+            if hasattr(self.selected_unit, 'has_waited') and self.selected_unit.has_waited:
+                # Юнит уже ожидал в этом раунде, нельзя использовать кнопку снова
+                return
             if self.button_click_sound:
                 self.button_click_sound.play()
-            # Сохраняем текущие ОД для восстановления в следующем ходу
-            if hasattr(self.selected_unit, 'move_points_left'):
-                self.selected_unit._saved_move_points = self.selected_unit.move_points_left
-                self.selected_unit.has_waited = True
+            
+            # КРИТИЧНО: Сохраняем текущие ОД ДО любых изменений
+            current_od = getattr(self.selected_unit, 'move_points_left', self.selected_unit.speed)
+            self.selected_unit._saved_move_points = current_od
+            
+            # Устанавливаем флаг ожидания
+            self.selected_unit.has_waited = True
+            self.add_event(f"{self.selected_unit.unit_type.capitalize()} ожидает (ОД: {current_od})")
+            
+            # КРИТИЧНО: Сбрасываем флаги действий чтобы юнит мог ходить когда наступит его очередь в конце раунда
+            self.selected_unit.has_moved = False
+            self.selected_unit.has_attacked = False
+            
+            # Переносим юнит в конец текущего раунда (перед разделителем раунда)
+            # ВАЖНО: Удаляем юнита из текущей позиции в очереди
+            if self.selected_unit in self.turn_queue:
+                self.turn_queue.remove(self.selected_unit)
+            # Вставляем перед разделителем раунда (в конец текущего раунда)
+            if self._round_delimiter in self.turn_queue:
+                delimiter_index = self.turn_queue.index(self._round_delimiter)
+                # Вставляем перед разделителем
+                self.turn_queue.insert(delimiter_index, self.selected_unit)
+            else:
+                # Если разделителя нет, добавляем в конец
+                self.turn_queue.append(self.selected_unit)
+            
+            # Переходим к следующему ходу (юнит будет активен в конце раунда)
             self.next_turn()
             return
         
@@ -6853,9 +7233,22 @@ class Game:
         if self.defend_button_rect.collidepoint(pos) and self.selected_unit and not isinstance(self.selected_unit, Hero):
             if self.button_click_sound:
                 self.button_click_sound.play()
+            # КРИТИЧНО: Сначала ставим флаги, что юнит завершил ход (100% пропуск хода)
+            self.selected_unit.has_moved = True
+            self.selected_unit.has_attacked = True
+            self.selected_unit.move_points_left = 0
+            # Сохраняем оригинальные значения защиты (если еще не сохранены)
+            if not hasattr(self.selected_unit, '_original_phys_defense'):
+                self.selected_unit._original_phys_defense = self.selected_unit.phys_defense
+            if not hasattr(self.selected_unit, '_original_magic_defense'):
+                self.selected_unit._original_magic_defense = self.selected_unit.magic_defense
+            # Применяем +20% к физической и магической защите
+            self.selected_unit.phys_defense = int(self.selected_unit._original_phys_defense * 1.2)
+            self.selected_unit.magic_defense = int(self.selected_unit._original_magic_defense * 1.2)
             # Устанавливаем флаг защиты на этот раунд
             self.selected_unit._defend_this_round = True
-            # Защита также завершает ход
+            self.add_event(f"{self.selected_unit.unit_type.capitalize()} встал в защиту (+20% к защите)")
+            # Защита завершает ход в этом раунде - 100% пропуск
             self.next_turn()
             return
         
@@ -6865,6 +7258,10 @@ class Game:
             y = pos[1] // CELL_SIZE
             caster = self.selected_unit
             spell = caster.spells[caster.selected_spell]
+            # Проверка: герой не может кастовать, если уже использовал заклинание в этом раунде
+            if getattr(caster, 'used_spell_this_round', False):
+                caster.selected_spell = None
+                return
             # Проверка маны
             if caster.mana < spell.mana_cost:
                 return
@@ -7287,19 +7684,6 @@ class Game:
                     # Герой передает ход после использования заклинания
                     self.next_turn()
                     return
-                    
-                # Если это Снятие чар по вражеской цели
-                if target and (hasattr(spell, 'icon') and spell.icon == 'dispel') and caster.mana >= spell.mana_cost:
-                    self.add_event(f"Герой применил {spell.name} на {target.unit_type}")
-                    target_px = (target.x * CELL_SIZE + CELL_SIZE//2, target.y * CELL_SIZE + CELL_SIZE//2)
-                    animate_dispel_spell(self.screen, target_px, target_px, redraw_callback=self.draw)
-                    spell.apply(target, caster=caster)
-                    caster.mana = max(0, caster.mana - spell.mana_cost)
-                    caster.selected_spell = None
-                    caster.used_spell_this_round = True
-                    self.area_preview_dismiss = True
-                    self.next_turn()
-                    return
             # Если заклинание не может быть применено — ничего не делаем
             return
         
@@ -7359,6 +7743,24 @@ class Game:
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
                         
+                        # Проверяем удачу для дальнобойной атаки ДО выстрела
+                        # ВАЖНО: Герои не могут использовать удачу
+                        if isinstance(self.selected_unit, Hero):
+                            luck = 0
+                        else:
+                            luck = getattr(self.selected_unit, 'luck', 0)
+                        luck_triggered = False
+                        if luck > 0:
+                            luck_chance = luck * 5  # Шанс в процентах
+                            if random.randint(1, 100) <= luck_chance:
+                                luck_triggered = True
+                                self.add_event(f"Удача! {self.selected_unit.unit_type.capitalize()} наносит двойной урон!")
+                                # Анимация подковы над атакующим юнитом ПЕРЕД выстрелом
+                                attacker_pos = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                                animate_luck_horseshoe(self.screen, attacker_pos, redraw_callback=self.draw)
+                                # Небольшая задержка для анимации удачи
+                                pygame.time.delay(300)
+                        
                         # Проверяем, является ли атакующий героем
                         is_hero = isinstance(self.selected_unit, Hero)
                         hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
@@ -7439,11 +7841,19 @@ class Game:
                             if mixed_damage is not None:
                                 # Применяем физический и магический урон отдельно
                                 phys_dmg, magic_dmg = mixed_damage
+                                # Применяем удачу к смешанному урону (если сработала)
+                                if luck_triggered:
+                                    phys_dmg *= 2
+                                    magic_dmg *= 2
                                 unit_died = clicked_unit.take_damage(phys_dmg, attack_type='physical')
                                 if not unit_died and magic_dmg > 0:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             elif damage is not None:
-                                clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                                # Применяем удачу к дальнобойному урону (если сработала)
+                                final_damage = damage
+                                if luck_triggered:
+                                    final_damage = damage * 2
+                                clicked_unit.take_damage(final_damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                             
                             # Вычисляем нанесенный урон
                             actual_damage = health_before - clicked_unit.health
@@ -7501,7 +7911,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -7589,7 +8003,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -8194,6 +8612,24 @@ class Game:
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
                         
+                        # Проверяем удачу для дальнобойной атаки ДО выстрела
+                        # ВАЖНО: Герои не могут использовать удачу
+                        if isinstance(self.selected_unit, Hero):
+                            luck = 0
+                        else:
+                            luck = getattr(self.selected_unit, 'luck', 0)
+                        luck_triggered = False
+                        if luck > 0:
+                            luck_chance = luck * 5  # Шанс в процентах
+                            if random.randint(1, 100) <= luck_chance:
+                                luck_triggered = True
+                                self.add_event(f"Удача! {self.selected_unit.unit_type.capitalize()} наносит двойной урон!")
+                                # Анимация подковы над атакующим юнитом ПЕРЕД выстрелом
+                                attacker_pos = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                                animate_luck_horseshoe(self.screen, attacker_pos, redraw_callback=self.draw)
+                                # Небольшая задержка для анимации удачи
+                                pygame.time.delay(300)
+                        
                         # Проверяем, является ли атакующий героем
                         is_hero = isinstance(self.selected_unit, Hero)
                         hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
@@ -8274,11 +8710,19 @@ class Game:
                             if mixed_damage is not None:
                                 # Применяем физический и магический урон отдельно
                                 phys_dmg, magic_dmg = mixed_damage
+                                # Применяем удачу к смешанному урону (если сработала)
+                                if luck_triggered:
+                                    phys_dmg *= 2
+                                    magic_dmg *= 2
                                 unit_died = clicked_unit.take_damage(phys_dmg, attack_type='physical')
                                 if not unit_died and magic_dmg > 0:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             elif damage is not None:
-                                clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                                # Применяем удачу к дальнобойному урону (если сработала)
+                                final_damage = damage
+                                if luck_triggered:
+                                    final_damage = damage * 2
+                                clicked_unit.take_damage(final_damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                             
                             # Вычисляем нанесенный урон
                             actual_damage = health_before - clicked_unit.health
@@ -8336,7 +8780,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -8424,7 +8872,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -9029,6 +9481,24 @@ class Game:
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
                         
+                        # Проверяем удачу для дальнобойной атаки ДО выстрела
+                        # ВАЖНО: Герои не могут использовать удачу
+                        if isinstance(self.selected_unit, Hero):
+                            luck = 0
+                        else:
+                            luck = getattr(self.selected_unit, 'luck', 0)
+                        luck_triggered = False
+                        if luck > 0:
+                            luck_chance = luck * 5  # Шанс в процентах
+                            if random.randint(1, 100) <= luck_chance:
+                                luck_triggered = True
+                                self.add_event(f"Удача! {self.selected_unit.unit_type.capitalize()} наносит двойной урон!")
+                                # Анимация подковы над атакующим юнитом ПЕРЕД выстрелом
+                                attacker_pos = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                                animate_luck_horseshoe(self.screen, attacker_pos, redraw_callback=self.draw)
+                                # Небольшая задержка для анимации удачи
+                                pygame.time.delay(300)
+                        
                         # Проверяем, является ли атакующий героем
                         is_hero = isinstance(self.selected_unit, Hero)
                         hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
@@ -9109,11 +9579,19 @@ class Game:
                             if mixed_damage is not None:
                                 # Применяем физический и магический урон отдельно
                                 phys_dmg, magic_dmg = mixed_damage
+                                # Применяем удачу к смешанному урону (если сработала)
+                                if luck_triggered:
+                                    phys_dmg *= 2
+                                    magic_dmg *= 2
                                 unit_died = clicked_unit.take_damage(phys_dmg, attack_type='physical')
                                 if not unit_died and magic_dmg > 0:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             elif damage is not None:
-                                clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                                # Применяем удачу к дальнобойному урону (если сработала)
+                                final_damage = damage
+                                if luck_triggered:
+                                    final_damage = damage * 2
+                                clicked_unit.take_damage(final_damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                             
                             # Вычисляем нанесенный урон
                             actual_damage = health_before - clicked_unit.health
@@ -9171,7 +9649,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -9259,7 +9741,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -9864,6 +10350,24 @@ class Game:
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
                         
+                        # Проверяем удачу для дальнобойной атаки ДО выстрела
+                        # ВАЖНО: Герои не могут использовать удачу
+                        if isinstance(self.selected_unit, Hero):
+                            luck = 0
+                        else:
+                            luck = getattr(self.selected_unit, 'luck', 0)
+                        luck_triggered = False
+                        if luck > 0:
+                            luck_chance = luck * 5  # Шанс в процентах
+                            if random.randint(1, 100) <= luck_chance:
+                                luck_triggered = True
+                                self.add_event(f"Удача! {self.selected_unit.unit_type.capitalize()} наносит двойной урон!")
+                                # Анимация подковы над атакующим юнитом ПЕРЕД выстрелом
+                                attacker_pos = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                                animate_luck_horseshoe(self.screen, attacker_pos, redraw_callback=self.draw)
+                                # Небольшая задержка для анимации удачи
+                                pygame.time.delay(300)
+                        
                         # Проверяем, является ли атакующий героем
                         is_hero = isinstance(self.selected_unit, Hero)
                         hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
@@ -9944,11 +10448,19 @@ class Game:
                             if mixed_damage is not None:
                                 # Применяем физический и магический урон отдельно
                                 phys_dmg, magic_dmg = mixed_damage
+                                # Применяем удачу к смешанному урону (если сработала)
+                                if luck_triggered:
+                                    phys_dmg *= 2
+                                    magic_dmg *= 2
                                 unit_died = clicked_unit.take_damage(phys_dmg, attack_type='physical')
                                 if not unit_died and magic_dmg > 0:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             elif damage is not None:
-                                clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                                # Применяем удачу к дальнобойному урону (если сработала)
+                                final_damage = damage
+                                if luck_triggered:
+                                    final_damage = damage * 2
+                                clicked_unit.take_damage(final_damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                             
                             # Вычисляем нанесенный урон
                             actual_damage = health_before - clicked_unit.health
@@ -10006,7 +10518,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -10094,7 +10610,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -10699,6 +11219,24 @@ class Game:
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
                         
+                        # Проверяем удачу для дальнобойной атаки ДО выстрела
+                        # ВАЖНО: Герои не могут использовать удачу
+                        if isinstance(self.selected_unit, Hero):
+                            luck = 0
+                        else:
+                            luck = getattr(self.selected_unit, 'luck', 0)
+                        luck_triggered = False
+                        if luck > 0:
+                            luck_chance = luck * 5  # Шанс в процентах
+                            if random.randint(1, 100) <= luck_chance:
+                                luck_triggered = True
+                                self.add_event(f"Удача! {self.selected_unit.unit_type.capitalize()} наносит двойной урон!")
+                                # Анимация подковы над атакующим юнитом ПЕРЕД выстрелом
+                                attacker_pos = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                                animate_luck_horseshoe(self.screen, attacker_pos, redraw_callback=self.draw)
+                                # Небольшая задержка для анимации удачи
+                                pygame.time.delay(300)
+                        
                         # Проверяем, является ли атакующий героем
                         is_hero = isinstance(self.selected_unit, Hero)
                         hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
@@ -10779,11 +11317,19 @@ class Game:
                             if mixed_damage is not None:
                                 # Применяем физический и магический урон отдельно
                                 phys_dmg, magic_dmg = mixed_damage
+                                # Применяем удачу к смешанному урону (если сработала)
+                                if luck_triggered:
+                                    phys_dmg *= 2
+                                    magic_dmg *= 2
                                 unit_died = clicked_unit.take_damage(phys_dmg, attack_type='physical')
                                 if not unit_died and magic_dmg > 0:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             elif damage is not None:
-                                clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                                # Применяем удачу к дальнобойному урону (если сработала)
+                                final_damage = damage
+                                if luck_triggered:
+                                    final_damage = damage * 2
+                                clicked_unit.take_damage(final_damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                             
                             # Вычисляем нанесенный урон
                             actual_damage = health_before - clicked_unit.health
@@ -10841,7 +11387,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -10929,7 +11479,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -11534,6 +12088,24 @@ class Game:
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
                         
+                        # Проверяем удачу для дальнобойной атаки ДО выстрела
+                        # ВАЖНО: Герои не могут использовать удачу
+                        if isinstance(self.selected_unit, Hero):
+                            luck = 0
+                        else:
+                            luck = getattr(self.selected_unit, 'luck', 0)
+                        luck_triggered = False
+                        if luck > 0:
+                            luck_chance = luck * 5  # Шанс в процентах
+                            if random.randint(1, 100) <= luck_chance:
+                                luck_triggered = True
+                                self.add_event(f"Удача! {self.selected_unit.unit_type.capitalize()} наносит двойной урон!")
+                                # Анимация подковы над атакующим юнитом ПЕРЕД выстрелом
+                                attacker_pos = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                                animate_luck_horseshoe(self.screen, attacker_pos, redraw_callback=self.draw)
+                                # Небольшая задержка для анимации удачи
+                                pygame.time.delay(300)
+                        
                         # Проверяем, является ли атакующий героем
                         is_hero = isinstance(self.selected_unit, Hero)
                         hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
@@ -11614,11 +12186,19 @@ class Game:
                             if mixed_damage is not None:
                                 # Применяем физический и магический урон отдельно
                                 phys_dmg, magic_dmg = mixed_damage
+                                # Применяем удачу к смешанному урону (если сработала)
+                                if luck_triggered:
+                                    phys_dmg *= 2
+                                    magic_dmg *= 2
                                 unit_died = clicked_unit.take_damage(phys_dmg, attack_type='physical')
                                 if not unit_died and magic_dmg > 0:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             elif damage is not None:
-                                clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                                # Применяем удачу к дальнобойному урону (если сработала)
+                                final_damage = damage
+                                if luck_triggered:
+                                    final_damage = damage * 2
+                                clicked_unit.take_damage(final_damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                             
                             # Вычисляем нанесенный урон
                             actual_damage = health_before - clicked_unit.health
@@ -11676,7 +12256,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -11764,7 +12348,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -12369,6 +12957,24 @@ class Game:
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
                         
+                        # Проверяем удачу для дальнобойной атаки ДО выстрела
+                        # ВАЖНО: Герои не могут использовать удачу
+                        if isinstance(self.selected_unit, Hero):
+                            luck = 0
+                        else:
+                            luck = getattr(self.selected_unit, 'luck', 0)
+                        luck_triggered = False
+                        if luck > 0:
+                            luck_chance = luck * 5  # Шанс в процентах
+                            if random.randint(1, 100) <= luck_chance:
+                                luck_triggered = True
+                                self.add_event(f"Удача! {self.selected_unit.unit_type.capitalize()} наносит двойной урон!")
+                                # Анимация подковы над атакующим юнитом ПЕРЕД выстрелом
+                                attacker_pos = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                                animate_luck_horseshoe(self.screen, attacker_pos, redraw_callback=self.draw)
+                                # Небольшая задержка для анимации удачи
+                                pygame.time.delay(300)
+                        
                         # Проверяем, является ли атакующий героем
                         is_hero = isinstance(self.selected_unit, Hero)
                         hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
@@ -12449,11 +13055,19 @@ class Game:
                             if mixed_damage is not None:
                                 # Применяем физический и магический урон отдельно
                                 phys_dmg, magic_dmg = mixed_damage
+                                # Применяем удачу к смешанному урону (если сработала)
+                                if luck_triggered:
+                                    phys_dmg *= 2
+                                    magic_dmg *= 2
                                 unit_died = clicked_unit.take_damage(phys_dmg, attack_type='physical')
                                 if not unit_died and magic_dmg > 0:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             elif damage is not None:
-                                clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                                # Применяем удачу к дальнобойному урону (если сработала)
+                                final_damage = damage
+                                if luck_triggered:
+                                    final_damage = damage * 2
+                                clicked_unit.take_damage(final_damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                             
                             # Вычисляем нанесенный урон
                             actual_damage = health_before - clicked_unit.health
@@ -12511,7 +13125,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -12599,7 +13217,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -13204,6 +13826,24 @@ class Game:
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
                         
+                        # Проверяем удачу для дальнобойной атаки ДО выстрела
+                        # ВАЖНО: Герои не могут использовать удачу
+                        if isinstance(self.selected_unit, Hero):
+                            luck = 0
+                        else:
+                            luck = getattr(self.selected_unit, 'luck', 0)
+                        luck_triggered = False
+                        if luck > 0:
+                            luck_chance = luck * 5  # Шанс в процентах
+                            if random.randint(1, 100) <= luck_chance:
+                                luck_triggered = True
+                                self.add_event(f"Удача! {self.selected_unit.unit_type.capitalize()} наносит двойной урон!")
+                                # Анимация подковы над атакующим юнитом ПЕРЕД выстрелом
+                                attacker_pos = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                                animate_luck_horseshoe(self.screen, attacker_pos, redraw_callback=self.draw)
+                                # Небольшая задержка для анимации удачи
+                                pygame.time.delay(300)
+                        
                         # Проверяем, является ли атакующий героем
                         is_hero = isinstance(self.selected_unit, Hero)
                         hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
@@ -13284,11 +13924,19 @@ class Game:
                             if mixed_damage is not None:
                                 # Применяем физический и магический урон отдельно
                                 phys_dmg, magic_dmg = mixed_damage
+                                # Применяем удачу к смешанному урону (если сработала)
+                                if luck_triggered:
+                                    phys_dmg *= 2
+                                    magic_dmg *= 2
                                 unit_died = clicked_unit.take_damage(phys_dmg, attack_type='physical')
                                 if not unit_died and magic_dmg > 0:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             elif damage is not None:
-                                clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                                # Применяем удачу к дальнобойному урону (если сработала)
+                                final_damage = damage
+                                if luck_triggered:
+                                    final_damage = damage * 2
+                                clicked_unit.take_damage(final_damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                             
                             # Вычисляем нанесенный урон
                             actual_damage = health_before - clicked_unit.health
@@ -13346,7 +13994,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -13434,7 +14086,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -14039,6 +14695,24 @@ class Game:
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
                         
+                        # Проверяем удачу для дальнобойной атаки ДО выстрела
+                        # ВАЖНО: Герои не могут использовать удачу
+                        if isinstance(self.selected_unit, Hero):
+                            luck = 0
+                        else:
+                            luck = getattr(self.selected_unit, 'luck', 0)
+                        luck_triggered = False
+                        if luck > 0:
+                            luck_chance = luck * 5  # Шанс в процентах
+                            if random.randint(1, 100) <= luck_chance:
+                                luck_triggered = True
+                                self.add_event(f"Удача! {self.selected_unit.unit_type.capitalize()} наносит двойной урон!")
+                                # Анимация подковы над атакующим юнитом ПЕРЕД выстрелом
+                                attacker_pos = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                                animate_luck_horseshoe(self.screen, attacker_pos, redraw_callback=self.draw)
+                                # Небольшая задержка для анимации удачи
+                                pygame.time.delay(300)
+                        
                         # Проверяем, является ли атакующий героем
                         is_hero = isinstance(self.selected_unit, Hero)
                         hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
@@ -14119,11 +14793,19 @@ class Game:
                             if mixed_damage is not None:
                                 # Применяем физический и магический урон отдельно
                                 phys_dmg, magic_dmg = mixed_damage
+                                # Применяем удачу к смешанному урону (если сработала)
+                                if luck_triggered:
+                                    phys_dmg *= 2
+                                    magic_dmg *= 2
                                 unit_died = clicked_unit.take_damage(phys_dmg, attack_type='physical')
                                 if not unit_died and magic_dmg > 0:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             elif damage is not None:
-                                clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                                # Применяем удачу к дальнобойному урону (если сработала)
+                                final_damage = damage
+                                if luck_triggered:
+                                    final_damage = damage * 2
+                                clicked_unit.take_damage(final_damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                             
                             # Вычисляем нанесенный урон
                             actual_damage = health_before - clicked_unit.health
@@ -14181,7 +14863,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -14269,7 +14955,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -14874,6 +15564,24 @@ class Game:
                         start = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
                         end = (clicked_unit.x * CELL_SIZE + CELL_SIZE//2, clicked_unit.y * CELL_SIZE + CELL_SIZE//2)
                         
+                        # Проверяем удачу для дальнобойной атаки ДО выстрела
+                        # ВАЖНО: Герои не могут использовать удачу
+                        if isinstance(self.selected_unit, Hero):
+                            luck = 0
+                        else:
+                            luck = getattr(self.selected_unit, 'luck', 0)
+                        luck_triggered = False
+                        if luck > 0:
+                            luck_chance = luck * 5  # Шанс в процентах
+                            if random.randint(1, 100) <= luck_chance:
+                                luck_triggered = True
+                                self.add_event(f"Удача! {self.selected_unit.unit_type.capitalize()} наносит двойной урон!")
+                                # Анимация подковы над атакующим юнитом ПЕРЕД выстрелом
+                                attacker_pos = (self.selected_unit.x * CELL_SIZE + CELL_SIZE//2, self.selected_unit.y * CELL_SIZE + CELL_SIZE//2)
+                                animate_luck_horseshoe(self.screen, attacker_pos, redraw_callback=self.draw)
+                                # Небольшая задержка для анимации удачи
+                                pygame.time.delay(300)
+                        
                         # Проверяем, является ли атакующий героем
                         is_hero = isinstance(self.selected_unit, Hero)
                         hero_class = getattr(self.selected_unit, 'hero_class', None) if is_hero else None
@@ -14954,11 +15662,19 @@ class Game:
                             if mixed_damage is not None:
                                 # Применяем физический и магический урон отдельно
                                 phys_dmg, magic_dmg = mixed_damage
+                                # Применяем удачу к смешанному урону (если сработала)
+                                if luck_triggered:
+                                    phys_dmg *= 2
+                                    magic_dmg *= 2
                                 unit_died = clicked_unit.take_damage(phys_dmg, attack_type='physical')
                                 if not unit_died and magic_dmg > 0:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             elif damage is not None:
-                                clicked_unit.take_damage(damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
+                                # Применяем удачу к дальнобойному урону (если сработала)
+                                final_damage = damage
+                                if luck_triggered:
+                                    final_damage = damage * 2
+                                clicked_unit.take_damage(final_damage, attack_type=getattr(self.selected_unit, 'attack_type', 'physical'))
                             
                             # Вычисляем нанесенный урон
                             actual_damage = health_before - clicked_unit.health
@@ -15016,7 +15732,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах
@@ -15104,7 +15824,11 @@ class Game:
                                     unit_died = clicked_unit.take_damage(magic_dmg, attack_type='magical')
                             else:
                                 # Применяем удачу к обычному урону (шанс двойного урона = luck * 5%)
-                                luck = getattr(self.selected_unit, 'luck', 0)
+                                # ВАЖНО: Герои не могут использовать удачу
+                                if isinstance(self.selected_unit, Hero):
+                                    luck = 0
+                                else:
+                                    luck = getattr(self.selected_unit, 'luck', 0)
                                 final_damage = damage
                                 if luck > 0:
                                     luck_chance = luck * 5  # Шанс в процентах

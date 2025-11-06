@@ -1085,7 +1085,7 @@ class Hero(Unit):
         self.knowledge = knowledge
         self.spell_power = spell_power
         self.luck = max(-6, min(6, luck))  # Ограничение +6/-6
-        self.combat_spirit = combat_spirit  # Боевой дух (по умолчанию 0, передается юнитам)
+        self.combat_spirit = max(-6, min(6, combat_spirit))  # Боевой дух (ограничение +6/-6)
         self.mana = knowledge * 10
         self.max_mana = knowledge * 10
         self.mana_regen = 2
@@ -1242,8 +1242,8 @@ class Hero(Unit):
             if unit.team == self.team:
                 unit.attack += self.attack
                 unit.defense += self.defense
-                # Передаем удачу от героя юнитам
-                unit.luck = self.luck
+                # Передаем удачу от героя юнитам (ограничиваем до -6/+6)
+                unit.luck = max(-6, min(6, self.luck))
 
 class Pixie(Unit):
     def __init__(self, x, y, team):
@@ -1790,11 +1790,66 @@ class Corpse:
 
 def get_unit_race(unit):
     """
-    Возвращает расу юнита на основе его команды.
+    Возвращает расу юнита на основе его типа или сохраненной расы.
     :param unit: Объект юнита
     :return: Раса юнита (human, undead, elf, demon, dwarf, shadow)
     """
-    return getattr(unit, 'team', None)
+    # Если есть сохраненная раса - используем её (для креативного режима)
+    if hasattr(unit, 'unit_race') and unit.unit_race:
+        return unit.unit_race
+    
+    # Если команда - это реальная раса (не player1/player2/berserker_*), используем её
+    team = getattr(unit, 'team', None)
+    if team and team in ['human', 'undead', 'elf', 'demon', 'dwarf', 'shadow']:
+        return team
+    
+    # Для берсерков - восстанавливаем оригинальную расу
+    if team and isinstance(team, str) and team.startswith('berserker_'):
+        if hasattr(unit, 'rune_berserker_original_team'):
+            original_team = unit.rune_berserker_original_team
+            if original_team in ['human', 'undead', 'elf', 'demon', 'dwarf', 'shadow']:
+                return original_team
+    
+    # Определяем расу по типу юнита
+    unit_type = getattr(unit, 'unit_type', None)
+    if not unit_type:
+        return None
+    
+    # Маппинг типов юнитов на расы
+    unit_type_to_race = {
+        # Люди
+        'peasant': 'human', 'spearman': 'human', 'crossbowman': 'human', 
+        'swordsman': 'human', 'gryphon': 'human',
+        # Нежить
+        'skeleton': 'undead', 'zombie': 'undead', 'ghost': 'undead', 
+        'vampire': 'undead', 'lich': 'undead',
+        # Эльфы
+        'pixie': 'elf', 'elf_scout': 'elf', 'elf_archer': 'elf', 
+        'dryad': 'elf', 'ent': 'elf',
+        # Демоны
+        'imp': 'demon', 'gog': 'demon', 'demon': 'demon', 
+        'cerberus': 'demon', 'succubus': 'demon',
+        # Гномы
+        'miner': 'dwarf', 'spearthrower': 'dwarf', 'bear_rider': 'dwarf', 
+        'runemage': 'dwarf', 'jarl': 'dwarf',
+        # Тени
+        'scout': 'shadow', 'beast': 'shadow', 'minotaur': 'shadow', 
+        'witch': 'shadow', 'lizard_rider': 'shadow'
+    }
+    
+    # Для героев определяем по team (если это реальная раса)
+    if unit_type == 'hero':
+        if team and team in ['human', 'undead', 'elf', 'demon', 'dwarf', 'shadow']:
+            return team
+        # Если team - это player1/player2, пытаемся определить по другим юнитам команды
+        if hasattr(unit, 'game_ref') and unit.game_ref:
+            for u in unit.game_ref.units:
+                if u.team == team and u.unit_type != 'hero':
+                    race = get_unit_race(u)
+                    if race:
+                        return race
+    
+    return unit_type_to_race.get(unit_type, None)
 
 
 def calculate_morale(unit, all_units):
