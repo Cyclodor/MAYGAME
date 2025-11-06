@@ -630,32 +630,8 @@ class Unit:
                 print(f'Руна защиты рассеялась у {self.unit_type} ({self.x},{self.y})')
         # Руна берсерка: тикаем длительность
         if getattr(self, 'rune_berserker_turns', 0) > 0:
-            # ОТЛАДКА: Логируем окончание хода
-            try:
-                import sys
-                import os
-                sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                from berserker_debug import get_debugger
-                debugger = get_debugger()
-                if debugger:
-                    debugger.log_turn_end(self)
-            except:
-                pass
-            
             self.rune_berserker_turns -= 1
             if self.rune_berserker_turns == 0:
-                # ОТЛАДКА: Логируем окончание эффекта
-                try:
-                    debugger = get_debugger()
-                    if debugger:
-                        old_team = getattr(self, 'team', None)
-                        debugger.log('BERSERKER_END', 
-                                    f"Руна берсерка закончилась у {self.unit_type}",
-                                    self,
-                                    {'old_team': old_team})
-                except:
-                    pass
-                
                 # Восстанавливаем базовые значения атаки и защиты
                 if hasattr(self, 'base_phys_attack_berserker'):
                     self.phys_attack = self.base_phys_attack_berserker
@@ -667,18 +643,7 @@ class Unit:
                     self.magic_defense = self.base_magic_defense_berserker
                 # Восстанавливаем оригинальную команду
                 if hasattr(self, 'rune_berserker_original_team'):
-                    old_team = getattr(self, 'team', None)
-                    new_team = self.rune_berserker_original_team
-                    self.team = new_team
-                    
-                    # ОТЛАДКА: Логируем восстановление команды
-                    try:
-                        debugger = get_debugger()
-                        if debugger:
-                            debugger.log_team_change(self, old_team, new_team, "Окончание руны берсерка")
-                    except:
-                        pass
-                
+                    self.team = self.rune_berserker_original_team
                 self.rune_berserker_active = False
                 print(f'Руна берсерка рассеялась у {self.unit_type} ({self.x},{self.y})')
         # Контрудар: тикаем длительность

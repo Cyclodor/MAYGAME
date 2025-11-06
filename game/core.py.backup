@@ -131,17 +131,6 @@ except:
     BERSERKER_DEBUG = False
     def get_debugger():
         return None
-# Импорт отладчика берсерка
-try:
-    import sys
-    import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from berserker_debug import get_debugger
-    BERSERKER_DEBUG = True
-except:
-    BERSERKER_DEBUG = False
-    def get_debugger():
-        return None
 from .ai import AIController
 import math
 import random
@@ -5168,15 +5157,6 @@ class Game:
                             debugger.log_turn_start(self.selected_unit, 'berserker', {'reason': 'auto_berserker_logic'})
                     except:
                         pass
-                
-                # ОТЛАДКА: Логируем начало хода берсерка
-                if BERSERKER_DEBUG:
-                    try:
-                        debugger = get_debugger()
-                        if debugger:
-                            debugger.log_turn_start(self.selected_unit, 'berserker', {'reason': 'auto_berserker_logic'})
-                    except:
-                        pass
             else:
                 # Определяем какой ИИ контроллер должен сделать ход
                 active_ai_controller = None
@@ -5528,15 +5508,6 @@ class Game:
         
         # Сортируем по инициативе (выше — раньше). При равенстве — стабильно.
         self.turn_queue = sorted(all_units, key=lambda u: getattr(u, 'initiative', 0), reverse=True)
-        
-        # ОТЛАДКА: Логируем подготовку очереди
-        if BERSERKER_DEBUG:
-            try:
-                debugger = get_debugger()
-                if debugger:
-                    debugger.log_queue_preparation(self.turn_queue)
-            except:
-                pass
         
         # ОТЛАДКА: Логируем подготовку очереди
         if BERSERKER_DEBUG:
