@@ -1,0 +1,880 @@
+{
+  "session_id": "20251107_105131",
+  "session_start": "2025-11-07T10:51:31.813426",
+  "session_end": "2025-11-07T10:59:17.081818",
+  "stats": {
+    "session_id": "20251107_105131",
+    "session_duration_seconds": 465.268401,
+    "total_logs": 812,
+    "by_level": {
+      "DEBUG": 5,
+      "INFO": 6,
+      "WARNING": 635,
+      "ERROR": 165,
+      "CRITICAL": 1
+    },
+    "by_category": {
+      "GAME": 0,
+      "COMBAT": 0,
+      "UNITS": 0,
+      "SPELLS": 0,
+      "AI": 0,
+      "UI": 0,
+      "ANIMATION": 0,
+      "SOUND": 0,
+      "GRAPHICS": 0,
+      "BERSERKER": 0,
+      "RESURRECTION": 0,
+      "BATTLE_MANAGER": 0,
+      "TURN_SYSTEM": 0,
+      "VALIDATION": 300,
+      "DIAGNOSTICS": 95,
+      "METRICS": 1,
+      "SYSTEM": 3,
+      "ERROR": 1,
+      "PERFORMANCE": 412
+    },
+    "error_count": 165,
+    "warning_count": 635,
+    "critical_count": 1
+  },
+  "recent_errors": [
+    {
+      "timestamp": "2025-11-07T10:57:07.162377",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:07.170661",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:57:12.168870",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:12.177074",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:57:18.812921",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:18.821759",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:57:23.805197",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:23.817785",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:57:28.820381",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:28.833183",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:57:33.814164",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:33.822229",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:57:38.851197",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:38.864315",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:57:43.862727",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:43.870600",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:57:48.916981",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:48.926152",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:57:53.924560",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:53.930779",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:57:58.945784",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:57:58.959419",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:04.873132",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:04.881332",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:09.885437",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:09.895261",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:16.056875",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:16.064526",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:21.044156",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:21.054036",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:26.115084",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:26.121881",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:31.124154",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:31.137138",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:37.693207",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:37.705472",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:42.672615",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:42.680646",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:47.682878",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:47.693164",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:53.023887",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:53.030383",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:58.022244",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:58.029253",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:59:03.034551",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:03.041723",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:59:08.406839",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:08.418133",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:59:15.022222",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:15.030595",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    }
+  ],
+  "recent_warnings": [
+    {
+      "timestamp": "2025-11-07T10:58:35.367913",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 40.3 (порог: 60.0)",
+      "extra_data": {
+        "fps": 40.34256644360202,
+        "memory_mb": 111.86328125,
+        "memory_percent": 1.388450508238728
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:37.662515",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 37.5 (порог: 60.0)",
+      "extra_data": {
+        "fps": 37.54317455355037,
+        "memory_mb": 111.8828125,
+        "memory_percent": 1.3886929307180795
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:37.677656",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1194 > 880",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1194,
+        "max_health": 880
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:38.674897",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 46.5 (порог: 60.0)",
+      "extra_data": {
+        "fps": 46.45460129081244,
+        "memory_mb": 111.87890625,
+        "memory_percent": 1.3886444462222094
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:38.906285",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:38.913699",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:39.694329",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 41.5 (порог: 60.0)",
+      "extra_data": {
+        "fps": 41.476748589480316,
+        "memory_mb": 111.92578125,
+        "memory_percent": 1.3892262601726533
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:40.696938",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.6 (порог: 60.0)",
+      "extra_data": {
+        "fps": 26.63063025485335,
+        "memory_mb": 111.9140625,
+        "memory_percent": 1.3890808066850422
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:41.721655",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 48.7 (порог: 60.0)",
+      "extra_data": {
+        "fps": 48.65400368042042,
+        "memory_mb": 111.87890625,
+        "memory_percent": 1.3886444462222094
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:42.662692",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1194 > 880",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1194,
+        "max_health": 880
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:42.726032",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 42.0 (порог: 60.0)",
+      "extra_data": {
+        "fps": 42.04139359497808,
+        "memory_mb": 111.91796875,
+        "memory_percent": 1.3891292911809126
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:43.740184",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 40.4 (порог: 60.0)",
+      "extra_data": {
+        "fps": 40.37203673644988,
+        "memory_mb": 111.91796875,
+        "memory_percent": 1.3891292911809126
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:44.767859",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 27.0 (порог: 60.0)",
+      "extra_data": {
+        "fps": 26.963205574041133,
+        "memory_mb": 111.9140625,
+        "memory_percent": 1.3890808066850422
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:45.772621",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 21.3 (порог: 60.0)",
+      "extra_data": {
+        "fps": 21.321862630302704,
+        "memory_mb": 111.953125,
+        "memory_percent": 1.3895656516437456
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:46.780720",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.7 (порог: 60.0)",
+      "extra_data": {
+        "fps": 26.709967566867338,
+        "memory_mb": 111.87109375,
+        "memory_percent": 1.3885474772304685
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:47.672593",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1194 > 880",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1194,
+        "max_health": 880
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:49.563001",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 48.3 (порог: 60.0)",
+      "extra_data": {
+        "fps": 48.26576003963428,
+        "memory_mb": 111.90234375,
+        "memory_percent": 1.3889353531974313
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:49.575316",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:49.588603",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:58:50.577638",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 34.5 (порог: 60.0)",
+      "extra_data": {
+        "fps": 34.52660985547913,
+        "memory_mb": 111.89453125,
+        "memory_percent": 1.3888383842056906
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:51.613983",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 34.9 (порог: 60.0)",
+      "extra_data": {
+        "fps": 34.86224087347005,
+        "memory_mb": 111.87890625,
+        "memory_percent": 1.3886444462222094
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:53.004226",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 36.6 (порог: 60.0)",
+      "extra_data": {
+        "fps": 36.61663301642932,
+        "memory_mb": 111.875,
+        "memory_percent": 1.388595961726339
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:53.014646",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1194 > 880",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1194,
+        "max_health": 880
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:54.015909",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 38.6 (порог: 60.0)",
+      "extra_data": {
+        "fps": 38.61186844830832,
+        "memory_mb": 111.88671875,
+        "memory_percent": 1.38874141521395
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:55.018599",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 45.4 (порог: 60.0)",
+      "extra_data": {
+        "fps": 45.38489026723199,
+        "memory_mb": 111.875,
+        "memory_percent": 1.388595961726339
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:56.032128",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 40.5 (порог: 60.0)",
+      "extra_data": {
+        "fps": 40.526696817278335,
+        "memory_mb": 111.90234375,
+        "memory_percent": 1.3889353531974313
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:57.071670",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 39.8 (порог: 60.0)",
+      "extra_data": {
+        "fps": 39.792996353794386,
+        "memory_mb": 111.84765625,
+        "memory_percent": 1.3882565702552467
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:58.011926",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1194 > 880",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1194,
+        "max_health": 880
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:58.072513",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 44.4 (порог: 60.0)",
+      "extra_data": {
+        "fps": 44.374115174771894,
+        "memory_mb": 111.88671875,
+        "memory_percent": 1.38874141521395
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:59.085922",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 43.0 (порог: 60.0)",
+      "extra_data": {
+        "fps": 43.01788055267157,
+        "memory_mb": 111.90234375,
+        "memory_percent": 1.3889353531974313
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:59.571754",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:58:59.582110",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:59:00.105078",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 41.9 (порог: 60.0)",
+      "extra_data": {
+        "fps": 41.917751163172575,
+        "memory_mb": 111.8515625,
+        "memory_percent": 1.3883050547511169
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:01.122860",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 41.2 (порог: 60.0)",
+      "extra_data": {
+        "fps": 41.24788498502838,
+        "memory_mb": 111.85546875,
+        "memory_percent": 1.3883535392469872
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:02.127477",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 51.1 (порог: 60.0)",
+      "extra_data": {
+        "fps": 51.07432194917052,
+        "memory_mb": 111.90625,
+        "memory_percent": 1.3889838376933017
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:03.025542",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1194 > 880",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1194,
+        "max_health": 880
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:03.136357",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 39.6 (порог: 60.0)",
+      "extra_data": {
+        "fps": 39.57013174188847,
+        "memory_mb": 111.89453125,
+        "memory_percent": 1.3888383842056906
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:04.152542",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 31.8 (порог: 60.0)",
+      "extra_data": {
+        "fps": 31.83549411414719,
+        "memory_mb": 111.8671875,
+        "memory_percent": 1.3884989927345983
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:05.176321",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 32.9 (порог: 60.0)",
+      "extra_data": {
+        "fps": 32.85984927561681,
+        "memory_mb": 111.88671875,
+        "memory_percent": 1.38874141521395
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:06.173402",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 43.7 (порог: 60.0)",
+      "extra_data": {
+        "fps": 43.697014710772045,
+        "memory_mb": 111.89453125,
+        "memory_percent": 1.3888383842056906
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:08.386745",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 42.0 (порог: 60.0)",
+      "extra_data": {
+        "fps": 41.9727294918283,
+        "memory_mb": 111.90625,
+        "memory_percent": 1.3889838376933017
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:08.397414",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1194 > 880",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1194,
+        "max_health": 880
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:09.401308",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 45.3 (порог: 60.0)",
+      "extra_data": {
+        "fps": 45.311908067212926,
+        "memory_mb": 111.89453125,
+        "memory_percent": 1.3888383842056906
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:09.663065",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:09.726008",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-07T10:59:11.801520",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 34.2 (порог: 60.0)",
+      "extra_data": {
+        "fps": 34.1721505248994,
+        "memory_mb": 111.8671875,
+        "memory_percent": 1.3884989927345983
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:12.975561",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 49.2 (порог: 60.0)",
+      "extra_data": {
+        "fps": 49.22711845669175,
+        "memory_mb": 111.890625,
+        "memory_percent": 1.3887898997098203
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:14.993960",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 45.5 (порог: 60.0)",
+      "extra_data": {
+        "fps": 45.46717227890852,
+        "memory_mb": 111.8671875,
+        "memory_percent": 1.3884989927345983
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:15.008591",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1194 > 880",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1194,
+        "max_health": 880
+      }
+    },
+    {
+      "timestamp": "2025-11-07T10:59:16.009495",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 52.9 (порог: 60.0)",
+      "extra_data": {
+        "fps": 52.90943512859316,
+        "memory_mb": 111.86328125,
+        "memory_percent": 1.388450508238728
+      }
+    }
+  ],
+  "critical_history": [
+    {
+      "timestamp": "2025-11-07T10:59:17.081746",
+      "category": "ERROR",
+      "message": "Критическая ошибка при работе игры",
+      "extra_data": null,
+      "exception": "invalid color argument"
+    }
+  ]
+}

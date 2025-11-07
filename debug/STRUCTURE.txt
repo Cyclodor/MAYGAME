@@ -1,0 +1,48 @@
+СТРУКТУРА ПАПКИ DEBUG
+=====================
+
+debug/
+├── README.md                    - Основная документация
+├── QUICK_START.md               - Быстрый старт
+├── STRUCTURE.txt                - Этот файл
+│
+├── berserker/                   - Отладка руны берсерка
+│   ├── berserker_debug.py       - Модуль отладки
+│   ├── patch_berserker_debug.py - Скрипт патчинга
+│   ├── generate_berserker_report.py - Генератор отчета
+│   ├── berserker_debug.log      - Лог (очищается при запуске)
+│   ├── berserker_debug_report.txt - Отчет (генерируется)
+│   ├── BERSERKER_DEBUG_README.md - Документация
+│   └── ИНСТРУКЦИЯ_БЕРСЕРК_ОТЛАДКА.txt - Инструкция
+│
+├── resurrection/                - Отладка воскрешения
+│   ├── resurrection_debug.py    - Модуль отладки
+│   └── resurrection_debug.log   - Лог
+│
+├── animation/                   - Отладка анимаций
+│   ├── animation_logger.py      - Модуль логирования
+│   ├── animation_log.txt        - Лог
+│   ├── test_animation_log.txt   - Тестовый лог
+│   └── ANIMATION_LOGGER_README.md - Документация
+│
+├── logs/                        - Прочие логи
+│   └── indentation_errors.log  - Ошибки отступов
+│
+├── scripts/                     - Скрипты проверки
+│   ├── check_editor_params.py   - Проверка параметров редактора
+│   ├── check_indentation.py     - Проверка отступов
+│   ├── check_spell_animations.py - Проверка анимаций
+│   ├── test_defense_fixes.py    - Тест исправлений защиты
+│   └── test_defense_system.py   - Тест системы защиты
+│
+└── docs/                        - Документация
+    ├── ИТОГОВЫЕ_ИСПРАВЛЕНИЯ.md
+    ├── КРАТКАЯ_ИНСТРУКЦИЯ.md
+    ├── FINAL_SPELL_EDITOR_FIX.md
+    ├── FIXES_SUMMARY.md
+    ├── SPELL_EDITOR_IMPROVEMENTS.md
+    ├── SPELL_EDITOR_MANUAL_INPUT.md
+    ├── SPELL_EDITOR_UPDATE.md
+    └── UNIT_EDITOR_INPUT_BLOCK.md
+
+

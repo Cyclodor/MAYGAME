@@ -8,6 +8,16 @@ from game.config import *
 from game.core import Game
 from game.config import CELL_SIZE
 
+# Инициализация системы логирования и отладки
+try:
+    from debug.system import initialize_debug_system, get_debug_system, LogCategory
+    DEBUG_SYSTEM_ENABLED = True
+except ImportError as e:
+    print(f"Предупреждение: Система отладки недоступна: {e}")
+    DEBUG_SYSTEM_ENABLED = False
+    def get_debug_system():
+        return None
+
 def auto_rebuild_exe():
     exe_name = 'main.exe'
     dist_path = os.path.join('dist', exe_name)
@@ -40,8 +50,75 @@ def main():
     pygame.init()
     mixer.init()
     auto_rebuild_exe()
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    
+    # Загружаем настройки разрешения
+    settings_path = os.path.join('data', 'settings.json')
+    screen_width = SCREEN_WIDTH
+    screen_height = SCREEN_HEIGHT
+    fullscreen = False
+    
+    try:
+        if os.path.exists(settings_path):
+            import json
+            with open(settings_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                screen_width = int(data.get('screen_width', SCREEN_WIDTH))
+                screen_height = int(data.get('screen_height', SCREEN_HEIGHT))
+                fullscreen = bool(data.get('fullscreen', False))
+    except Exception as e:
+        print(f"Ошибка загрузки настроек разрешения: {e}")
+    
+    # Применяем разрешение
+    import game.config as config
+    config.SCREEN_WIDTH = screen_width
+    config.SCREEN_HEIGHT = screen_height
+    config.GRID_WIDTH = screen_width // config.CELL_SIZE
+    config.GRID_HEIGHT = screen_height // config.CELL_SIZE
+    
+    # Создаем экран с учетом полноэкранного режима и аппаратным ускорением
+    flags = pygame.FULLSCREEN if fullscreen else 0
+    # Включаем все доступные флаги для максимальной производительности
+    # HWSURFACE - аппаратное ускорение, DOUBLEBUF - двойная буферизация
+    flags |= pygame.HWSURFACE | pygame.DOUBLEBUF
+    # Пытаемся использовать максимальные возможности видеокарты
+    try:
+        screen = pygame.display.set_mode((screen_width, screen_height), flags)
+    except:
+        # Если аппаратное ускорение недоступно, используем программный рендеринг
+        flags = pygame.FULLSCREEN if fullscreen else 0
+        screen = pygame.display.set_mode((screen_width, screen_height), flags)
     pygame.display.set_caption("Фэнтези Стратегия")
+    
+    # Инициализация системы логирования и отладки
+    debug_system = None
+    if DEBUG_SYSTEM_ENABLED:
+        try:
+            debug_system = initialize_debug_system()
+            logger = debug_system.logger
+            logger.info(LogCategory.SYSTEM, "Игра запущена", {
+                'screen_size': (screen_width, screen_height),
+                'grid_size': (config.GRID_WIDTH, config.GRID_HEIGHT)
+            })
+            print("\n" + "="*50)
+            print("СИСТЕМА ЛОГИРОВАНИЯ И ОТЛАДКИ АКТИВНА!")
+            print("="*50)
+            print("Логи сохраняются в: debug/logs/")
+            print("Система автоматически отслеживает производительность,")
+            print("валидацию состояния игры и диагностику проблем.")
+            # Проверяем реальное состояние psutil после инициализации
+            if debug_system and debug_system.metrics:
+                if debug_system.metrics.psutil_available:
+                    print("Метрики памяти: доступны")
+                else:
+                    print("Примечание: psutil не установлен, метрики памяти недоступны.")
+            print("="*50)
+        except Exception as e:
+            print(f"Ошибка инициализации системы отладки: {e}")
+            import traceback
+            traceback.print_exc()
+            debug_system = None
+    
+    # Передаем экран в игру
     game = Game(screen)
     clock = pygame.time.Clock()
     
@@ -57,6 +134,9 @@ def main():
     print("F6 - Тест can_attack для выбранного юнита")
     print("="*50)
     
+    # Переменная для отслеживания времени
+    last_time = pygame.time.get_ticks()
+    
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -65,7 +145,22 @@ def main():
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     # Обычный клик левой кнопкой
-                    game.handle_click(event.pos, button=1)
+                    result = game.handle_click(event.pos, button=1)
+                    # Проверяем, нужно ли применить изменения разрешения
+                    if result == 'apply_resolution':
+                        # Применяем изменения разрешения
+                        new_screen = game.apply_resolution_change(screen)
+                        if new_screen != screen:
+                            screen = new_screen
+                            screen_width = game.screen_width
+                            screen_height = game.screen_height
+                            # Обновляем глобальные переменные
+                            import game.config as config
+                            config.SCREEN_WIDTH = screen_width
+                            config.SCREEN_HEIGHT = screen_height
+                            config.GRID_WIDTH = screen_width // config.CELL_SIZE
+                            config.GRID_HEIGHT = screen_height // config.CELL_SIZE
+                            game.screen = screen
                 elif event.button == 3:
                     # Обработка правой кнопки мыши
                     if game.state == 'creative':
@@ -80,6 +175,7 @@ def main():
                         
                         # Проверяем, кликнули ли по юниту
                         clicked_unit = None
+                        from game.config import CELL_SIZE
                         for unit in game.units:
                             if (unit.x * CELL_SIZE <= event.pos[0] < (unit.x+1)*CELL_SIZE and 
                                 unit.y * CELL_SIZE <= event.pos[1] < (unit.y+1)*CELL_SIZE):
@@ -139,10 +235,65 @@ def main():
                         game.handle_key(event.key)
                     else:
                         game.handle_key(event.key)
+        
+        # Вычисление delta_time для системы отладки
+        current_time = pygame.time.get_ticks()
+        delta_time = (current_time - last_time) / 1000.0  # В секундах
+        last_time = current_time
+        
+        # Обновление системы отладки
+        if debug_system:
+            try:
+                debug_system.update(game, delta_time)
+            except Exception as e:
+                print(f"Ошибка обновления системы отладки: {e}")
+        
+        # Оптимизация FPS: используем двойную буферизацию (включена в flags)
+        # tick() должен быть вызван ДО обновления для правильного контроля FPS
+        # Убираем ограничение FPS для максимального использования ресурсов
+        # Передаем 0 для неограниченного FPS (используем все ресурсы CPU/GPU)
+        frame_time = clock.tick(0) / 1000.0  # 0 = неограниченный FPS для максимальной производительности
+        
+        # Обновляем игру
         game.update()
+        
+        # Рисуем игру
         game.draw()
+        
+        # Обновляем экран (flip быстрее чем update для полного экрана)
         pygame.display.flip()
-        clock.tick(60)
+        
+        # Обновляем метрики FPS в системе отладки
+        if debug_system and debug_system.metrics:
+            try:
+                fps = 1.0 / frame_time if frame_time > 0 else 0
+                debug_system.metrics.update_frame(frame_time)
+            except Exception:
+                pass
 
 if __name__ == "__main__":
-    main() 
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nИгра прервана пользователем")
+        # Сохраняем отчеты при выходе
+        debug_system = get_debug_system()
+        if debug_system:
+            try:
+                debug_system.save_all_reports()
+                print("Отчеты системы отладки сохранены")
+            except Exception as e:
+                print(f"Ошибка сохранения отчетов: {e}")
+        sys.exit(0)
+    except Exception as e:
+        # Логируем критическую ошибку
+        debug_system = get_debug_system()
+        if debug_system:
+            try:
+                debug_system.logger.critical(LogCategory.ERROR, 
+                                            "Критическая ошибка при работе игры",
+                                            exception=e)
+                debug_system.save_all_reports()
+            except:
+                pass
+        raise 

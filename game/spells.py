@@ -3,7 +3,8 @@ from .config import GRID_WIDTH, GRID_HEIGHT
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -14,7 +15,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -25,7 +27,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -36,7 +39,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -47,7 +51,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -58,7 +63,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -69,7 +75,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -80,7 +87,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -91,7 +99,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -661,7 +670,7 @@ class RaiseDeadSpell(Spell):
             cell_rect = pygame.Rect(x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE)
 
             # Этап 1 (теперь первым): рунный всплеск и мерцание
-            for step in range(10):
+            for step in range(60):  # Увеличено до 60 кадров для максимальной плавности
                 pygame.event.pump()
                 game.draw()
                 s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -670,18 +679,18 @@ class RaiseDeadSpell(Spell):
                 pygame.draw.circle(s, (220, 120, 255, 80), (cx, cy), max(2, radius-6), 2)
                 game.screen.blit(s, (0,0))
                 pygame.display.flip()
-                pygame.time.delay(16)
+                pygame.time.delay(8)  # Уменьшена задержка для плавности
 
             # Этап 2 (теперь вторым): темные частицы вращаются и стягиваются к центру
             particles = []  # [px, py, ang, rad, speed]
-            for _ in range(36):
+            for _ in range(100):  # Увеличено количество частиц до 100
                 ang = random.random() * math.tau
                 rad = random.randint(10, CELL_SIZE//2 + 8)
                 speed = random.uniform(0.6, 1.2)
                 px = cx + int(math.cos(ang) * rad)
                 py = cy + int(math.sin(ang) * rad)
                 particles.append([px, py, ang, rad, speed])
-            for step in range(24):
+            for step in range(100):  # Увеличено до 100 кадров для максимальной плавности
                 pygame.event.pump()
                 game.draw()
                 s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -704,10 +713,10 @@ class RaiseDeadSpell(Spell):
                 s.blit(crack, (x*CELL_SIZE, y*CELL_SIZE))
                 game.screen.blit(s, (0,0))
                 pygame.display.flip()
-                pygame.time.delay(18)
+                pygame.time.delay(8)  # Уменьшена задержка для плавности
 
             # Этап 3: призрачное свечение и всплески энергии в центре
-            for step in range(16):
+            for step in range(80):  # Увеличено до 80 кадров для максимальной плавности
                 pygame.event.pump()
                 game.draw()
                 s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -724,7 +733,7 @@ class RaiseDeadSpell(Spell):
                     pygame.draw.circle(s, (80, 180, 255, 90), (fx, fy), 4)
                 game.screen.blit(s, (0,0))
                 pygame.display.flip()
-                pygame.time.delay(18)
+                pygame.time.delay(8)  # Уменьшена задержка для плавности
         except Exception:
             pass
         # Призыв скелета команды кастера
@@ -1145,6 +1154,10 @@ class ResurrectionSpell(Spell):
     def apply(self, center, caster=None):
         # Импортируем модуль отладки
         try:
+            import sys
+            import os
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            sys.path.insert(0, os.path.join(project_root, 'debug', 'resurrection'))
             import resurrection_debug as debug
             debug.log_spell_cast(caster, self, center, has_target=False)
         except:
@@ -1277,6 +1290,10 @@ class ResurrectionSpell(Spell):
                     # Если воскресили хотя бы одного юнита (полностью или частично) - успех
                     if living_unit.squad_count > squad_count_before_heal:
                         try:
+                            import sys
+                            import os
+                            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                            sys.path.insert(0, os.path.join(project_root, 'debug', 'resurrection'))
                             import resurrection_debug as debug
                             debug.log_result(True, f"Воскрешено юнитов в отряде")
                         except:
@@ -1470,7 +1487,7 @@ class HealSpell(Spell):
                         plusses.append([px, py, speed, 255])  # x, y, скорость, альфа
                     
                     # Анимация подъема плюсиков
-                    for step in range(30):
+                    for step in range(120):  # Увеличено до 120 кадров для максимальной плавности
                         pygame.event.pump()
                         game.draw()
                         s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -1493,7 +1510,7 @@ class HealSpell(Spell):
                         
                         game.screen.blit(s, (0,0))
                         pygame.display.flip()
-                        pygame.time.delay(25)
+                        pygame.time.delay(10)  # Уменьшена задержка для плавности
                 except Exception:
                     pass
                 
@@ -1605,14 +1622,14 @@ class IceShieldSpell(Spell):
                 
                 # Этап 1: Ледяные частицы собираются вокруг юнита
                 particles = []
-                for _ in range(30):
+                for _ in range(100):  # Увеличено количество частиц до 100
                     angle = random.random() * math.tau
                     distance = random.randint(30, 60)
                     px = cx + int(math.cos(angle) * distance)
                     py = cy + int(math.sin(angle) * distance)
                     particles.append([px, py, angle, distance])
                 
-                for step in range(20):
+                for step in range(100):  # Увеличено до 100 кадров для максимальной плавности
                     pygame.event.pump()
                     game.draw()
                     s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -1628,10 +1645,10 @@ class IceShieldSpell(Spell):
                     
                     game.screen.blit(s, (0,0))
                     pygame.display.flip()
-                    pygame.time.delay(20)
+                    pygame.time.delay(8)  # Уменьшена задержка для плавности
                 
                 # Этап 2: Ледяная корка покрывает юнита
-                for step in range(15):
+                for step in range(80):  # Увеличено до 80 кадров для максимальной плавности
                     pygame.event.pump()
                     game.draw()
                     s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -1645,7 +1662,7 @@ class IceShieldSpell(Spell):
                     pygame.draw.circle(s, (200, 240, 255, alpha - 30), (cx, cy), radius - 3, 2)
                     
                     # Ледяные кристаллы вокруг
-                    for i in range(6):
+                    for i in range(12):  # Увеличено количество элементов
                         angle = (step * 0.2 + i) * (math.pi / 3)
                         x = cx + int(math.cos(angle) * (radius + 5))
                         y = cy + int(math.sin(angle) * (radius + 5))
@@ -1712,7 +1729,7 @@ class LightningSpell(Spell):
                 cy = target.y * CELL_SIZE + CELL_SIZE // 2
                 
                 # Молния бьёт!
-                for strike in range(3):  # 3 удара молнии
+                for strike in range(8):  # Увеличено до 8 ударов молнии для максимального эффекта
                     pygame.event.pump()
                     game.draw()
                     s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -1743,17 +1760,17 @@ class LightningSpell(Spell):
                     
                     game.screen.blit(s, (0,0))
                     pygame.display.flip()
-                    pygame.time.delay(50)
+                    pygame.time.delay(15)  # Уменьшена задержка для плавности
                     
                     # Пауза между ударами
                     if strike < 2:
                         pygame.event.pump()
                         game.draw()
                         pygame.display.flip()
-                        pygame.time.delay(40)
+                        pygame.time.delay(12)  # Уменьшена задержка для плавности
                 
                 # Рассеивание
-                for step in range(10):
+                for step in range(60):  # Увеличено до 60 кадров для максимальной плавности
                     pygame.event.pump()
                     game.draw()
                     s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -1767,7 +1784,7 @@ class LightningSpell(Spell):
                     
                     game.screen.blit(s, (0,0))
                     pygame.display.flip()
-                    pygame.time.delay(30)
+                    pygame.time.delay(10)  # Уменьшена задержка для плавности
                 
                 if unit_died:
                     game.kill_unit(target)
@@ -1873,10 +1890,10 @@ class EarthSpikesSpell(Spell):
                 
                 game.screen.blit(s, (0,0))
                 pygame.display.flip()
-                pygame.time.delay(30)
+                pygame.time.delay(10)  # Уменьшена задержка для плавности
             
             # Этап 2: Шипы поднимаются
-            for step in range(15):
+            for step in range(40):  # Увеличено с 15 до 40 кадров
                 pygame.event.pump()
                 game.draw()
                 s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -1916,7 +1933,7 @@ class EarthSpikesSpell(Spell):
                 
                 game.screen.blit(s, (0,0))
                 pygame.display.flip()
-                pygame.time.delay(35)
+                pygame.time.delay(12)  # Уменьшена задержка для плавности
             
             # Этап 3: Шипы опускаются
             for step in range(10):
@@ -1946,7 +1963,7 @@ class EarthSpikesSpell(Spell):
                 
                 game.screen.blit(s, (0,0))
                 pygame.display.flip()
-                pygame.time.delay(30)
+                pygame.time.delay(10)  # Уменьшена задержка для плавности
                 
         except Exception:
             pass
@@ -2008,7 +2025,7 @@ class CounterstrikeSpell(Spell):
                 cy = target.y * CELL_SIZE + CELL_SIZE // 2 - 20  # выше юнита
                 
                 # Этап 1: Мечи появляются и формируют конус
-                for step in range(25):
+                for step in range(120):  # Увеличено до 120 кадров для максимальной плавности
                     pygame.event.pump()
                     game.draw()
                     s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -2070,7 +2087,7 @@ class CounterstrikeSpell(Spell):
                     
                     game.screen.blit(s, (0,0))
                     pygame.display.flip()
-                    pygame.time.delay(30)
+                    pygame.time.delay(10)  # Уменьшена задержка для плавности
                 
                 game.add_event(f"{target.unit_type.capitalize()} готов к контратаке!")
             except Exception:
@@ -2125,7 +2142,7 @@ class RuneWallSpell(Spell):
             from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
             
             # Этап 1: Руны появляются
-            for step in range(15):
+            for step in range(40):  # Увеличено с 15 до 40 кадров
                 pygame.event.pump()
                 game.draw()
                 s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -2153,7 +2170,7 @@ class RuneWallSpell(Spell):
                 
                 game.screen.blit(s, (0,0))
                 pygame.display.flip()
-                pygame.time.delay(30)
+                pygame.time.delay(10)  # Уменьшена задержка для плавности
             
             # Этап 2: Барьер формируется
             for step in range(10):
@@ -2425,10 +2442,10 @@ class WeaknessSpell(Spell):
                     
                     game.screen.blit(s, (0,0))
                     pygame.display.flip()
-                    pygame.time.delay(30)
+                    pygame.time.delay(10)  # Уменьшена задержка для плавности
                 
                 # Этап 2: Темная аура окружает меч
-                for step in range(10):
+                for step in range(60):  # Увеличено до 60 кадров для максимальной плавности
                     pygame.event.pump()
                     game.draw()
                     s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -2455,7 +2472,7 @@ class WeaknessSpell(Spell):
                     
                     game.screen.blit(s, (0,0))
                     pygame.display.flip()
-                    pygame.time.delay(35)
+                    pygame.time.delay(12)  # Уменьшена задержка для плавности
                 
                 # Этап 3: Меч ломается!
                 for step in range(12):
@@ -2590,7 +2607,7 @@ class FireWallSpell(Spell):
                 
                 game.screen.blit(s, (0,0))
                 pygame.display.flip()
-                pygame.time.delay(30)
+                pygame.time.delay(10)  # Уменьшена задержка для плавности
             
         except Exception as e:
             print(f"Ошибка анимации огненной стены: {e}")
@@ -2891,7 +2908,8 @@ class PhantomSpell(Spell):
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -2902,7 +2920,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -2913,7 +2932,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -2924,7 +2944,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -2935,7 +2956,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -2946,7 +2968,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -2957,7 +2980,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -2968,7 +2992,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -2979,7 +3004,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -3077,7 +3103,7 @@ except:
                 
                 game.screen.blit(s, (0, 0))
                 pygame.display.flip()
-                pygame.time.delay(30)
+                pygame.time.delay(10)  # Уменьшена задержка для плавности
         except Exception as e:
             print(f"Ошибка анимации создания фантома: {e}")
         

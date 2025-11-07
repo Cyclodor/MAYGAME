@@ -15,10 +15,10 @@ class AIController:
         """
         Инициализация ИИ
         :param game: Ссылка на объект Game
-        :param ai_team: Команда, которой управляет ИИ (например, 'undead', 'demon')
+        :param ai_team: Команда, которой управляет ИИ ('player1' или 'player2')
         """
         self.game = game
-        self.ai_team = ai_team
+        self.ai_team = ai_team  # Команда: 'player1' или 'player2'
         self.current_state = "Ожидание"
         self.current_action = "Нет"
         self.last_decision = "Не было"
@@ -536,9 +536,15 @@ class AIController:
                         target_pos = (best_target.x * CELL_SIZE + CELL_SIZE // 2,
                                     best_target.y * CELL_SIZE + CELL_SIZE // 2)
                         self.current_action = f"Применение заклинания на {best_target.unit_type}"
-                        self.game.handle_click(target_pos, True)
-                        self.last_decision = f"Применено заклинание на {best_target.unit_type}"
-                        return True
+                        # Используем прямой метод вместо handle_click
+                        if self.game.ai_actions.use_spell_direct(unit, spell, target=best_target):
+                            self.last_decision = f"Применено заклинание на {best_target.unit_type}"
+                            return True
+                        else:
+                            # Fallback на handle_click если прямой метод не сработал
+                            self.game.handle_click(target_pos, is_ai_action=True)
+                            self.last_decision = f"Применено заклинание на {best_target.unit_type}"
+                            return True
                 elif spell.target_type == 'ally' and allies:
                     # Ищем лучшую цель для поддерживающего заклинания (исключая героев)
                     valid_targets = [a for a in allies if not isinstance(a, Hero)]
@@ -548,9 +554,14 @@ class AIController:
                             target_pos = (best_target.x * CELL_SIZE + CELL_SIZE // 2,
                                         best_target.y * CELL_SIZE + CELL_SIZE // 2)
                             self.current_action = f"Применение поддерживающего заклинания на {best_target.unit_type}"
-                            self.game.handle_click(target_pos, True)
-                            self.last_decision = f"Применено поддерживающее заклинание на {best_target.unit_type}"
-                            return True
+                            # Используем прямой метод вместо handle_click
+                            if self.game.ai_actions.use_spell_direct(unit, spell, target=best_target):
+                                self.last_decision = f"Применено поддерживающее заклинание на {best_target.unit_type}"
+                                return True
+                            else:
+                                self.game.handle_click(target_pos, is_ai_action=True)
+                                self.last_decision = f"Применено поддерживающее заклинание на {best_target.unit_type}"
+                                return True
             
             # Если заклинание не выбрано, выбираем лучшее
             spell_idx, spell_target, spell_pos = self.find_best_spell_action(unit)
@@ -579,17 +590,25 @@ class AIController:
                 if spell.target_type == 'area':
                     # Для area заклинаний применяем на позицию
                     self.current_action = f"Применение {spell_name} на позицию ({target_x}, {target_y})"
-                    self.game.handle_click(target_pos, True)
-                    self.last_decision = f"Применено {spell_name} на позицию"
-                    return True
+                    if self.game.ai_actions.use_spell_direct(unit, spell, target_pos=(target_x, target_y)):
+                        self.last_decision = f"Применено {spell_name} на позицию"
+                        return True
+                    else:
+                        self.game.handle_click(target_pos, is_ai_action=True)
+                        self.last_decision = f"Применено {spell_name} на позицию"
+                        return True
                 elif spell_target:
                     # Для обычных заклинаний применяем на цель
                     target_pos = (spell_target.x * CELL_SIZE + CELL_SIZE // 2,
                                  spell_target.y * CELL_SIZE + CELL_SIZE // 2)
                     self.current_action = f"Применение {spell_name} на {spell_target.unit_type}"
-                    self.game.handle_click(target_pos, True)
-                    self.last_decision = f"Применено {spell_name} на {spell_target.unit_type}"
-                    return True
+                    if self.game.ai_actions.use_spell_direct(unit, spell, target=spell_target):
+                        self.last_decision = f"Применено {spell_name} на {spell_target.unit_type}"
+                        return True
+                    else:
+                        self.game.handle_click(target_pos, is_ai_action=True)
+                        self.last_decision = f"Применено {spell_name} на {spell_target.unit_type}"
+                        return True
                 else:
                     self.current_action = f"Выбрано заклинание {spell_name}, но нет цели"
                     self.last_decision = f"Не удалось применить {spell_name}"
@@ -601,11 +620,15 @@ class AIController:
         if not isinstance(unit, Hero) and not unit.has_attacked and self.should_defend(unit):
             self.current_action = "Использование защиты"
             self.last_decision = "Активирована защита"
-            # Используем защиту (skip_button_rect теперь кнопка защиты)
-            defend_pos = (self.game.skip_button_rect.x + self.game.skip_button_rect.width // 2,
-                         self.game.skip_button_rect.y + self.game.skip_button_rect.height // 2)
-            self.game.handle_click(defend_pos, True)
-            return True
+            # Используем прямой метод вместо handle_click
+            if self.game.ai_actions.defend_direct(unit):
+                return True
+            else:
+                # Fallback на handle_click
+                defend_pos = (self.game.skip_button_rect.x + self.game.skip_button_rect.width // 2,
+                             self.game.skip_button_rect.y + self.game.skip_button_rect.height // 2)
+                self.game.handle_click(defend_pos, is_ai_action=True)
+                return True
         
         # Проверяем атаку
         if not unit.has_attacked:
@@ -655,11 +678,17 @@ class AIController:
             if reachable_targets:
                 best_reachable = max(reachable_targets, key=lambda x: x[1])[0]
                 self.current_action = f"Атака {best_reachable.unit_type} на расстоянии {self.get_distance(unit, best_reachable)}"
-                attack_pos = (best_reachable.x * CELL_SIZE + CELL_SIZE // 2,
-                            best_reachable.y * CELL_SIZE + CELL_SIZE // 2)
-                self.game.handle_click(attack_pos, True)
-                self.last_decision = f"Атака по {best_reachable.unit_type}"
-                return True
+                # Используем прямой метод вместо handle_click
+                if self.game.ai_actions.attack_unit_direct(unit, best_reachable):
+                    self.last_decision = f"Атака по {best_reachable.unit_type}"
+                    return True
+                else:
+                    # Fallback на handle_click
+                    attack_pos = (best_reachable.x * CELL_SIZE + CELL_SIZE // 2,
+                                best_reachable.y * CELL_SIZE + CELL_SIZE // 2)
+                    self.game.handle_click(attack_pos, is_ai_action=True)
+                    self.last_decision = f"Атака по {best_reachable.unit_type}"
+                    return True
             
             # Если нет целей в пределах досягаемости, ищем лучшую цель для приближения
             # Для дальнобойных сначала проверяем, нужно ли отойти от рядом стоящих врагов
@@ -686,17 +715,23 @@ class AIController:
                     best_retreat = self.find_best_retreat_position(unit, nearby_enemy, enemies)
                     if best_retreat and (best_retreat[0] != unit.x or best_retreat[1] != unit.y):
                         self.current_action = f"Отход от {nearby_enemy.unit_type} для стрельбы"
-                        move_pos = (best_retreat[0] * CELL_SIZE + CELL_SIZE // 2,
-                                  best_retreat[1] * CELL_SIZE + CELL_SIZE // 2)
-                        old_x, old_y = unit.x, unit.y
-                        old_mp = getattr(unit, 'move_points_left', 0)
-                        self.game.handle_click(move_pos, True)
-                        moved = (unit.x != old_x) or (unit.y != old_y) or (getattr(unit, 'move_points_left', 0) < old_mp)
-                        if moved:
+                        # Используем прямой метод вместо handle_click
+                        if self.game.ai_actions.move_unit_direct(unit, best_retreat[0], best_retreat[1]):
                             self.last_decision = f"Отход для стрельбы"
                             return True
                         else:
-                            self.current_action = "Отход не удался"
+                            # Fallback на handle_click
+                            move_pos = (best_retreat[0] * CELL_SIZE + CELL_SIZE // 2,
+                                      best_retreat[1] * CELL_SIZE + CELL_SIZE // 2)
+                            old_x, old_y = unit.x, unit.y
+                            old_mp = getattr(unit, 'move_points_left', 0)
+                            self.game.handle_click(move_pos, is_ai_action=True)
+                            moved = (unit.x != old_x) or (unit.y != old_y) or (getattr(unit, 'move_points_left', 0) < old_mp)
+                            if moved:
+                                self.last_decision = f"Отход для стрельбы"
+                                return True
+                            else:
+                                self.current_action = "Отход не удался"
             
             # Ищем достижимую цель для атаки
             # Сначала проверяем, какие враги достижимы с учетом текущих очков движения
@@ -760,11 +795,17 @@ class AIController:
                 else:
                     # Можем атаковать прямо сейчас
                     self.current_action = f"Атака {target.unit_type} на расстоянии {self.get_distance(unit, target)}"
-                    attack_pos = (target.x * CELL_SIZE + CELL_SIZE // 2,
-                                target.y * CELL_SIZE + CELL_SIZE // 2)
-                    self.game.handle_click(attack_pos, True)
-                    self.last_decision = f"Атака по {target.unit_type}"
-                    return True
+                    # Используем прямой метод вместо handle_click
+                    if self.game.ai_actions.attack_unit_direct(unit, target):
+                        self.last_decision = f"Атака по {target.unit_type}"
+                        return True
+                    else:
+                        # Fallback на handle_click
+                        attack_pos = (target.x * CELL_SIZE + CELL_SIZE // 2,
+                                    target.y * CELL_SIZE + CELL_SIZE // 2)
+                        self.game.handle_click(attack_pos, is_ai_action=True)
+                        self.last_decision = f"Атака по {target.unit_type}"
+                        return True
             
             # Если нашли достижимую цель - двигаемся к ней
             if reachable_enemy_for_attack:
@@ -772,17 +813,23 @@ class AIController:
                 if best_move and (best_move[0] != unit.x or best_move[1] != unit.y):
                     # Перемещаемся
                     self.current_action = f"Перемещение к {reachable_enemy_for_attack.unit_type} ({reachable_enemy_for_attack.x}, {reachable_enemy_for_attack.y})"
-                    move_pos = (best_move[0] * CELL_SIZE + CELL_SIZE // 2,
-                              best_move[1] * CELL_SIZE + CELL_SIZE // 2)
-                    old_x, old_y = unit.x, unit.y
-                    old_mp = getattr(unit, 'move_points_left', 0)
-                    self.game.handle_click(move_pos, True)
-                    moved = (unit.x != old_x) or (unit.y != old_y) or (getattr(unit, 'move_points_left', 0) < old_mp)
-                    if moved:
+                    # Используем прямой метод вместо handle_click
+                    if self.game.ai_actions.move_unit_direct(unit, best_move[0], best_move[1]):
                         self.last_decision = f"Перемещение к достижимой цели {reachable_enemy_for_attack.unit_type}"
                         return True
                     else:
-                        self.current_action = "Перемещение не удалось - пропуск хода"
+                        # Fallback на handle_click
+                        move_pos = (best_move[0] * CELL_SIZE + CELL_SIZE // 2,
+                                  best_move[1] * CELL_SIZE + CELL_SIZE // 2)
+                        old_x, old_y = unit.x, unit.y
+                        old_mp = getattr(unit, 'move_points_left', 0)
+                        self.game.handle_click(move_pos, is_ai_action=True)
+                        moved = (unit.x != old_x) or (unit.y != old_y) or (getattr(unit, 'move_points_left', 0) < old_mp)
+                        if moved:
+                            self.last_decision = f"Перемещение к достижимой цели {reachable_enemy_for_attack.unit_type}"
+                            return True
+                        else:
+                            self.current_action = "Перемещение не удалось - пропуск хода"
                 else:
                     self.current_action = "Нет доступной позиции для перемещения"
             else:
@@ -797,19 +844,30 @@ class AIController:
                 
                 if best_move:
                     self.current_action = f"Перемещение к ближайшему врагу {nearest_enemy.unit_type}"
-                    move_pos = (best_move[0] * CELL_SIZE + CELL_SIZE // 2,
-                              best_move[1] * CELL_SIZE + CELL_SIZE // 2)
-                    self.game.handle_click(move_pos, True)
-                    self.last_decision = f"Перемещение к врагу {nearest_enemy.unit_type}"
-                    return True
+                    # Используем прямой метод вместо handle_click
+                    if self.game.ai_actions.move_unit_direct(unit, best_move[0], best_move[1]):
+                        self.last_decision = f"Перемещение к врагу {nearest_enemy.unit_type}"
+                        return True
+                    else:
+                        # Fallback на handle_click
+                        move_pos = (best_move[0] * CELL_SIZE + CELL_SIZE // 2,
+                                  best_move[1] * CELL_SIZE + CELL_SIZE // 2)
+                        self.game.handle_click(move_pos, is_ai_action=True)
+                        self.last_decision = f"Перемещение к врагу {nearest_enemy.unit_type}"
+                        return True
                 else:
                     self.current_action = "Не могу достичь ближайшего врага"
         
         # Пропускаем ход
         self.current_action = "Пропуск хода"
         self.last_decision = "Ход пропущен"
-        skip_pos = (self.game.skip_button_rect.x + self.game.skip_button_rect.width // 2,
-                   self.game.skip_button_rect.y + self.game.skip_button_rect.height // 2)
-        self.game.handle_click(skip_pos, True)
-        return True
+        # Используем прямой метод вместо handle_click
+        if self.game.ai_actions.skip_turn_direct(unit):
+            return True
+        else:
+            # Fallback на handle_click
+            skip_pos = (self.game.skip_button_rect.x + self.game.skip_button_rect.width // 2,
+                       self.game.skip_button_rect.y + self.game.skip_button_rect.height // 2)
+            self.game.handle_click(skip_pos, is_ai_action=True)
+            return True
 

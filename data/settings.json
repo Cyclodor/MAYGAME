@@ -1,5 +1,8 @@
 {
   "music_volume": 0.3,
   "sfx_volume": 0.3,
-  "muted": false
+  "muted": false,
+  "screen_width": 1024,
+  "screen_height": 768,
+  "fullscreen": false
 }

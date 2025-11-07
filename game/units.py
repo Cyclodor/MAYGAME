@@ -634,7 +634,8 @@ class Unit:
             try:
                 import sys
                 import os
-                sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
                 from berserker_debug import get_debugger
                 debugger = get_debugger()
                 if debugger:
@@ -768,12 +769,8 @@ class Unit:
                 self.stuck_in_quicksand = False
         # Ослепление: дальнобойные теряют возможность дальнобойной атаки
         if getattr(self, 'is_ranged', False) and getattr(self, 'blindness_active', False):
-            # Ослепленные дальнобойные могут атаковать только в ближнем бою
-            dx = abs(self.x - target_x)
-            dy = abs(self.y - target_y)
-            distance_to_target = dx + dy
-            if distance_to_target > 1:  # Только ближний бой
-                return False
+            # Ослепленные дальнобойные НЕ могут атаковать вообще (ни дальнобойно, ни в ближнем бою)
+            return False
         if getattr(self, 'is_ranged', False) and not getattr(self, 'blindness_active', False):
             # Проверяем расстояние до цели
             dx = abs(self.x - target_x)
@@ -1103,7 +1100,10 @@ class Hero(Unit):
         super().__init__(x, y, team, 'hero')
         
         # Определяем класс героя по умолчанию для каждой расы
+        # Используем unit_race если он уже установлен, иначе team (для совместимости)
         if hero_class is None:
+            # Сначала проверяем, есть ли unit_race (используется после инициализации)
+            race_for_class = getattr(self, 'unit_race', None) or team
             default_classes = {
                 'human': 'warrior',
                 'elf': 'archer',
@@ -1112,7 +1112,7 @@ class Hero(Unit):
                 'dwarf': 'warrior',
                 'shadow': 'mage'
             }
-            hero_class = default_classes.get(team, 'warrior')
+            hero_class = default_classes.get(race_for_class, 'warrior')
         
         self.hero_class = hero_class
         self.attack = attack
@@ -1128,13 +1128,19 @@ class Hero(Unit):
         self.selected_spell = None
         self.used_spell_this_round = False
         
-        # Загружаем изображение в зависимости от класса
-        image_name = f'hero_{team}_{hero_class}'
+        # Загружаем изображение в зависимости от расы и класса
+        # Используем unit_race если есть, иначе team (для совместимости)
+        race_for_image = getattr(self, 'unit_race', None) or team
+        image_name = f'hero_{race_for_image}_{hero_class}'
         try:
             self.image = load_image(image_name)
         except:
-            # Если изображения для класса нет, используем стандартное
-            self.image = load_image(f'hero_{team}')
+            # Если изображения для класса нет, используем стандартное по расе
+            try:
+                self.image = load_image(f'hero_{race_for_image}')
+            except:
+                # Если и этого нет, используем команду (fallback)
+                self.image = load_image(f'hero_{team}')
         
         self.hover_time = 0
         self.show_tooltip = False
@@ -1187,8 +1193,14 @@ class Hero(Unit):
         else:  # warrior или archer
             base_attack = 5 + self.attack
         
+        # Показываем команду и расу отдельно
+        team_label = TEAM_LABELS.get(self.team, self.team)
+        race_label = ""
+        if hasattr(self, 'unit_race') and self.unit_race:
+            from .core import RACE_LABELS
+            race_label = f" - {RACE_LABELS.get(self.unit_race, self.unit_race)}"
         tooltip_text = [
-            (f"Герой - {class_name} ({TEAM_LABELS.get(self.team, self.team)})", (255,255,255)),
+            (f"Герой - {class_name} ({team_label}{race_label})", (255,255,255)),
             (f"Базовая атака: {base_attack}", (255,180,120)),
             (f"Атака: {self.attack}", (255,220,120)),
             (f"Защита: {self.defense}", (180,180,255)),

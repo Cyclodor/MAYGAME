@@ -1537,26 +1537,86 @@ def draw_cell_texture(surface, x, y, size):
         pygame.draw.ellipse(ellipse, color + (alpha,), (0, 0, gr, gr//2))
         surface.blit(ellipse, (gx, gy))
 
-def draw_animated_grass(surface, t):
-    # 8 травинок на клетку, чуть разный цвет
+# Кэш для анимированной травы
+_grass_cache = {}
+_grass_cache_time = 0
+_grass_update_interval = 0.0125  # Обновляем каждые 0.0125 секунды для максимальной плавности (80 FPS анимация)
+_grass_base_cache = {}  # Базовый кэш без анимации (создается один раз)
+_grass_initialized = False
+
+def _init_grass_base_cache():
+    """Инициализирует базовый кэш травы (выполняется один раз)"""
+    global _grass_base_cache, _grass_initialized
+    if _grass_initialized:
+        return
+    
+    # Используем numpy для быстрой генерации базовых травинок если доступен
+    try:
+        import numpy as np
+        use_numpy = True
+    except ImportError:
+        use_numpy = False
+    
     random.seed(42)
     for x in range(GRID_WIDTH):
         for y in range(GRID_HEIGHT):
-            cell_x = x * CELL_SIZE
-            cell_y = y * CELL_SIZE
-            for i in range(8):
-                base_x = cell_x + random.randint(4, CELL_SIZE-4)
-                base_y = cell_y + random.randint(CELL_SIZE//2, CELL_SIZE-4)
+            cell_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            # Качественная анимация: 16 травинок на клетку для максимального качества
+            grass_data = []
+            for i in range(16):  # Увеличено до 16 травинок для максимальной детализации
+                base_x = random.randint(4, CELL_SIZE-4)
+                base_y = random.randint(CELL_SIZE//2, CELL_SIZE-4)
                 length = random.randint(10, 18)
-                # Цвет травинки чуть отличается
                 base_color = (60, 170, 80)
                 color = tuple(max(0, min(255, c + random.randint(-10, 10))) for c in base_color)
                 phase = (x + y + i) * 0.2
-                sway = math.sin(t * 2.0 + phase) * 5
-                tip_x = base_x + sway
-                tip_y = base_y - length
-                pygame.draw.aaline(surface, color, (base_x, base_y), (tip_x, tip_y))
+                grass_data.append({
+                    'base_x': base_x,
+                    'base_y': base_y,
+                    'length': length,
+                    'color': color,
+                    'phase': phase
+                })
+            _grass_base_cache[(x, y)] = grass_data
+            # Рисуем начальное состояние
+            for grass in grass_data:
+                pygame.draw.line(cell_surface, grass['color'], 
+                               (grass['base_x'], grass['base_y']), 
+                               (grass['base_x'], grass['base_y'] - grass['length']), 1)
     random.seed()
+    _grass_initialized = True
+
+def draw_animated_grass(surface, t):
+    global _grass_cache, _grass_cache_time
+    
+    # Инициализируем базовый кэш один раз
+    _init_grass_base_cache()
+    
+    # Оптимизация: используем более частое обновление кэша для плавной анимации
+    current_time = int(t / _grass_update_interval)
+    
+    # Обновляем кэш анимации только если нужно
+    if current_time != _grass_cache_time or not _grass_cache:
+        _grass_cache_time = current_time
+        _grass_cache.clear()
+        
+        # Создаем анимированные поверхности из базового кэша
+        for (x, y), grass_data in _grass_base_cache.items():
+            cell_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            # Рисуем каждую травинку с анимацией
+            for grass in grass_data:
+                phase = grass['phase']
+                sway = math.sin(t * 2.0 + phase) * 5
+                tip_x = grass['base_x'] + int(sway)
+                tip_y = grass['base_y'] - grass['length']
+                pygame.draw.line(cell_surface, grass['color'], 
+                               (grass['base_x'], grass['base_y']), 
+                               (tip_x, tip_y), 1)
+            _grass_cache[(x, y)] = cell_surface
+    
+    # Быстрое blit всех кэшированных поверхностей
+    for (x, y), cached_surface in _grass_cache.items():
+        surface.blit(cached_surface, (x * CELL_SIZE, y * CELL_SIZE))
 
 def _draw_rotated_arrow(screen, x, y, angle, style='normal'):
     cos_a = math.cos(angle)
@@ -1603,7 +1663,7 @@ def _draw_rotated_arrow(screen, x, y, angle, style='normal'):
         pygame.draw.polygon(screen, (255, 200, 80), [flame1, inner2, inner3])
 
 def animate_arrow(screen, start, end, redraw_callback=None, style='normal'):
-    frames = 12
+    frames = 60  # Увеличено до 60 кадров для максимальной плавности
     dx = end[0] - start[0]
     dy = end[1] - start[1]
     angle = math.atan2(dy, dx)
@@ -1616,14 +1676,14 @@ def animate_arrow(screen, start, end, redraw_callback=None, style='normal'):
         y = int(start[1] * (1-t) + end[1] * t)
         _draw_rotated_arrow(screen, x, y, angle, style=style)
         pygame.display.flip()
-        pygame.time.delay(30)
+        pygame.time.delay(12)  # Уменьшена задержка для плавности
 
 def animate_arrow_fly(screen, start, end, redraw_callback=None):
     return animate_arrow(screen, start, end, redraw_callback=redraw_callback, style='normal')
 
 def animate_fire_arrow_fly(screen, start, end, redraw_callback=None):
     """Улучшенная анимация полета огненной стрелы с детальными эффектами"""
-    frames = 18
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     dx = end[0] - start[0]
     dy = end[1] - start[1]
     angle = math.atan2(dy, dx)
@@ -1642,8 +1702,8 @@ def animate_fire_arrow_fly(screen, start, end, redraw_callback=None):
         
         # Длинный огненный шлейф за стрелой
         trail_length = 50
-        for j in range(20):
-            trail_t = j / 20.0
+        for j in range(40):  # Увеличено с 20 до 40 для более плавного шлейфа
+            trail_t = j / 40.0  # Исправлено деление для правильного расчета
             trail_x = x - int(trail_length * trail_t * math.cos(angle))
             trail_y = y - int(trail_length * trail_t * math.sin(angle))
             trail_r = max(2, int(8 * (1 - trail_t * 0.85)))
@@ -1690,7 +1750,7 @@ def animate_fire_arrow_fly(screen, start, end, redraw_callback=None):
         pygame.draw.circle(overlay, (255, 200, 100, 60), (x, y), int(glow_r * 1.3))
         
         # Летящие искры впереди стрелы
-        for k in range(5):
+        for k in range(12):  # Увеличено с 5 до 12 искр
             spark_angle = angle + (random.random() - 0.5) * 0.5
             spark_dist = 10 + random.randint(0, 15)
             spark_x = x + int(spark_dist * math.cos(spark_angle))
@@ -1699,11 +1759,11 @@ def animate_fire_arrow_fly(screen, start, end, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(26)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_ice_arrow(screen, start, end, redraw_callback=None):
     """Анимация полета ледяной стрелы с ледяными эффектами"""
-    frames = 15
+    frames = 100  # Увеличено до 100 кадров для максимальной плавности
     dx = end[0] - start[0]
     dy = end[1] - start[1]
     angle = math.atan2(dy, dx)
@@ -1722,8 +1782,8 @@ def animate_ice_arrow(screen, start, end, redraw_callback=None):
         
         # Ледяной шлейф за стрелой
         trail_length = 40
-        for j in range(15):
-            trail_t = j / 15.0
+        for j in range(30):  # Увеличено с 15 до 30 для более плавного шлейфа
+            trail_t = j / 30.0  # Исправлено деление для правильного расчета
             trail_x = x - int(trail_length * trail_t * math.cos(angle))
             trail_y = y - int(trail_length * trail_t * math.sin(angle))
             trail_r = max(2, int(6 * (1 - trail_t * 0.8)))
@@ -1739,7 +1799,7 @@ def animate_ice_arrow(screen, start, end, redraw_callback=None):
             pygame.draw.circle(overlay, color, (trail_x, trail_y), trail_r)
         
         # Ледяные кристаллы вокруг стрелы
-        for k in range(6):
+        for k in range(12):  # Увеличено с 6 до 12 кристаллов
             crystal_angle = angle + (k * math.pi / 3) + (i * 0.1)
             crystal_dist = 8 + random.randint(-2, 2)
             crystal_x = x + int(crystal_dist * math.cos(crystal_angle))
@@ -1780,10 +1840,10 @@ def animate_ice_arrow(screen, start, end, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_magic_projectile(screen, start, end, color=(120,40,180)):
-    frames = 12
+    frames = 60  # Увеличено до 60 кадров для максимальной плавности
     for i in range(frames):
         pygame.event.pump()
         t = i / (frames-1)
@@ -1794,10 +1854,10 @@ def animate_magic_projectile(screen, start, end, color=(120,40,180)):
         pygame.draw.circle(screen, color, (x, y), 12)
         pygame.draw.circle(screen, (200,200,255), (x, y), 6)
         pygame.display.flip()
-        pygame.time.delay(30)
+        pygame.time.delay(12)  # Уменьшена задержка для плавности
 
 def animate_magic_fly(screen, start, end, color=(120,40,180), redraw_callback=None):
-    frames = 10
+    frames = 30  # Увеличено с 10 до 30 кадров
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -1812,7 +1872,7 @@ def animate_magic_fly(screen, start, end, color=(120,40,180), redraw_callback=No
 
 def animate_stone_skin(screen, target_px, redraw_callback=None):
     # Анимация каменной корки: наложение серых колец и трещин, затем осыпание
-    frames = 16
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     cx, cy = target_px
     for i in range(frames):
         pygame.event.pump()
@@ -1830,16 +1890,16 @@ def animate_stone_skin(screen, target_px, redraw_callback=None):
             pygame.draw.aaline(overlay, (80, 80, 80, alpha), (cx, cy), (x2, y2))
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(24)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_curse_voodoo(screen, target_px, redraw_callback=None):
     """Улучшенная анимация проклятия с темной магией и вороньими перьями"""
-    frames = 24
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     cx, cy = target_px
     
     # Массив перьев, которые падают на юнит
     feathers = []
-    for _ in range(35):  # Больше перьев для насыщенности
+    for _ in range(60):  # Увеличено до 60 перьев для максимальной насыщенности
         # Позиция начала падения (над юнитом)
         start_x = cx + (random.random() - 0.5) * 80
         start_y = cy - CELL_SIZE - random.random() * 60
@@ -1997,7 +2057,7 @@ def animate_curse_voodoo(screen, target_px, redraw_callback=None):
 
 def animate_rune_shield_spell(screen, target_px, redraw_callback=None):
     # Руна щита: камень с зелёным руническим знаком (щит) и белыми частицами
-    frames = 14
+    frames = 70  # Увеличено до 70 кадров для максимальной плавности
     cx, cy = target_px
     base_y = cy - CELL_SIZE//2 - 15
     for i in range(frames):
@@ -2040,7 +2100,7 @@ def animate_rune_shield_spell(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(24)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_meteor_rain(screen, meteors, redraw_callback=None, explosion_sound_callback=None, flight_sound_callback=None):
     """Анимация метеоритного дождя - все метеориты падают одновременно с маленьким промежутком"""
@@ -2060,8 +2120,8 @@ def animate_meteor_rain(screen, meteors, redraw_callback=None, explosion_sound_c
             'exploded': False
         })
     
-    max_flight_frames = 12
-    explode_frames = 15
+    max_flight_frames = 60  # Увеличено до 60 кадров для максимальной плавности
+    explode_frames = 80  # Увеличено до 80 кадров для максимальной плавности
     if not meteor_data:
         return  # Нет метеоритов для анимации
     max_delay = max(meteor['delay'] for meteor in meteor_data)
@@ -2317,7 +2377,7 @@ def animate_chain_lightning(screen, caster, targets, redraw_callback=None):
             
             screen.blit(s, (0, 0))
             pygame.display.flip()
-            pygame.time.delay(30)  # Ускорено с 50 до 30
+            pygame.time.delay(12)  # Уменьшена задержка для плавности  # Ускорено с 50 до 30
             
             if strike < 1:
                 pygame.event.pump()
@@ -2339,7 +2399,7 @@ def animate_accuracy(screen, target_px, redraw_callback=None):
     import random
     import math
     from .config import CELL_SIZE
-    frames = 40
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     cx, cy = target_px
     
     for i in range(frames):
@@ -2392,11 +2452,11 @@ def animate_accuracy(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_rune_haste_spell(screen, target_px, redraw_callback=None):
     # Руна скорости: камень с белым руническим знаком (молния) и жёлтыми частицами
-    frames = 14
+    frames = 70  # Увеличено до 70 кадров для максимальной плавности
     cx, cy = target_px
     base_y = cy - CELL_SIZE//2 - 15
     for i in range(frames):
@@ -2439,11 +2499,11 @@ def animate_rune_haste_spell(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(24)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_fireball(screen, start_px, end_px, redraw_callback=None, explosion_sound_callback=None, flight_sound_callback=None):
     # Горящий камень летит к цели, затем взрыв после приземления
-    flight_frames = 18
+    flight_frames = 80  # Увеличено до 80 кадров для максимальной плавности
     # Воспроизводим звук полёта в начале анимации
     if flight_sound_callback:
         flight_sound_callback()
@@ -2505,10 +2565,10 @@ def animate_fireball(screen, start_px, end_px, redraw_callback=None, explosion_s
                     pygame.draw.circle(overlay, (255, 220, 120, int(tail_alpha*0.6)), (spark_x, spark_y), 2)
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(28)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
     
     # Этап 2: взрыв после приземления
-    explode_frames = 15
+    explode_frames = 80  # Увеличено до 80 кадров для максимальной плавности
     # Воспроизводим звук взрыва в начале этапа взрыва
     if explosion_sound_callback and callable(explosion_sound_callback):
         explosion_sound_callback()
@@ -2548,11 +2608,11 @@ def animate_fireball(screen, start_px, end_px, redraw_callback=None, explosion_s
             pygame.draw.circle(overlay, (70, 55, 55, int(150*(1-ex_t*0.8))), (smoke_x, smoke_y), smoke_size)
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(30)
+        pygame.time.delay(12)  # Уменьшена задержка для плавности
 
 def animate_raise_dead(screen, center_px, redraw_callback=None):
     # Рука вылазит из земли в центре клетки
-    frames = 14
+    frames = 70  # Увеличено до 70 кадров для максимальной плавности
     cx, cy = center_px
     for i in range(frames):
         pygame.event.pump()
@@ -2570,11 +2630,11 @@ def animate_raise_dead(screen, center_px, redraw_callback=None):
             pygame.draw.rect(overlay, (200,200,200,240), (cx+dx-1, cy+8-finger_h, 2, finger_h))
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(28)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_fire_explosion(screen, x, y):
     """Улучшенный взрыв с детальными огненными эффектами"""
-    frames = 14
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности  # Увеличено с 14 до 40 кадров
     for i in range(frames):
         pygame.event.pump()
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -2656,7 +2716,7 @@ def animate_fire_explosion(screen, x, y):
 
 def animate_forget_spell(screen, start, end, redraw_callback=None):
     """Максимально насыщенная анимация заклинания Забвение с темно-фиолетовыми эффектами"""
-    frames = 25
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -2810,7 +2870,7 @@ def animate_forget_spell(screen, start, end, redraw_callback=None):
 def animate_frost_ring(screen, center, radius_cells=1, redraw_callback=None):
     """Улучшенное Кольцо холода: детальная заморозка с ледяными кристаллами и туманом"""
     cx, cy = center
-    frames = 22
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     
     for i in range(frames):
         pygame.event.pump()
@@ -2919,7 +2979,7 @@ def animate_frost_ring(screen, center, radius_cells=1, redraw_callback=None):
 def animate_frost_impact(screen, center, redraw_callback=None):
     """Анимация морозного удара: ледяные шипы растут из земли и разбиваются"""
     cx, cy = center
-    frames = 24
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -2963,7 +3023,7 @@ def animate_frost_impact(screen, center, redraw_callback=None):
 
 def animate_forget_spell_fly(screen, start, end, redraw_callback=None):
     """Детализированная анимация полета заклинания Забвение"""
-    frames = 15
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности  # Увеличено для плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3022,11 +3082,11 @@ def animate_forget_spell_fly(screen, start, end, redraw_callback=None):
         screen.blit(crystal_surface, (x - 15, y - 15))
         
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_slow_spell(screen, start, end, redraw_callback=None):
     """Замедление: густые шипастые лозы с тенями оплетают цель"""
-    frames = 24
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3111,11 +3171,11 @@ def animate_slow_spell(screen, start, end, redraw_callback=None):
         screen.blit(slow_surface, (x - CELL_SIZE*1.5, y - CELL_SIZE*1.5))
         
         pygame.display.flip()
-        pygame.time.delay(30)
+        pygame.time.delay(12)  # Уменьшена задержка для плавности
 
 def animate_slow_spell_fly(screen, start, end, redraw_callback=None):
     """Анимация полета заклинания Замедление"""
-    frames = 12
+    frames = 30  # Увеличено для плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3149,12 +3209,12 @@ def animate_slow_spell_fly(screen, start, end, redraw_callback=None):
         screen.blit(root_surface, (x - 12, y - 12))
         
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_bless_spell(screen, start, end, redraw_callback=None):
     """Новая анимация Благословения: святой символ, золотой столп света,
     материализация кубка на краткий миг, поток святой воды и финальная вспышка."""
-    frames = 34
+    frames = 60  # Увеличено для плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3228,7 +3288,7 @@ def animate_bless_spell(screen, start, end, redraw_callback=None):
 
 def animate_bless_spell_fly(screen, start, end, redraw_callback=None):
     """Анимация полета заклинания Благословение"""
-    frames = 12
+    frames = 30  # Увеличено для плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3259,11 +3319,11 @@ def animate_bless_spell_fly(screen, start, end, redraw_callback=None):
         screen.blit(cup_surface, (x - 10, y - 10))
         
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_dispel_spell(screen, start, end, redraw_callback=None):
     """Детальная анимация заклинания Снятие чар с расходящимися волнами"""
-    frames = 22
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3352,13 +3412,13 @@ def animate_dispel_spell(screen, start, end, redraw_callback=None):
         screen.blit(dispel_surface, (x - CELL_SIZE*2, y - CELL_SIZE*2))
         
         pygame.display.flip()
-        pygame.time.delay(30)
+        pygame.time.delay(12)  # Уменьшена задержка для плавности
 
 def animate_stone_skin(screen, target_pos, redraw_callback=None):
     """Плитки-кирпичики поднимаются снизу, собираются вокруг юнита и потом рассыпаются."""
     x, y = target_pos
     cx, cy = x, y
-    frames = 34
+    frames = 60  # Увеличено для плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3413,7 +3473,7 @@ def animate_stone_skin(screen, target_pos, redraw_callback=None):
 
 def animate_dispel_spell_fly(screen, start, end, redraw_callback=None):
     """Анимация полета заклинания Снятие чар"""
-    frames = 12
+    frames = 30  # Увеличено для плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3449,12 +3509,12 @@ def animate_dispel_spell_fly(screen, start, end, redraw_callback=None):
         screen.blit(wave_surface, (x - 12, y - 12))
         
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 # Улучшенная анимация: ускорение воздуха с детальными эффектами ветра
 def animate_air_haste_spell(screen, start, end, redraw_callback=None):
     """Улучшенное ускорение с мощными потоками ветра и воздушными эффектами"""
-    frames = 28
+    frames = 110  # Увеличено до 110 кадров для максимальной плавности
     tx, ty = end
     
     for i in range(frames):
@@ -3538,11 +3598,11 @@ def animate_air_haste_spell(screen, start, end, redraw_callback=None):
         
         screen.blit(layer, (tx - CELL_SIZE*1.5, ty - CELL_SIZE*1.5))
         pygame.display.flip()
-        pygame.time.delay(24)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_rune_shield_spell(screen, start, end, redraw_callback=None):
     """Анимация руны защиты: насыщенный глиф над целью с мерцанием и исчезновением"""
-    frames = 28
+    frames = 110  # Увеличено до 110 кадров для максимальной плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3683,11 +3743,11 @@ def animate_rune_shield_spell(screen, start, end, redraw_callback=None):
         screen.blit(rune_surface, (x - CELL_SIZE*1.5, y - CELL_SIZE*1.5))
         
         pygame.display.flip()
-        pygame.time.delay(30)
+        pygame.time.delay(12)  # Уменьшена задержка для плавности
 
 def animate_rune_haste_spell(screen, start, end, redraw_callback=None):
     """Анимация руны скорости: насыщенный глиф над целью с мерцанием и исчезновением"""
-    frames = 28
+    frames = 110  # Увеличено до 110 кадров для максимальной плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3828,7 +3888,7 @@ def animate_rune_haste_spell(screen, start, end, redraw_callback=None):
         screen.blit(rune_surface, (x - CELL_SIZE*1.5, y - CELL_SIZE*1.5))
         
         pygame.display.flip()
-        pygame.time.delay(30) 
+        pygame.time.delay(12)  # Уменьшена задержка для плавности 
 
 def animate_rune_magic_spell(screen, start, end, redraw_callback=None):
     """Анимация руны магии: фиолетовый магический глиф над целью"""
@@ -3836,7 +3896,7 @@ def animate_rune_magic_spell(screen, start, end, redraw_callback=None):
     import math
     from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
     
-    frames = 28
+    frames = 110  # Увеличено до 110 кадров для максимальной плавности
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
@@ -3963,7 +4023,7 @@ def animate_rune_magic_spell(screen, start, end, redraw_callback=None):
         screen.blit(rune_surface, (x - CELL_SIZE*1.5, y - CELL_SIZE*1.5))
         
         pygame.display.flip()
-        pygame.time.delay(30)
+        pygame.time.delay(12)  # Уменьшена задержка для плавности
 
 def animate_rune_berserker_spell(screen, start, end, redraw_callback=None):
     """Простая анимация руны берсерка: красное свечение прямо на юните (без полета снаряда)"""
@@ -3972,7 +4032,7 @@ def animate_rune_berserker_spell(screen, start, end, redraw_callback=None):
     from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT
     
     # Игнорируем start - анимация проигрывается сразу на цели (end)
-    frames = 20
+    frames = 90  # Увеличено до 90 кадров для максимальной плавности
     cx, cy = int(end[0]), int(end[1])
     
     for i in range(frames):
@@ -4013,7 +4073,7 @@ def animate_rune_berserker_spell(screen, start, end, redraw_callback=None):
         # Применяем эффект к экрану
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_luck_horseshoe(screen, unit_pos, redraw_callback=None):
     """Анимация подковы при срабатывании удачи - подкова крутится по вертикальной оси над юнитом"""
@@ -4110,7 +4170,7 @@ def animate_combat_spirit_bird(screen, unit_pos, redraw_callback=None):
     """Анимация золотой птицы при срабатывании боевого духа - птица поднимает крылья"""
     from .config import SCREEN_WIDTH, SCREEN_HEIGHT
     
-    frames = 40
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     cx, cy = int(unit_pos[0]), int(unit_pos[1])
     
     for i in range(frames):
@@ -4229,7 +4289,7 @@ def animate_combat_spirit_bird(screen, unit_pos, redraw_callback=None):
         # Применяем эффект к экрану
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_spell_reflection(screen, target_px, caster_px, redraw_callback=None):
     """Анимация предотвращения заклинания - поток маны прилетает к щиту рядом с юнитом и отталкивается"""
@@ -4237,7 +4297,7 @@ def animate_spell_reflection(screen, target_px, caster_px, redraw_callback=None)
     import math
     from .config import SCREEN_WIDTH, SCREEN_HEIGHT
     
-    frames = 25
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     cx, cy = target_px
     
     # Определяем позицию щита рядом с юнитом (не в центр юнита)
@@ -4356,7 +4416,7 @@ def animate_quicksand_cast(screen, center_px, redraw_callback=None):
     import math
     from .config import SCREEN_WIDTH, SCREEN_HEIGHT
     
-    frames = 20
+    frames = 90  # Увеличено до 90 кадров для максимальной плавности
     cx, cy = center_px
     
     for i in range(frames):
@@ -4401,7 +4461,7 @@ def animate_quicksand_cast(screen, center_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_quicksand_creation(screen, quicksand_positions, redraw_callback=None):
     """Анимация создания зыбучих песков - появляются бурлящие лужи грязи"""
@@ -4409,7 +4469,7 @@ def animate_quicksand_creation(screen, quicksand_positions, redraw_callback=None
     import math
     from .config import SCREEN_WIDTH, SCREEN_HEIGHT
     
-    frames = 25
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     
     for i in range(frames):
         pygame.event.pump()
@@ -4455,7 +4515,7 @@ def animate_quicksand_creation(screen, quicksand_positions, redraw_callback=None
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(30)
+        pygame.time.delay(12)  # Уменьшена задержка для плавности
 
 def animate_quicksand_trigger(screen, target_px, redraw_callback=None):
     """Анимация срабатывания зыбучих песков - улучшенная бурлящая лужа грязи"""
@@ -4464,7 +4524,7 @@ def animate_quicksand_trigger(screen, target_px, redraw_callback=None):
     import time
     from .config import SCREEN_WIDTH, SCREEN_HEIGHT
     
-    frames = 35
+    frames = 60  # Увеличено для плавности
     cx, cy = target_px
     
     for i in range(frames):
@@ -4530,7 +4590,7 @@ def animate_quicksand_trigger(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(25)
+        pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_earth_shock(screen, target_px, redraw_callback=None):
     """Анимация шока земли - фиолетовый гравитационный купол, собираются частицы, купол крутится, схлопывается в чёрную дыру и взрывается"""
@@ -4739,7 +4799,7 @@ def animate_prayer(screen, target_px, redraw_callback=None):
     import math
     from .config import SCREEN_WIDTH, SCREEN_HEIGHT, CELL_SIZE
     
-    frames = 40
+    frames = 80  # Увеличено до 80 кадров для максимальной плавности
     cx, cy = target_px
     
     # Массив перьев, которые падают на юнит (из проклятия, но белые)
@@ -4870,7 +4930,7 @@ def animate_prayer(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(30)
+        pygame.time.delay(12)  # Уменьшена задержка для плавности
 
 
 def animate_blindness(screen, target_px, redraw_callback=None):
@@ -4881,7 +4941,7 @@ def animate_blindness(screen, target_px, redraw_callback=None):
     import time
     from .config import SCREEN_WIDTH, SCREEN_HEIGHT
     
-    frames = 50  # Один длинный раунд вместо двух
+    frames = 120  # Увеличено до 120 кадров для максимальной плавности
     cx, cy = target_px
     
     # Создаём несколько звезд с разными параметрами

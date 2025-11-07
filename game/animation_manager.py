@@ -34,7 +34,7 @@ class AnimationManager:
         cx = target.x * CELL_SIZE + CELL_SIZE // 2
         cy = target.y * CELL_SIZE + CELL_SIZE // 2
         max_r = CELL_SIZE
-        frames = 14
+        frames = 60  # Увеличено до 60 кадров для максимальной плавности
         for i in range(frames):
             pygame.event.pump()
             if redraw_callback:
@@ -45,7 +45,7 @@ class AnimationManager:
             pygame.draw.circle(s, (*color, alpha), (cx, cy), r, 4)
             self.screen.blit(s, (0, 0))
             pygame.display.flip()
-            pygame.time.delay(20)
+            pygame.time.delay(10)  # Уменьшена задержка для плавности
 
     def animate_unit_move(self, unit, dest_x, dest_y):
         """Пошаговая анимация перемещения юнита по манхэттен-пути"""
@@ -97,33 +97,33 @@ class AnimationManager:
         """Анимация исцеления нежити: призрачные кости и голубоватое свечение"""
         cx = target.x * CELL_SIZE + CELL_SIZE // 2
         cy = target.y * CELL_SIZE + CELL_SIZE // 2
-        frames = 16
+        frames = 80  # Увеличено до 80 кадров для максимальной плавности
         for i in range(frames):
             pygame.event.pump()
             self.game.draw()
             s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             # Призрачные "кости" — светлые частицы, вращающиеся и стягивающиеся к центру
-            for k in range(10):
+            for k in range(25):  # Увеличено количество частиц до 25
                 ang = (i * 0.4 + k) * 0.8
-                rad = 16 + max(0, 24 - i * 2)
+                rad = 16 + max(0, 24 - i * 0.8)
                 px = cx + int(math.cos(ang) * rad)
                 py = cy + int(math.sin(ang) * rad)
                 pygame.draw.circle(s, (200, 220, 240, 120), (px, py), 3)
                 pygame.draw.circle(s, (230, 240, 255, 90), (px, py), 1)
             # Голубое лечебное свечение
-            r = 8 + i * 2
-            a = max(0, 180 - i * 10)
+            r = 8 + int(i * 0.5)
+            a = max(0, 180 - int(i * 4.5))
             pygame.draw.circle(s, (120, 200, 255, a), (cx, cy), r, 3)
             self.screen.blit(s, (0, 0))
             pygame.display.flip()
-            pygame.time.delay(18)
+            pygame.time.delay(8)  # Уменьшена задержка для плавности
 
     def animate_fire_shield_cast(self, target, hide_unit_at=None):
         """Анимация наложения огненного щита"""
         cx = target.x * CELL_SIZE + CELL_SIZE // 2
         cy = target.y * CELL_SIZE + CELL_SIZE // 2
         max_r = CELL_SIZE
-        frames = 12
+        frames = 60  # Увеличено до 60 кадров для максимальной плавности
         for i in range(frames):
             pygame.event.pump()
             self.game.draw(hide_unit_at=hide_unit_at)
@@ -134,7 +134,7 @@ class AnimationManager:
             pygame.draw.circle(s, (255, 200, 120, max(20, alpha - 40)), (cx, cy), max(2, r - 6), 2)
             self.screen.blit(s, (0, 0))
             pygame.display.flip()
-            pygame.time.delay(16)
+            pygame.time.delay(8)  # Уменьшена задержка для плавности
 
     def animate_fire_shield_burst(self, defender, attacker, hide_unit_at=None):
         """Анимация срабатывания огненного щита"""

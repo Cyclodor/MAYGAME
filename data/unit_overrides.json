@@ -1,10 +1,10 @@
 {
   "Pixie": {
-    "health": 29,
+    "health": 30,
     "magic_attack": 4,
     "phys_defense": 6,
     "magic_defense": 6,
-    "squad_count": 13,
+    "squad_count": 30,
     "base_squad_count": 13,
     "max_health": 26,
     "phys_attack": 3,
@@ -63,9 +63,7 @@
     "defense": 2,
     "knowledge": 2
   },
-  "Hero_shadow_mage":{
-
-  },
+  "Hero_shadow_mage": {},
   "Hero_elf_mage": {
     "hero_class": "mage",
     "max_health": 70

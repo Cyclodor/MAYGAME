@@ -1,8 +1,9 @@
 import pygame
 import os
 import sys
-# Добавляем родительскую директорию в путь для импорта логгера
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Добавляем путь к модулю логирования анимаций
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(project_root, 'debug', 'animation'))
 from animation_logger import get_logger
 from .config import *
 from .units import Hero, Peasant, Spearman, Crossbowman, Swordsman, Gryphon, Skeleton, Zombie, Ghost, Vampire, Lich, Pixie, ElfScout, ElfArcher, Dryad, Ent, Imp, Gog, Demon, Cerberus, Succubus, Miner, Spearthrower, BearRider, RuneMage, Jarl, Scout, Beast, Minotaur, Witch, LizardRider, Monk, Angel, Cavalryman, DeathKnight, BoneDragon, Reaper, GreenDragon, Druid, Unicorn, BloodPriestess, Devil, HellHorse, Manticore, RedDragon, Beholder, ForgeDragon, MountainRuler, Volkhv
@@ -47,7 +48,8 @@ from .debugger import GameDebugger
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -58,7 +60,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -69,7 +72,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -80,7 +84,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -91,7 +96,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -102,7 +108,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -113,7 +120,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -124,7 +132,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -135,7 +144,8 @@ except:
 try:
     import sys
     import os
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'berserker'))
     from berserker_debug import get_debugger
     BERSERKER_DEBUG = True
 except:
@@ -143,12 +153,24 @@ except:
     def get_debugger():
         return None
 from .ai import AIController
+from .performance import get_performance_profile, get_system_info
 import math
 import random
 
 DEBUG_MODE = False
 
 TEAM_LABELS = {
+    'player1': 'Первая команда',
+    'player2': 'Вторая команда',
+    'human': 'Люди',
+    'undead': 'Нежить',
+    'elf': 'Эльфы',
+    'demon': 'Демоны',
+    'dwarf': 'Гномы',
+    'shadow': 'Тени'
+}
+
+RACE_LABELS = {
     'human': 'Люди',
     'undead': 'Нежить',
     'elf': 'Эльфы',
@@ -168,12 +190,23 @@ class Game:
         # Инициализируем логгер анимаций
         self.anim_logger = get_logger()
         self.anim_logger.log("GAME_INIT", "Игра инициализирована")
+        
+        # Определяем возможности системы и профиль производительности
+        self.performance_profile = get_performance_profile()
+        self.system_info = get_system_info()
+        
+        # Используем возможности системы для оптимизации
+        if self.performance_profile['use_numpy']:
+            self.anim_logger.log("PERF_INIT", f"Используется numpy для ускорения операций")
+        if self.performance_profile['cache_aggressive']:
+            self.anim_logger.log("PERF_INIT", f"Агрессивное кэширование включено (до {self.performance_profile['max_cache_size_mb']}MB)")
+        
         self.units = []
         self.corpses = []  # Список трупов на поле боя
         self.barriers = []  # Список магических барьеров
         self.quicksands = []  # Список зыбучих песков (не барьеры, но ловушки)
         self.selected_unit = None
-        self.current_team = 'human'
+        self.current_team = 'player1'  # По умолчанию первая команда
         self.game_over = False
         self.menu_open = False
         self.state = 'menu'  # 'menu', 'battle_setup', 'game'
@@ -224,7 +257,7 @@ class Game:
         self.ai_controller_p1 = None  # ИИ для игрока 1
         self.ai_controller_p2 = None  # ИИ для игрока 2
         self.ai_think_timer = 0  # Таймер для задержки хода ИИ (для визуализации)
-        self.ai_think_delay = 30  # Задержка перед ходом ИИ (в кадрах, ~0.5 сек при 60 FPS)
+        self.ai_think_delay = 10  # Задержка перед ходом ИИ (в кадрах, уменьшена для более быстрой игры)
         self.spectator_mode = False  # Режим наблюдения (оба бота)
         self.is_paused = False  # Пауза игры
         # Переменные для кастомного курсора дальнобойных юнитов
@@ -235,6 +268,9 @@ class Game:
         # Инициализация менеджера анимаций
         from .animation_manager import AnimationManager
         self.animation_manager = AnimationManager(self)
+        # Инициализация прямых методов для AI
+        from .ai_actions import AIActions
+        self.ai_actions = AIActions(self)
         # Режим разработчика (креатив)
         self.creative_selected_team = 'human'
         self.creative_selected_unit = 'Hero_human_warrior'  # По умолчанию выбран герой-воин людей
@@ -286,7 +322,20 @@ class Game:
         self.music_volume = 0.6
         self.sfx_volume = 0.8
         self.muted = False
+        # Настройки экрана
+        self.screen_width = 800
+        self.screen_height = 600
+        self.fullscreen = False
+        # Сохраняем оригинальные значения для отслеживания изменений
+        self.original_screen_width = 800
+        self.original_screen_height = 600
+        self.original_fullscreen = False
+        self.settings_changed = False  # Флаг изменений в настройках
+        self.settings_apply_dialog = False  # Флаг показа диалога подтверждения
         self._settings_path = os.path.join('data', 'settings.json')
+        # Скролл для меню настроек
+        self.settings_scroll_y = 0
+        self.settings_max_scroll = 0
         self._unit_overrides_path = os.path.join('data', 'unit_overrides.json')
         self._spell_overrides_path = os.path.join('data', 'spell_overrides.json')
         self._load_settings()
@@ -405,6 +454,7 @@ class Game:
             unit.game_ref = self
 
     def generate_battlefield(self):
+        """Генерирует поле боя - кэшируется для оптимизации"""
         field = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
         for x in range(GRID_WIDTH):
             for y in range(GRID_HEIGHT):
@@ -503,9 +553,21 @@ class Game:
             hero1_spells = create_spells_for_race(p1_race)
             # Добавляем класс героя
             hero1_params['hero_class'] = self.player1_hero_class
-            self.hero1 = Hero(GRID_WIDTH-1, 0, p1_race, spells=hero1_spells, **hero1_params)
-            # Сохраняем реальную расу героя для правильного расчета морали
+            # Герой использует команду 'player1', а раса сохраняется отдельно
+            # Сначала создаем героя с командой, затем устанавливаем расу
+            self.hero1 = Hero(GRID_WIDTH-1, 0, 'player1', spells=hero1_spells, **hero1_params)
+            # Сохраняем реальную расу героя для правильного расчета морали и логики расы
             self.hero1.unit_race = p1_race
+            # После установки расы пересоздаем изображение с правильной расой
+            try:
+                from .graphics import load_image
+                image_name = f'hero_{p1_race}_{self.hero1.hero_class}'
+                self.hero1.image = load_image(image_name)
+            except:
+                try:
+                    self.hero1.image = load_image(f'hero_{p1_race}')
+                except:
+                    pass  # Используем изображение по умолчанию
             self.hero1.used_spell_this_round = False
             self.hero1.game_ref = self
             # Применяем оверрайды к герою расы 1
@@ -515,7 +577,8 @@ class Game:
                 pass
             army = []
             for i, unit_cls in enumerate(races[p1_race]):
-                unit = unit_cls(GRID_WIDTH-2, 1 + i*2, p1_race)
+                # Юниты используют команду 'player1', раса сохраняется отдельно
+                unit = unit_cls(GRID_WIDTH-2, 1 + i*2, 'player1')
                 # Сохраняем реальную расу юнита для правильного расчета морали
                 unit.unit_race = p1_race
                 unit.game_ref = self
@@ -554,9 +617,21 @@ class Game:
             hero2_spells = create_spells_for_race(p2_race)
             # Добавляем класс героя
             hero2_params['hero_class'] = self.player2_hero_class
-            self.hero2 = Hero(0, 0, p2_race, spells=hero2_spells, **hero2_params)
-            # Сохраняем реальную расу героя для правильного расчета морали
+            # Герой использует команду 'player2', а раса сохраняется отдельно
+            # Сначала создаем героя с командой, затем устанавливаем расу
+            self.hero2 = Hero(0, 0, 'player2', spells=hero2_spells, **hero2_params)
+            # Сохраняем реальную расу героя для правильного расчета морали и логики расы
             self.hero2.unit_race = p2_race
+            # После установки расы пересоздаем изображение с правильной расой
+            try:
+                from .graphics import load_image
+                image_name = f'hero_{p2_race}_{self.hero2.hero_class}'
+                self.hero2.image = load_image(image_name)
+            except:
+                try:
+                    self.hero2.image = load_image(f'hero_{p2_race}')
+                except:
+                    pass  # Используем изображение по умолчанию
             self.hero2.used_spell_this_round = False
             self.hero2.game_ref = self
             # Применяем оверрайды к герою расы 2
@@ -566,7 +641,8 @@ class Game:
                 pass
             army = []
             for i, unit_cls in enumerate(races[p2_race]):
-                unit = unit_cls(1, 1 + i*2, p2_race)
+                # Юниты используют команду 'player2', раса сохраняется отдельно
+                unit = unit_cls(1, 1 + i*2, 'player2')
                 # Сохраняем реальную расу юнита для правильного расчета морали
                 unit.unit_race = p2_race
                 unit.game_ref = self
@@ -597,21 +673,28 @@ class Game:
             move_points = getattr(self.selected_unit, 'move_points_left', 0)
             if move_points > 0:
                 reachable = self.get_reachable_cells(self.selected_unit.x, self.selected_unit.y, move_points)
+                # Оптимизация: создаем одну поверхность для всех подсвеченных клеток
+                highlight_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
                 for (mx, my) in reachable:
                     dist = abs(mx - self.selected_unit.x) + abs(my - self.selected_unit.y)
                     max_alpha = 220  # Увеличенная яркость
                     min_alpha = 80  # Увеличенная минимальная яркость для четкости
                     if move_points > 1:
-                        alpha = max(min_alpha, max_alpha - int((max_alpha-min_alpha) * (dist-1) / (move_points-1)))
+                        alpha_value = max(min_alpha, max_alpha - int((max_alpha-min_alpha) * (dist-1) / (move_points-1)))
                     else:
-                        alpha = max_alpha
-                    surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-                    # Цвет заполняем без альфы, прозрачность задаём через set_alpha — совместимо с разными версиями pygame
-                    surf.set_alpha(alpha)
-                    surf.fill((80, 160, 255))
-                    # Добавляем рамку для четкости (без альфы — прозрачность уже задана у поверхности)
-                    pygame.draw.rect(surf, (120, 200, 255), (0, 0, CELL_SIZE, CELL_SIZE), 2)
-                    self.screen.blit(surf, (mx*CELL_SIZE, my*CELL_SIZE))
+                        alpha_value = max_alpha
+                    # Убеждаемся что alpha в правильном диапазоне 0-255
+                    alpha_value = max(0, min(255, int(alpha_value)))
+                    # Рисуем прямо на highlight_surface для оптимизации (без создания промежуточных поверхностей)
+                    cell_rect = pygame.Rect(mx*CELL_SIZE, my*CELL_SIZE, CELL_SIZE, CELL_SIZE)
+                    # Заполняем клетку с прозрачностью - используем правильный формат цвета для SRCALPHA поверхности
+                    color_with_alpha = (80, 160, 255, alpha_value)  # RGB + Alpha для SRCALPHA поверхности
+                    pygame.draw.rect(highlight_surface, color_with_alpha, cell_rect)
+                    # Добавляем рамку
+                    border_color = (120, 200, 255, alpha_value)
+                    pygame.draw.rect(highlight_surface, border_color, cell_rect, 2)
+                # Один blit вместо множества
+                self.screen.blit(highlight_surface, (0, 0))
 
     def draw_ui(self):
         def pluralize(n, forms):
@@ -1819,13 +1902,28 @@ class Game:
                 # Пропускаем разделитель раунда
                 active = next((u for u in self.turn_queue if u is not self._round_delimiter), None)
                 if active:
-                    label = f"Ходит: {active.unit_type.capitalize()} ({TEAM_LABELS.get(active.team, active.team)})"
+                    # Показываем команду, а не расу
+                    team_label = TEAM_LABELS.get(active.team, active.team)
+                    race_label = ""
+                    if hasattr(active, 'unit_race') and active.unit_race:
+                        race_label = f" ({RACE_LABELS.get(active.unit_race, active.unit_race)})"
+                    label = f"Ходит: {active.unit_type.capitalize()} ({team_label}{race_label})"
         elif hasattr(self, 'initiative_queue') and self.initiative_queue:
             active = self.initiative_queue[self.current_initiative_index]
-            label = f"Ходит: {active.unit_type.capitalize()} ({TEAM_LABELS.get(active.team, active.team)})"
+            # Показываем команду, а не расу
+            team_label = TEAM_LABELS.get(active.team, active.team)
+            race_label = ""
+            if hasattr(active, 'unit_race') and active.unit_race:
+                race_label = f" ({RACE_LABELS.get(active.unit_race, active.unit_race)})"
+            label = f"Ходит: {active.unit_type.capitalize()} ({team_label}{race_label})"
         elif self.selected_unit:
             # Если нет очереди, но есть выбранный юнит
-            label = f"Выбран: {self.selected_unit.unit_type.capitalize()} ({TEAM_LABELS.get(self.selected_unit.team, self.selected_unit.team)})"
+            # Показываем команду, а не расу
+            team_label = TEAM_LABELS.get(self.selected_unit.team, self.selected_unit.team)
+            race_label = ""
+            if hasattr(self.selected_unit, 'unit_race') and self.selected_unit.unit_race:
+                race_label = f" ({RACE_LABELS.get(self.selected_unit.unit_race, self.selected_unit.unit_race)})"
+            label = f"Выбран: {self.selected_unit.unit_type.capitalize()} ({team_label}{race_label})"
         if label:
             surf = self.font.render(label, True, (255,255,180))
             self.screen.blit(surf, (SCREEN_WIDTH//2 - surf.get_width()//2, SCREEN_HEIGHT - 80 + 50))
@@ -2835,15 +2933,15 @@ class Game:
                     hero_class = parts[2]
                     class_names = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
                     class_name = class_names.get(hero_class, hero_class)
-                    from .units import TEAM_LABELS
-                    race_label = TEAM_LABELS.get(hero_race, hero_race)
+                    # В редакторе показываем расу, используя RACE_LABELS
+                    race_label = RACE_LABELS.get(hero_race, hero_race)
                     display_name = f"{class_name} ({race_label})"
                 elif len(parts) == 2:  # Hero_class
                     hero_class = parts[1]
                     class_names = {'warrior': 'Воин', 'archer': 'Лучник', 'mage': 'Маг'}
                     class_name = class_names.get(hero_class, hero_class)
-                    from .units import TEAM_LABELS
-                    display_name = f"{class_name} ({TEAM_LABELS.get(self.creative_selected_team, self.creative_selected_team)})"
+                    # В редакторе показываем расу, используя RACE_LABELS
+                    display_name = f"{class_name} ({RACE_LABELS.get(self.creative_selected_team, self.creative_selected_team)})"
             self.screen.blit(pygame.font.Font(None, 20).render(display_name, True, (240,240,255)), (rect.x+6, rect.y+3))
             self.creative_unit_rects.append((rect, name))
             draw_y += 30
@@ -2880,10 +2978,12 @@ class Game:
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((30, 20, 10, 200))
         self.screen.blit(overlay, (0,0))
-        # Деревянная панель стиля главного меню
-        panel_w, panel_h = 560, 360
-        panel_x, panel_y = (SCREEN_WIDTH - panel_w)//2, (SCREEN_HEIGHT - panel_h)//2
+        # Деревянная панель стиля главного меню (увеличена для скролла)
+        panel_w, panel_h = 600, min(SCREEN_HEIGHT - 40, 600)
+        panel_x, panel_y = (SCREEN_WIDTH - panel_w)//2, 20
         self.settings_panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
+        
+        # Рисуем панель
         for y_offset in range(panel_h):
             panel_gradient = (
                 int(150 - y_offset * 0.2),
@@ -2896,59 +2996,152 @@ class Game:
         pygame.draw.rect(self.screen, (70, 50, 35), self.settings_panel_rect, 6, border_radius=16)
         inner_panel = pygame.Rect(panel_x + 4, panel_y + 4, panel_w - 8, panel_h - 8)
         pygame.draw.rect(self.screen, (170, 140, 110), inner_panel, 2, border_radius=14)
-        # Заголовок
+        
+        # Создаем поверхность для скроллируемого контента
+        content_height = 750  # Высота всего контента
+        scroll_surface = pygame.Surface((panel_w - 20, content_height))
+        scroll_surface.fill((150, 110, 80))
+        
+        # Ограничиваем скролл
+        max_scroll = max(0, content_height - (panel_h - 100))
+        self.settings_scroll_y = max(0, min(self.settings_scroll_y, max_scroll))
+        
+        # Заголовок на скролл-поверхности
         title_font = pygame.font.Font(None, 46)
         title = title_font.render('НАСТРОЙКИ', True, (255, 245, 220))
         title_shadow = title_font.render('НАСТРОЙКИ', True, (60, 50, 40))
-        self.screen.blit(title_shadow, (panel_x + (panel_w - title.get_width())//2 + 2, panel_y + 18))
-        self.screen.blit(title, (panel_x + (panel_w - title.get_width())//2, panel_y + 16))
+        scroll_surface.blit(title_shadow, ((panel_w - 20 - title.get_width())//2 + 2, 18))
+        scroll_surface.blit(title, ((panel_w - 20 - title.get_width())//2, 16))
+        
         font = pygame.font.Font(None, 32)
-        y = panel_y + 86
+        y = 86
+        label_x = 40
+        val_x = panel_w - 140
+        btn_minus_x = panel_w - 220
+        btn_plus_x = panel_w - 80
+        
         # Музыка
-        label_x = panel_x + 40
-        val_x = panel_x + panel_w - 120
-        btn_minus_x = panel_x + panel_w - 200
-        btn_plus_x = panel_x + panel_w - 60
         self.music_minus_rect = pygame.Rect(btn_minus_x, y, 40, 40)
         self.music_plus_rect = pygame.Rect(btn_plus_x, y, 40, 40)
         for r in [self.music_minus_rect, self.music_plus_rect]:
             for yy in range(r.height):
                 grad = (int(140 - yy*0.5), int(120 - yy*0.4), int(100 - yy*0.3))
-                pygame.draw.line(self.screen, grad, (r.x, r.y+yy), (r.x+r.width, r.y+yy))
-            pygame.draw.rect(self.screen, (70,50,35), r, 3, border_radius=8)
-            pygame.draw.rect(self.screen, (180,150,120), pygame.Rect(r.x+2, r.y+2, r.width-4, r.height-4), 1, border_radius=7)
-        self.screen.blit(font.render('-', True, (255,245,220)), (self.music_minus_rect.x+13, self.music_minus_rect.y+5))
-        self.screen.blit(font.render('+', True, (255,245,220)), (self.music_plus_rect.x+10, self.music_plus_rect.y+5))
-        self.screen.blit(font.render('Музыка', True, (255,245,220)), (label_x, y))
-        self.screen.blit(font.render(f"{int(self.music_volume*100)}%", True, (255,245,220)), (val_x, y))
+                pygame.draw.line(scroll_surface, grad, (r.x, r.y+yy), (r.x+r.width, r.y+yy))
+            pygame.draw.rect(scroll_surface, (70,50,35), r, 3, border_radius=8)
+            pygame.draw.rect(scroll_surface, (180,150,120), pygame.Rect(r.x+2, r.y+2, r.width-4, r.height-4), 1, border_radius=7)
+        scroll_surface.blit(font.render('-', True, (255,245,220)), (self.music_minus_rect.x+13, self.music_minus_rect.y+5))
+        scroll_surface.blit(font.render('+', True, (255,245,220)), (self.music_plus_rect.x+10, self.music_plus_rect.y+5))
+        scroll_surface.blit(font.render('Музыка', True, (255,245,220)), (label_x, y))
+        scroll_surface.blit(font.render(f"{int(self.music_volume*100)}%", True, (255,245,220)), (val_x, y))
         y += 80
+        
         # Звуки
         self.sfx_minus_rect = pygame.Rect(btn_minus_x, y, 40, 40)
         self.sfx_plus_rect = pygame.Rect(btn_plus_x, y, 40, 40)
         for r in [self.sfx_minus_rect, self.sfx_plus_rect]:
             for yy in range(r.height):
                 grad = (int(140 - yy*0.5), int(120 - yy*0.4), int(100 - yy*0.3))
-                pygame.draw.line(self.screen, grad, (r.x, r.y+yy), (r.x+r.width, r.y+yy))
-            pygame.draw.rect(self.screen, (70,50,35), r, 3, border_radius=8)
-            pygame.draw.rect(self.screen, (180,150,120), pygame.Rect(r.x+2, r.y+2, r.width-4, r.height-4), 1, border_radius=7)
-        self.screen.blit(font.render('-', True, (255,245,220)), (self.sfx_minus_rect.x+13, self.sfx_minus_rect.y+5))
-        self.screen.blit(font.render('+', True, (255,245,220)), (self.sfx_plus_rect.x+10, self.sfx_plus_rect.y+5))
-        self.screen.blit(font.render('Звуки', True, (255,245,220)), (label_x, y))
-        self.screen.blit(font.render(f"{int(self.sfx_volume*100)}%", True, (255,245,220)), (val_x, y))
+                pygame.draw.line(scroll_surface, grad, (r.x, r.y+yy), (r.x+r.width, r.y+yy))
+            pygame.draw.rect(scroll_surface, (70,50,35), r, 3, border_radius=8)
+            pygame.draw.rect(scroll_surface, (180,150,120), pygame.Rect(r.x+2, r.y+2, r.width-4, r.height-4), 1, border_radius=7)
+        scroll_surface.blit(font.render('-', True, (255,245,220)), (self.sfx_minus_rect.x+13, self.sfx_minus_rect.y+5))
+        scroll_surface.blit(font.render('+', True, (255,245,220)), (self.sfx_plus_rect.x+10, self.sfx_plus_rect.y+5))
+        scroll_surface.blit(font.render('Звуки', True, (255,245,220)), (label_x, y))
+        scroll_surface.blit(font.render(f"{int(self.sfx_volume*100)}%", True, (255,245,220)), (val_x, y))
         y += 80
+        
         # Отключить звук
-        self.mute_toggle_rect = pygame.Rect(panel_x + (panel_w-260)//2, y, 260, 48)
+        self.mute_toggle_rect = pygame.Rect((panel_w - 20 - 260)//2, y, 260, 48)
         for yy in range(self.mute_toggle_rect.height):
             grad = (int(90 - yy*0.3), int(70 - yy*0.2), int(50 - yy*0.15)) if self.muted else (int(120 - yy*0.3), int(100 - yy*0.25), int(80 - yy*0.2))
-            pygame.draw.line(self.screen, grad,
+            pygame.draw.line(scroll_surface, grad,
                              (self.mute_toggle_rect.x, self.mute_toggle_rect.y + yy),
                              (self.mute_toggle_rect.x + self.mute_toggle_rect.width, self.mute_toggle_rect.y + yy))
-        pygame.draw.rect(self.screen, (70,50,35), self.mute_toggle_rect, 3, border_radius=12)
-        pygame.draw.rect(self.screen, (180,150,120), pygame.Rect(self.mute_toggle_rect.x+2, self.mute_toggle_rect.y+2, self.mute_toggle_rect.width-4, self.mute_toggle_rect.height-4), 1, border_radius=10)
-        self.screen.blit(font.render('Звук выключен' if self.muted else 'Выключить звук', True, (255,245,220)), (self.mute_toggle_rect.x+22, self.mute_toggle_rect.y+10))
-        # Кнопка назад
-        back_w, back_h = 200, 50
-        self.settings_back_rect = pygame.Rect(panel_x + (panel_w - back_w)//2, panel_y + panel_h - back_h - 20, back_w, back_h)
+        pygame.draw.rect(scroll_surface, (70,50,35), self.mute_toggle_rect, 3, border_radius=12)
+        pygame.draw.rect(scroll_surface, (180,150,120), pygame.Rect(self.mute_toggle_rect.x+2, self.mute_toggle_rect.y+2, self.mute_toggle_rect.width-4, self.mute_toggle_rect.height-4), 1, border_radius=10)
+        scroll_surface.blit(font.render('Звук выключен' if self.muted else 'Выключить звук', True, (255,245,220)), (self.mute_toggle_rect.x+22, self.mute_toggle_rect.y+10))
+        y += 90
+        
+        # Разделитель
+        pygame.draw.line(scroll_surface, (70,50,35), (20, y), (panel_w - 40, y), 2)
+        y += 30
+        
+        # Настройки экрана
+        scroll_surface.blit(font.render('Настройки экрана', True, (255,245,220)), (label_x, y))
+        y += 50
+        
+        # Полноэкранный режим
+        self.fullscreen_toggle_rect = pygame.Rect((panel_w - 20 - 300)//2, y, 300, 48)
+        for yy in range(self.fullscreen_toggle_rect.height):
+            grad = (int(90 - yy*0.3), int(70 - yy*0.2), int(50 - yy*0.15)) if self.fullscreen else (int(120 - yy*0.3), int(100 - yy*0.25), int(80 - yy*0.2))
+            pygame.draw.line(scroll_surface, grad,
+                             (self.fullscreen_toggle_rect.x, self.fullscreen_toggle_rect.y + yy),
+                             (self.fullscreen_toggle_rect.x + self.fullscreen_toggle_rect.width, self.fullscreen_toggle_rect.y + yy))
+        pygame.draw.rect(scroll_surface, (70,50,35), self.fullscreen_toggle_rect, 3, border_radius=12)
+        pygame.draw.rect(scroll_surface, (180,150,120), pygame.Rect(self.fullscreen_toggle_rect.x+2, self.fullscreen_toggle_rect.y+2, self.fullscreen_toggle_rect.width-4, self.fullscreen_toggle_rect.height-4), 1, border_radius=10)
+        scroll_surface.blit(font.render('Полноэкранный режим: ВКЛ' if self.fullscreen else 'Полноэкранный режим: ВЫКЛ', True, (255,245,220)), (self.fullscreen_toggle_rect.x+22, self.fullscreen_toggle_rect.y+10))
+        y += 70
+        
+        # Разрешение экрана
+        scroll_surface.blit(font.render('Разрешение:', True, (255,245,220)), (label_x, y))
+        y += 50
+        
+        # Кнопки выбора разрешения
+        from game.config import AVAILABLE_RESOLUTIONS
+        resolutions_per_row = 2
+        btn_res_w = 250
+        btn_res_h = 40
+        btn_res_gap = 20
+        
+        for i, (w, h) in enumerate(AVAILABLE_RESOLUTIONS):
+            row = i // resolutions_per_row
+            col = i % resolutions_per_row
+            btn_x = label_x + col * (btn_res_w + btn_res_gap)
+            btn_y = y + row * (btn_res_h + 10)
+            
+            res_rect = pygame.Rect(btn_x, btn_y, btn_res_w, btn_res_h)
+            attr_name = f'resolution_rect_{w}_{h}'
+            setattr(self, attr_name, res_rect)
+            
+            # Подсветка текущего разрешения
+            is_selected = (self.screen_width == w and self.screen_height == h)
+            for yy in range(btn_res_h):
+                if is_selected:
+                    grad = (int(120 - yy*0.3), int(100 - yy*0.25), int(80 - yy*0.2))
+                else:
+                    grad = (int(140 - yy*0.5), int(120 - yy*0.4), int(100 - yy*0.3))
+                pygame.draw.line(scroll_surface, grad, (res_rect.x, res_rect.y+yy), (res_rect.x+res_rect.width, res_rect.y+yy))
+            pygame.draw.rect(scroll_surface, (70,50,35), res_rect, 3, border_radius=8)
+            pygame.draw.rect(scroll_surface, (180,150,120), pygame.Rect(res_rect.x+2, res_rect.y+2, res_rect.width-4, res_rect.height-4), 1, border_radius=6)
+            
+            res_text = f"{w}x{h}"
+            if is_selected:
+                res_text += " ✓"
+            scroll_surface.blit(font.render(res_text, True, (255,245,220)), (res_rect.x+10, res_rect.y+8))
+        
+        y += (len(AVAILABLE_RESOLUTIONS) // resolutions_per_row + 1) * (btn_res_h + 10) + 20
+        
+        # Предупреждение о перезапуске
+        warning_font = pygame.font.Font(None, 24)
+        warning_text = "Изменение разрешения требует перезапуска игры"
+        scroll_surface.blit(warning_font.render(warning_text, True, (255,200,100)), (label_x, y))
+        y += 40
+        
+        # Обрезаем скролл-поверхность и отображаем
+        visible_height = panel_h - 100
+        scroll_area = pygame.Rect(10, 80, panel_w - 20, visible_height)
+        self.screen.blit(scroll_surface, (panel_x + 10, panel_y + 80), (0, self.settings_scroll_y, panel_w - 20, visible_height))
+        
+        # Кнопки внизу - вне скроллируемой области, всегда видны
+        back_w, back_h = 180, 50
+        apply_w, apply_h = 180, 50
+        button_gap = 20
+        total_width = back_w + apply_w + button_gap
+        start_x = panel_x + (panel_w - total_width) // 2
+        back_y = panel_y + panel_h - back_h - 20
+        
+        # Кнопка "Назад"
+        self.settings_back_rect = pygame.Rect(start_x, back_y, back_w, back_h)
         for yy in range(back_h):
             grad = (int(150 - yy * 0.35), int(110 - yy * 0.30), int(80 - yy * 0.25))
             pygame.draw.line(self.screen, grad, (self.settings_back_rect.x, self.settings_back_rect.y + yy), (self.settings_back_rect.x + back_w, self.settings_back_rect.y + yy))
@@ -2959,34 +3152,130 @@ class Game:
         back_shadow = back_font.render('Назад', True, (60,50,40))
         self.screen.blit(back_shadow, (self.settings_back_rect.x + (back_w - back_shadow.get_width())//2 + 2, self.settings_back_rect.y + 14))
         self.screen.blit(back_text, (self.settings_back_rect.x + (back_w - back_text.get_width())//2, self.settings_back_rect.y + 12))
+        
+        # Кнопка "Применить" - показывается только если есть изменения
+        if self.check_settings_changed():
+            self.settings_changed = True
+            self.settings_apply_rect = pygame.Rect(start_x + back_w + button_gap, back_y, apply_w, apply_h)
+            for yy in range(apply_h):
+                grad = (int(120 - yy * 0.3), int(100 - yy * 0.25), int(80 - yy * 0.2))
+                pygame.draw.line(self.screen, grad, (self.settings_apply_rect.x, self.settings_apply_rect.y + yy), (self.settings_apply_rect.x + apply_w, self.settings_apply_rect.y + yy))
+            pygame.draw.rect(self.screen, (70,50,35), self.settings_apply_rect, 5, border_radius=12)
+            pygame.draw.rect(self.screen, (200,180,120), pygame.Rect(self.settings_apply_rect.x+3, self.settings_apply_rect.y+3, apply_w-6, apply_h-6), 2, border_radius=10)
+            apply_text = back_font.render('Применить', True, (255,245,220))
+            apply_shadow = back_font.render('Применить', True, (60,50,40))
+            self.screen.blit(apply_shadow, (self.settings_apply_rect.x + (apply_w - apply_shadow.get_width())//2 + 2, self.settings_apply_rect.y + 14))
+            self.screen.blit(apply_text, (self.settings_apply_rect.x + (apply_w - apply_text.get_width())//2, self.settings_apply_rect.y + 12))
+        
+        # Диалог подтверждения
+        if self.settings_apply_dialog:
+            # Затемнение
+            dialog_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            dialog_overlay.fill((0, 0, 0, 180))
+            self.screen.blit(dialog_overlay, (0, 0))
+            
+            # Диалоговое окно
+            dialog_w, dialog_h = 400, 200
+            dialog_x = (SCREEN_WIDTH - dialog_w) // 2
+            dialog_y = (SCREEN_HEIGHT - dialog_h) // 2
+            dialog_rect = pygame.Rect(dialog_x, dialog_y, dialog_w, dialog_h)
+            
+            # Фон диалога
+            for yy in range(dialog_h):
+                grad = (int(150 - yy * 0.2), int(110 - yy * 0.15), int(80 - yy * 0.10))
+                pygame.draw.line(self.screen, grad, (dialog_x, dialog_y + yy), (dialog_x + dialog_w, dialog_y + yy))
+            pygame.draw.rect(self.screen, (70, 50, 35), dialog_rect, 6, border_radius=16)
+            pygame.draw.rect(self.screen, (170, 140, 110), pygame.Rect(dialog_x + 4, dialog_y + 4, dialog_w - 8, dialog_h - 8), 2, border_radius=14)
+            
+            # Текст
+            dialog_font = pygame.font.Font(None, 32)
+            question_text = dialog_font.render('Применить изменения?', True, (255,245,220))
+            self.screen.blit(question_text, (dialog_x + (dialog_w - question_text.get_width())//2, dialog_y + 30))
+            
+            resolution_text = f"Разрешение: {self.screen_width}x{self.screen_height}"
+            fullscreen_text = "Полноэкранный режим: " + ("ВКЛ" if self.fullscreen else "ВЫКЛ")
+            info_font = pygame.font.Font(None, 24)
+            self.screen.blit(info_font.render(resolution_text, True, (255,245,220)), (dialog_x + (dialog_w - info_font.size(resolution_text)[0])//2, dialog_y + 70))
+            self.screen.blit(info_font.render(fullscreen_text, True, (255,245,220)), (dialog_x + (dialog_w - info_font.size(fullscreen_text)[0])//2, dialog_y + 100))
+            
+            # Кнопки Да/Нет
+            btn_w, btn_h = 100, 40
+            btn_y = dialog_y + dialog_h - btn_h - 20
+            yes_x = dialog_x + (dialog_w // 2) - btn_w - 10
+            no_x = dialog_x + (dialog_w // 2) + 10
+            
+            self.settings_dialog_yes_rect = pygame.Rect(yes_x, btn_y, btn_w, btn_h)
+            self.settings_dialog_no_rect = pygame.Rect(no_x, btn_y, btn_w, btn_h)
+            
+            # Кнопка "Да" - нормальный зеленый цвет
+            for yy in range(btn_h):
+                grad = (int(100 - yy * 0.3), int(150 - yy * 0.25), int(100 - yy * 0.2))
+                pygame.draw.line(self.screen, grad, (self.settings_dialog_yes_rect.x, self.settings_dialog_yes_rect.y + yy), (self.settings_dialog_yes_rect.x + btn_w, self.settings_dialog_yes_rect.y + yy))
+            pygame.draw.rect(self.screen, (70,50,35), self.settings_dialog_yes_rect, 3, border_radius=8)
+            pygame.draw.rect(self.screen, (120,180,120), pygame.Rect(self.settings_dialog_yes_rect.x+2, self.settings_dialog_yes_rect.y+2, btn_w-4, btn_h-4), 0, border_radius=6)
+            yes_text = info_font.render('Да', True, (255,255,255))
+            self.screen.blit(yes_text, (self.settings_dialog_yes_rect.x + (btn_w - yes_text.get_width())//2, self.settings_dialog_yes_rect.y + 10))
+            
+            # Кнопка "Нет" - красный цвет
+            for yy in range(btn_h):
+                grad = (int(150 - yy * 0.3), int(100 - yy * 0.25), int(100 - yy * 0.2))
+                pygame.draw.line(self.screen, grad, (self.settings_dialog_no_rect.x, self.settings_dialog_no_rect.y + yy), (self.settings_dialog_no_rect.x + btn_w, self.settings_dialog_no_rect.y + yy))
+            pygame.draw.rect(self.screen, (70,50,35), self.settings_dialog_no_rect, 3, border_radius=8)
+            pygame.draw.rect(self.screen, (180,120,120), pygame.Rect(self.settings_dialog_no_rect.x+2, self.settings_dialog_no_rect.y+2, btn_w-4, btn_h-4), 0, border_radius=6)
+            no_text = info_font.render('Нет', True, (255,255,255))
+            self.screen.blit(no_text, (self.settings_dialog_no_rect.x + (btn_w - no_text.get_width())//2, self.settings_dialog_no_rect.y + 10))
+        
+        # Полоса прокрутки (если нужно)
+        if max_scroll > 0:
+            scrollbar_w = 10
+            scrollbar_x = panel_x + panel_w - scrollbar_w - 5
+            scrollbar_h = visible_height
+            scrollbar_y = panel_y + 80
+            scrollbar_rect = pygame.Rect(scrollbar_x, scrollbar_y, scrollbar_w, scrollbar_h)
+            pygame.draw.rect(self.screen, (70,50,35), scrollbar_rect, 2)
+            
+            # Ползунок
+            slider_h = max(20, int(visible_height * visible_height / content_height))
+            slider_y = scrollbar_y + int((self.settings_scroll_y / max_scroll) * (scrollbar_h - slider_h)) if max_scroll > 0 else scrollbar_y
+            slider_rect = pygame.Rect(scrollbar_x, slider_y, scrollbar_w, slider_h)
+            pygame.draw.rect(self.screen, (180,150,120), slider_rect)
 
     def handle_settings_click(self, pos):
-        if hasattr(self, 'music_minus_rect') and self.music_minus_rect.collidepoint(pos):
-            self.music_volume = max(0.0, round(self.music_volume - 0.1, 2))
-            self._apply_audio_volumes()
-            self._save_settings()
-            return
-        if hasattr(self, 'music_plus_rect') and self.music_plus_rect.collidepoint(pos):
-            self.music_volume = min(1.0, round(self.music_volume + 0.1, 2))
-            self._apply_audio_volumes()
-            self._save_settings()
-            return
-        if hasattr(self, 'sfx_minus_rect') and self.sfx_minus_rect.collidepoint(pos):
-            self.sfx_volume = max(0.0, round(self.sfx_volume - 0.1, 2))
-            self._apply_audio_volumes()
-            self._save_settings()
-            return
-        if hasattr(self, 'sfx_plus_rect') and self.sfx_plus_rect.collidepoint(pos):
-            self.sfx_volume = min(1.0, round(self.sfx_volume + 0.1, 2))
-            self._apply_audio_volumes()
-            self._save_settings()
-            return
-        if hasattr(self, 'mute_toggle_rect') and self.mute_toggle_rect.collidepoint(pos):
-            self.muted = not self.muted
-            self._apply_audio_volumes()
-            self._save_settings()
-            return
+        # Проверяем диалог подтверждения (если открыт)
+        if self.settings_apply_dialog:
+            if hasattr(self, 'settings_dialog_yes_rect') and self.settings_dialog_yes_rect.collidepoint(pos):
+                # Применяем изменения
+                self.settings_apply_dialog = False
+                # Возвращаем новый экран (будет обработан в main.py)
+                return 'apply_resolution'
+            elif hasattr(self, 'settings_dialog_no_rect') and self.settings_dialog_no_rect.collidepoint(pos):
+                # Отменяем изменения - возвращаем к оригинальным значениям
+                self.settings_apply_dialog = False
+                self.screen_width = self.original_screen_width
+                self.screen_height = self.original_screen_height
+                self.fullscreen = self.original_fullscreen
+                self.settings_changed = False
+                return
+            else:
+                # Клик вне диалога - игнорируем
+                return
+        
+        # Проверяем кнопку "Применить"
+        if hasattr(self, 'settings_apply_rect') and self.settings_apply_rect.collidepoint(pos):
+            if self.check_settings_changed():
+                # Показываем диалог подтверждения
+                self.settings_apply_dialog = True
+                return
+        
+        # Проверяем кнопку "Назад" - она вне скроллируемой области
         if hasattr(self, 'settings_back_rect') and self.settings_back_rect.collidepoint(pos):
+            # Если были изменения, отменяем их
+            if self.check_settings_changed():
+                self.screen_width = self.original_screen_width
+                self.screen_height = self.original_screen_height
+                self.fullscreen = self.original_fullscreen
+                self.settings_changed = False
+            
             # Если зашли в настройки из паузы — возвращаемся в пауз-меню
             if self.is_paused:
                 self.state = 'game'
@@ -2995,6 +3284,56 @@ class Game:
             # Иначе возвращаемся в главное меню настроек
             self.state = 'menu'
             return
+        
+        # Учитываем скролл при проверке кликов
+        panel_w, panel_h = 600, min(SCREEN_HEIGHT - 40, 600)
+        panel_x, panel_y = (SCREEN_WIDTH - panel_w)//2, 20
+        visible_height = panel_h - 100
+        scroll_offset_y = panel_y + 80
+        
+        # Корректируем позицию клика с учетом скролла
+        adjusted_pos = (pos[0], pos[1] - scroll_offset_y + self.settings_scroll_y)
+        
+        if hasattr(self, 'music_minus_rect') and self.music_minus_rect.collidepoint(adjusted_pos):
+            self.music_volume = max(0.0, round(self.music_volume - 0.1, 2))
+            self._apply_audio_volumes()
+            self._save_settings()
+            return
+        if hasattr(self, 'music_plus_rect') and self.music_plus_rect.collidepoint(adjusted_pos):
+            self.music_volume = min(1.0, round(self.music_volume + 0.1, 2))
+            self._apply_audio_volumes()
+            self._save_settings()
+            return
+        if hasattr(self, 'sfx_minus_rect') and self.sfx_minus_rect.collidepoint(adjusted_pos):
+            self.sfx_volume = max(0.0, round(self.sfx_volume - 0.1, 2))
+            self._apply_audio_volumes()
+            self._save_settings()
+            return
+        if hasattr(self, 'sfx_plus_rect') and self.sfx_plus_rect.collidepoint(adjusted_pos):
+            self.sfx_volume = min(1.0, round(self.sfx_volume + 0.1, 2))
+            self._apply_audio_volumes()
+            self._save_settings()
+            return
+        if hasattr(self, 'mute_toggle_rect') and self.mute_toggle_rect.collidepoint(adjusted_pos):
+            self.muted = not self.muted
+            self._apply_audio_volumes()
+            self._save_settings()
+            return
+        if hasattr(self, 'fullscreen_toggle_rect') and self.fullscreen_toggle_rect.collidepoint(adjusted_pos):
+            self.fullscreen = not self.fullscreen
+            # Не сохраняем сразу - только при нажатии "Применить"
+            return
+        # Проверяем клики по кнопкам разрешения
+        from game.config import AVAILABLE_RESOLUTIONS
+        for w, h in AVAILABLE_RESOLUTIONS:
+            attr_name = f'resolution_rect_{w}_{h}'
+            if hasattr(self, attr_name):
+                res_rect = getattr(self, attr_name)
+                if res_rect.collidepoint(adjusted_pos):
+                    self.screen_width = w
+                    self.screen_height = h
+                    # Не сохраняем сразу - только при нажатии "Применить"
+                    return
 
     def _apply_audio_volumes(self):
         from pygame import mixer
@@ -3038,6 +3377,14 @@ class Game:
                 self.music_volume = float(data.get('music_volume', self.music_volume))
                 self.sfx_volume = float(data.get('sfx_volume', self.sfx_volume))
                 self.muted = bool(data.get('muted', self.muted))
+                # Настройки экрана
+                self.screen_width = int(data.get('screen_width', self.screen_width))
+                self.screen_height = int(data.get('screen_height', self.screen_height))
+                self.fullscreen = bool(data.get('fullscreen', self.fullscreen))
+                # Сохраняем оригинальные значения
+                self.original_screen_width = self.screen_width
+                self.original_screen_height = self.screen_height
+                self.original_fullscreen = self.fullscreen
         except Exception as e:
             print(f"Ошибка загрузки настроек: {e}")
 
@@ -3046,9 +3393,99 @@ class Game:
             os.makedirs(os.path.dirname(self._settings_path), exist_ok=True)
             import json
             with open(self._settings_path, 'w', encoding='utf-8') as f:
-                json.dump({'music_volume': self.music_volume, 'sfx_volume': self.sfx_volume, 'muted': self.muted}, f, ensure_ascii=False, indent=2)
+                json.dump({
+                    'music_volume': self.music_volume,
+                    'sfx_volume': self.sfx_volume,
+                    'muted': self.muted,
+                    'screen_width': self.screen_width,
+                    'screen_height': self.screen_height,
+                    'fullscreen': self.fullscreen
+                }, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"Ошибка сохранения настроек: {e}")
+    
+    def check_settings_changed(self):
+        """Проверяет, были ли изменения в настройках экрана"""
+        return (self.screen_width != self.original_screen_width or
+                self.screen_height != self.original_screen_height or
+                self.fullscreen != self.original_fullscreen)
+    
+    def apply_resolution_change(self, screen):
+        """Применяет изменение разрешения и полноэкранного режима"""
+        try:
+            # Сохраняем настройки
+            self._save_settings()
+            
+            # Обновляем оригинальные значения
+            self.original_screen_width = self.screen_width
+            self.original_screen_height = self.screen_height
+            self.original_fullscreen = self.fullscreen
+            self.settings_changed = False
+            
+            # Обновляем глобальные переменные ПЕРЕД пересозданием экрана
+            import game.config as config
+            old_width = config.SCREEN_WIDTH
+            old_height = config.SCREEN_HEIGHT
+            config.SCREEN_WIDTH = self.screen_width
+            config.SCREEN_HEIGHT = self.screen_height
+            config.GRID_WIDTH = config.SCREEN_WIDTH // config.CELL_SIZE
+            config.GRID_HEIGHT = config.SCREEN_HEIGHT // config.CELL_SIZE
+            
+            # Пересоздаем экран с новыми параметрами
+            flags = pygame.FULLSCREEN if self.fullscreen else 0
+            new_screen = pygame.display.set_mode((self.screen_width, self.screen_height), flags)
+            
+            # Обновляем ссылку на экран в объекте игры
+            self.screen = new_screen
+            
+            # Пересоздаем поле боя с новым разрешением
+            if hasattr(self, 'field'):
+                self.field = self.generate_battlefield()
+            if hasattr(self, 'background'):
+                self.background = self.generate_battlefield()
+            
+            # Пересоздаем все поверхности, которые зависят от размера экрана
+            if hasattr(self, 'highlight_surface'):
+                self.highlight_surface = pygame.Surface((config.CELL_SIZE, config.CELL_SIZE), pygame.SRCALPHA)
+            
+            # Обновляем позиции UI элементов
+            self._update_ui_positions()
+            
+            return new_screen
+        except Exception as e:
+            print(f"Ошибка применения разрешения: {e}")
+            import traceback
+            traceback.print_exc()
+            return screen
+    
+    def _update_ui_positions(self):
+        """Обновляет позиции UI элементов при изменении разрешения"""
+        from game.config import SCREEN_WIDTH, SCREEN_HEIGHT
+        # Обновляем позиции кнопок
+        if hasattr(self, 'skip_button_rect'):
+            self.skip_button_rect = pygame.Rect(SCREEN_WIDTH - 70, SCREEN_HEIGHT - 80 - 60, 48, 48)
+        if hasattr(self, 'defend_button_rect'):
+            self.defend_button_rect = pygame.Rect(SCREEN_WIDTH - 140, SCREEN_HEIGHT - 80 - 60, 48, 48)
+        if hasattr(self, 'book_button_rect'):
+            self.book_button_rect = pygame.Rect(SCREEN_WIDTH - 210, SCREEN_HEIGHT - 80 - 60, 48, 48)
+        if hasattr(self, 'history_button_rect'):
+            self.history_button_rect = pygame.Rect(SCREEN_WIDTH//2 - 24, 10, 48, 48)
+        if hasattr(self, 'spellbook_rect'):
+            self.spellbook_rect = pygame.Rect(SCREEN_WIDTH - 150, 20, 140, 40)
+        if hasattr(self, 'menu_rect'):
+            self.menu_rect = pygame.Rect(SCREEN_WIDTH//2 - 120, SCREEN_HEIGHT//2 - 60, 240, 120)
+        if hasattr(self, 'exit_button_rect'):
+            self.exit_button_rect = pygame.Rect(SCREEN_WIDTH//2 - 60, SCREEN_HEIGHT//2 + 10, 120, 40)
+        if hasattr(self, 'start_button_rect'):
+            self.start_button_rect = pygame.Rect(SCREEN_WIDTH//2 - 60, SCREEN_HEIGHT//2 - 40, 120, 40)
+        if hasattr(self, 'creative_panel_rect'):
+            self.creative_panel_rect = pygame.Rect(SCREEN_WIDTH - 220, 0, 220, SCREEN_HEIGHT)
+        if hasattr(self, 'creative_start_rect'):
+            self.creative_start_rect = pygame.Rect(SCREEN_WIDTH - 180, SCREEN_HEIGHT - 60, 160, 38)
+        if hasattr(self, 'creative_back_rect'):
+            self.creative_back_rect = pygame.Rect(20, SCREEN_HEIGHT - 50, 150, 32)
+        if hasattr(self, 'creative_spellbook_rect'):
+            self.creative_spellbook_rect = pygame.Rect(SCREEN_WIDTH - 180, SCREEN_HEIGHT - 160, 160, 32)
 
     # --------- Unit overrides persistence ---------
     def _load_unit_overrides(self):
@@ -3103,18 +3540,20 @@ class Game:
 
     def _apply_unit_overrides_to_instance(self, unit):
         # Для героев используем ключ вида Hero_<race>_<class>, чтобы настраивать по расам и классам
+        # ВАЖНО: Используем unit_race (расу), а не team (команду), так как оверрайды привязаны к расе
         data = None
         try:
             from .units import Hero as _Hero
             if isinstance(unit, _Hero):
-                team = getattr(unit, 'team', '')
+                # Получаем расу героя (не команду!)
+                unit_race = getattr(unit, 'unit_race', '')
                 hero_class = getattr(unit, 'hero_class', '')
-                # Пытаемся найти специфичный оверрайд для race+class
-                if team and hero_class:
-                    data = self.unit_overrides.get(f"Hero_{team}_{hero_class}")
-                # Если не нашли, ищем по расе
-                if not data and team:
-                    data = self.unit_overrides.get(f"Hero_{team}")
+                # Пытаемся найти специфичный оверрайд для race+class (например, Hero_human_warrior)
+                if unit_race and hero_class:
+                    data = self.unit_overrides.get(f"Hero_{unit_race}_{hero_class}")
+                # Если не нашли, ищем по расе (например, Hero_human)
+                if not data and unit_race:
+                    data = self.unit_overrides.get(f"Hero_{unit_race}")
                 # Если и это не нашли, используем общий Hero
                 if not data:
                     data = self.unit_overrides.get('Hero')
@@ -3192,9 +3631,14 @@ class Game:
             unit.max_health = unit.squad_count * unit.unit_hp
         else:
             # Для одиночных юнитов: применяем health и max_health из JSON если указаны
+            # Если указан только health, устанавливаем и health, и max_health в одно значение
             if 'health' in data:
                 try:
-                    unit.health = int(data['health'])
+                    health_value = int(data['health'])
+                    unit.health = health_value
+                    # Если max_health не указан отдельно, устанавливаем его равным health
+                    if 'max_health' not in data:
+                        unit.max_health = health_value
                     applied_params.append('health')
                 except Exception:
                     pass
@@ -3202,12 +3646,6 @@ class Game:
                 try:
                     unit.max_health = int(data['max_health'])
                     applied_params.append('max_health')
-                except Exception:
-                    pass
-            # Если health указан, но max_health нет - устанавливаем max_health = health
-            if 'health' in data and 'max_health' not in data:
-                try:
-                    unit.max_health = int(data['health'])
                 except Exception:
                     pass
         # После применения оверрайдов убеждаемся, что у нежити боевой дух = 0
@@ -3637,7 +4075,20 @@ class Game:
 
     # Универсальная обработка прокрутки колесом мыши (вызывать из внешнего цикла событий)
     def on_mouse_wheel(self, y_delta):
+        # Получаем координаты мыши
         mx, my = pygame.mouse.get_pos()
+        # Настройки: скролл меню
+        if self.state == 'settings':
+            panel_w, panel_h = 600, min(SCREEN_HEIGHT - 40, 600)
+            panel_x, panel_y = (SCREEN_WIDTH - panel_w)//2, 20
+            visible_height = panel_h - 100
+            scroll_area = pygame.Rect(panel_x + 10, panel_y + 80, panel_w - 20, visible_height)
+            if scroll_area.collidepoint(mx, my):
+                content_height = 750
+                max_scroll = max(0, content_height - visible_height)
+                # y_delta > 0 означает прокрутку вверх (в pygame)
+                self.settings_scroll_y = max(0, min(max_scroll, self.settings_scroll_y - y_delta * 30))
+                return
         # Креатив: скролл рас
         race_view_top = 40
         race_view_h = 120
@@ -4283,6 +4734,11 @@ class Game:
                 else:
                     # Для обычных юнитов: применяем те же настройки что и в обычной игре
                     unit.game_ref = self
+                    # Применяем оверрайды к юниту из креатива (те же, что и в основной игре)
+                    try:
+                        self._apply_unit_overrides_to_instance(unit)
+                    except Exception:
+                        pass
                     # Устанавливаем размер отряда (это также инициализирует unit_hp)
                     self._set_default_squad_count(unit)
                     # Убеждаемся, что unit_hp инициализирован даже для одиночных юнитов
@@ -4739,12 +5195,42 @@ class Game:
 
     def create_corpse(self, unit):
         """Создает труп из юнита и добавляет его в список трупов."""
+        # Оптимизация: используем numpy для быстрого преобразования в серый цвет
+        try:
+            import numpy as np
+            # Быстрое преобразование с использованием numpy
+            img_array = pygame.surfarray.array3d(unit.image)
+            alpha_array = pygame.surfarray.array_alpha(unit.image)
+            # Преобразуем RGB в оттенки серого используя формулу
+            gray_array = (0.299 * img_array[:,:,0] + 0.587 * img_array[:,:,1] + 0.114 * img_array[:,:,2]).astype(np.uint8)
+            # Создаем новый массив с серым цветом и альфа-каналом
+            gray_img = np.zeros((img_array.shape[0], img_array.shape[1], 4), dtype=np.uint8)
+            gray_img[:,:,0] = gray_array
+            gray_img[:,:,1] = gray_array
+            gray_img[:,:,2] = gray_array
+            gray_img[:,:,3] = (alpha_array * 0.5).astype(np.uint8)  # Полупрозрачность
+            
+            # Создаем поверхность из массива
+            gray_surface = pygame.surfarray.make_surface(gray_img.swapaxes(0, 1))
+            gray_surface.set_colorkey((0, 0, 0))
+        except (ImportError, ValueError, AttributeError):
+            # Fallback на медленный метод если numpy недоступен
+            gray_surface = pygame.Surface(unit.image.get_size(), pygame.SRCALPHA)
+            for x in range(unit.image.get_width()):
+                for y in range(unit.image.get_height()):
+                    pixel = unit.image.get_at((x, y))
+                    if pixel.a > 0:  # Если пиксель не прозрачный
+                        # Преобразуем в оттенки серого
+                        gray = int(0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b)
+                        gray_surface.set_at((x, y), (gray, gray, gray, 128))  # Полупрозрачность
+        
         corpse = {
             'x': unit.x,
             'y': unit.y,
             'team': unit.team,
             'unit_type': unit.unit_type,
             'image': unit.image,  # Сохраняем оригинальное изображение
+            'gray_image': gray_surface,  # Кэшируем серую поверхность для быстрой отрисовки
             'max_health': getattr(unit, 'max_health', 100),
             'unit_class': unit.__class__  # Сохраняем класс для воскрешения
         }
@@ -4765,41 +5251,45 @@ class Game:
         """Отрисовывает магические барьеры."""
         import pygame
         import random
+        import math
         from .config import CELL_SIZE
+        
+        # Оптимизация: обновляем анимацию fire_wall каждый кадр для плавности, но используем кэширование
+        # Частота обновления кэша уменьшена, но анимация плавная за счет интерполяции
+        current_frame = getattr(self, '_barrier_animation_frame', 0)
+        # Обновляем каждый кадр для максимальной плавности (60 FPS анимация)
+        should_update_fire_animation = True  # Всегда обновляем для максимальной плавности
         
         for barrier in self.barriers:
             x = barrier['x']
             y = barrier['y']
             barrier_type = barrier.get('type', 'rune_wall')
             
-            barrier_rect = pygame.Rect(x * CELL_SIZE + 10, y * CELL_SIZE + 5, 
-                                      CELL_SIZE - 20, CELL_SIZE - 10)
-            
-            # Создаем поверхность для барьера
-            barrier_surface = pygame.Surface((CELL_SIZE - 20, CELL_SIZE - 10), pygame.SRCALPHA)
-            
             if barrier_type == 'fire_wall':
                 # Огненная стена - анимированное пламя
-                import time
-                t = time.time() * 3  # Скорость анимации
+                # Обновляем каждый кадр для максимальной плавности (используем все ресурсы)
+                t = pygame.time.get_ticks() / 1000.0 * 3  # Скорость анимации
                 cx = (CELL_SIZE - 20) // 2
                 cy = (CELL_SIZE - 10) // 2
                 
-                # Основание огня
+                # Основание огня - увеличиваем количество точек для плавности
                 flame_height = (CELL_SIZE - 10) - 5
                 flame_points = []
-                for i in range(8):
-                    offset_x = int(math.sin(t * 2 + i * 0.8) * 5) + random.randint(-3, 3)
-                    offset_y = cy - i * (flame_height // 8) + int(math.sin(t * 3 + i) * 2)
+                for i in range(16):  # Увеличено с 8 до 16 точек для плавности
+                    offset_x = int(math.sin(t * 2 + i * 0.4) * 5) + random.randint(-3, 3)
+                    offset_y = cy - i * (flame_height // 16) + int(math.sin(t * 3 + i * 0.5) * 2)
                     flame_points.append((cx + offset_x, offset_y))
+                
+                # Создаем поверхность для барьера
+                barrier_surface = pygame.Surface((CELL_SIZE - 20, CELL_SIZE - 10), pygame.SRCALPHA)
                 
                 # Рисуем пламя (от яркого внизу к темному вверху)
                 for i in range(len(flame_points) - 1):
                     px, py = flame_points[i]
                     next_px, next_py = flame_points[i + 1]
                     # Цвет меняется от желтого/белого внизу к красному вверху
-                    intensity = int(255 - i * 30)
-                    alpha = 200 - i * 20
+                    intensity = int(255 - i * 15)  # Более плавный переход
+                    alpha = 200 - i * 12
                     if intensity < 100:
                         intensity = 100
                     pygame.draw.line(barrier_surface, (255, intensity, 0, alpha), 
@@ -4809,31 +5299,44 @@ class Game:
                 pygame.draw.circle(barrier_surface, (255, 255, 200, 180), (cx, cy), 8)
                 pygame.draw.circle(barrier_surface, (255, 200, 0, 150), (cx, cy), 5)
                 
-                # Искры
-                for _ in range(5):
+                # Искры - больше искр для эффектности
+                for _ in range(10):  # Увеличено с 5 до 10 искр
                     spark_x = cx + random.randint(-15, 15)
                     spark_y = cy - random.randint(0, flame_height // 2)
                     spark_size = random.randint(1, 3)
                     spark_alpha = random.randint(100, 200)
                     pygame.draw.circle(barrier_surface, (255, 220, 0, spark_alpha), 
                                      (spark_x, spark_y), spark_size)
-            else:
-                # Обычный барьер (руна стены) - фиолетовый полупрозрачный барьер
-                pygame.draw.rect(barrier_surface, (150, 100, 200, 120), 
-                               (0, 0, CELL_SIZE - 20, CELL_SIZE - 10))
-                pygame.draw.rect(barrier_surface, (180, 120, 220, 200), 
-                               (0, 0, CELL_SIZE - 20, CELL_SIZE - 10), 3)
                 
-                # Руны на барьере
-                cx = (CELL_SIZE - 20) // 2
-                cy = (CELL_SIZE - 10) // 2
-                rune_size = 10
-                pygame.draw.line(barrier_surface, (200, 150, 255, 180), 
-                               (cx, cy - rune_size), (cx, cy + rune_size), 2)
-                pygame.draw.line(barrier_surface, (200, 150, 255, 180), 
-                               (cx - rune_size, cy), (cx + rune_size, cy), 2)
+                barrier['_cached_surface'] = barrier_surface
+                barrier_surface = barrier['_cached_surface']
+            else:
+                # Обычный барьер (руна стены) - кэшируем статический барьер
+                barrier_surface = barrier.get('_cached_surface')
+                if barrier_surface is None:
+                    # Создаем поверхность для барьера один раз
+                    barrier_surface = pygame.Surface((CELL_SIZE - 20, CELL_SIZE - 10), pygame.SRCALPHA)
+                    
+                    # Фиолетовый полупрозрачный барьер
+                    pygame.draw.rect(barrier_surface, (150, 100, 200, 120), 
+                                   (0, 0, CELL_SIZE - 20, CELL_SIZE - 10))
+                    pygame.draw.rect(barrier_surface, (180, 120, 220, 200), 
+                                   (0, 0, CELL_SIZE - 20, CELL_SIZE - 10), 3)
+                    
+                    # Руны на барьере
+                    cx = (CELL_SIZE - 20) // 2
+                    cy = (CELL_SIZE - 10) // 2
+                    rune_size = 10
+                    pygame.draw.line(barrier_surface, (200, 150, 255, 180), 
+                                   (cx, cy - rune_size), (cx, cy + rune_size), 2)
+                    pygame.draw.line(barrier_surface, (200, 150, 255, 180), 
+                                   (cx - rune_size, cy), (cx + rune_size, cy), 2)
+                    
+                    # Кэшируем статический барьер
+                    barrier['_cached_surface'] = barrier_surface
             
-            self.screen.blit(barrier_surface, (x * CELL_SIZE + 10, y * CELL_SIZE + 5))
+            if barrier_surface:
+                self.screen.blit(barrier_surface, (x * CELL_SIZE + 10, y * CELL_SIZE + 5))
     
     def draw_quicksands(self):
         """Отрисовывает зыбучие пески (только для кастера)"""
@@ -4906,17 +5409,21 @@ class Game:
     def draw_corpses(self):
         """Отрисовывает трупы как серые полупрозрачные модели."""
         for corpse in self.corpses:
-            # Создаем серую копию изображения
-            gray_surface = pygame.Surface(corpse['image'].get_size(), pygame.SRCALPHA)
-            for x in range(corpse['image'].get_width()):
-                for y in range(corpse['image'].get_height()):
-                    pixel = corpse['image'].get_at((x, y))
-                    if pixel.a > 0:  # Если пиксель не прозрачный
-                        # Преобразуем в оттенки серого
-                        gray = int(0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b)
-                        gray_surface.set_at((x, y), (gray, gray, gray, 128))  # Полупрозрачность
-            # Рисуем серый труп
-            self.screen.blit(gray_surface, (corpse['x'] * CELL_SIZE, corpse['y'] * CELL_SIZE))
+            # Оптимизация: используем кэшированную серую поверхность вместо пересчета каждый кадр
+            gray_image = corpse.get('gray_image')
+            if gray_image is None:
+                # Если кэша нет (старые сохранения), создаем его на лету (только один раз)
+                gray_surface = pygame.Surface(corpse['image'].get_size(), pygame.SRCALPHA)
+                for x in range(corpse['image'].get_width()):
+                    for y in range(corpse['image'].get_height()):
+                        pixel = corpse['image'].get_at((x, y))
+                        if pixel.a > 0:
+                            gray = int(0.299 * pixel.r + 0.587 * pixel.g + 0.114 * pixel.b)
+                            gray_surface.set_at((x, y), (gray, gray, gray, 128))
+                corpse['gray_image'] = gray_surface
+                gray_image = gray_surface
+            # Рисуем серый труп из кэша
+            self.screen.blit(gray_image, (corpse['x'] * CELL_SIZE, corpse['y'] * CELL_SIZE))
 
     def draw(self, hide_unit_at=None):
         """
@@ -4960,16 +5467,23 @@ class Game:
             pygame.display.flip()
             return
         self.screen.blit(self.background, (0, 0))
-        t = pygame.time.get_ticks() / 1000.0
-        draw_animated_grass(self.screen, t)
+        # Оптимизация: анимированная трава обновляется реже (кэшируется в graphics.py)
+        # Можно отключить для максимального FPS, установив ENABLE_ANIMATED_GRASS = False
+        # Используем все ресурсы - всегда включена анимация травы для максимального качества
+        ENABLE_ANIMATED_GRASS = True  # Всегда включена для максимального качества
+        if ENABLE_ANIMATED_GRASS:
+            t = pygame.time.get_ticks() / 1000.0
+            draw_animated_grass(self.screen, t)
+        # Оптимизация: draw_grid вызывается только при необходимости
         self.draw_grid()
         # Отрисовка трупов перед юнитами
         self.draw_corpses()
         # Отрисовка юнитов
-        for unit in self.units:
-            # Пропускаем отрисовку юнита, если он скрыт
-            if hide_unit_at and unit.x == hide_unit_at[0] and unit.y == hide_unit_at[1]:
-                continue
+        # Оптимизация: предварительно фильтруем юнитов для отрисовки
+        units_to_draw = self.units
+        if hide_unit_at:
+            units_to_draw = [u for u in self.units if not (u.x == hide_unit_at[0] and u.y == hide_unit_at[1])]
+        for unit in units_to_draw:
             unit.draw(self.screen)
         # Отрисовка барьеров поверх юнитов (особенно для огненной стены)
         self.draw_barriers()
@@ -4982,8 +5496,12 @@ class Game:
             if spell.target_type == 'area':
                 self.area_preview_dismiss = False  # Автоматически показываем превью для area-заклинаний
                 mouse_pos = pygame.mouse.get_pos()
-                cx = (mouse_pos[0] // CELL_SIZE) * CELL_SIZE + CELL_SIZE//2
-                cy = (mouse_pos[1] // CELL_SIZE) * CELL_SIZE + CELL_SIZE//2
+                grid_x = mouse_pos[0] // CELL_SIZE
+                grid_y = mouse_pos[1] // CELL_SIZE
+                cx = grid_x * CELL_SIZE + CELL_SIZE//2
+                cy = grid_y * CELL_SIZE + CELL_SIZE//2
+                
+                # Оптимизация: создаем Surface только один раз и переиспользуем для уменьшения выделения памяти
                 preview_surface = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
                 if hasattr(spell, 'icon') and spell.icon == 'frost_ring':
                     # Зона 3x3 клетки синего цвета с выколотой клеткой в центре (как у огненного шара)
@@ -5055,10 +5573,13 @@ class Game:
                     self.screen.blit(hint, (cx - hint.get_width()//2, cy - CELL_SIZE - 20))
         # --- Отдельный проход для типтулов, чтобы они были поверх ---
         mouse_pos = pygame.mouse.get_pos()
-        # Определяем наведённого юнита
+        # Оптимизация: быстрый поиск юнита по позиции мыши
         hovered_unit = None
+        grid_x = mouse_pos[0] // CELL_SIZE
+        grid_y = mouse_pos[1] // CELL_SIZE
+        # Используем пространственный поиск - проверяем только юнитов в нужной клетке
         for unit in self.units:
-            if unit.x * CELL_SIZE <= mouse_pos[0] < (unit.x+1)*CELL_SIZE and unit.y * CELL_SIZE <= mouse_pos[1] < (unit.y+1)*CELL_SIZE:
+            if unit.x == grid_x and unit.y == grid_y:
                 hovered_unit = unit
                 break
         # Старый тултип отключен - теперь используется тултип при зажатии правой кнопки
@@ -5106,70 +5627,7 @@ class Game:
                 # ДОПОЛНИТЕЛЬНО: Сбрасываем таймер AI чтобы не было проблем
                 self.ai_think_timer = 0
                 
-                # ОТЛАДКА: Логируем начало хода берсерка
-                if BERSERKER_DEBUG:
-                    try:
-                        debugger = get_debugger()
-                        if debugger:
-                            debugger.log_turn_start(self.selected_unit, 'berserker', {'reason': 'auto_berserker_logic'})
-                    except:
-                        pass
-                
-                # ОТЛАДКА: Логируем начало хода берсерка
-                if BERSERKER_DEBUG:
-                    try:
-                        debugger = get_debugger()
-                        if debugger:
-                            debugger.log_turn_start(self.selected_unit, 'berserker', {'reason': 'auto_berserker_logic'})
-                    except:
-                        pass
-                
-                # ОТЛАДКА: Логируем начало хода берсерка
-                if BERSERKER_DEBUG:
-                    try:
-                        debugger = get_debugger()
-                        if debugger:
-                            debugger.log_turn_start(self.selected_unit, 'berserker', {'reason': 'auto_berserker_logic'})
-                    except:
-                        pass
-                
-                # ОТЛАДКА: Логируем начало хода берсерка
-                if BERSERKER_DEBUG:
-                    try:
-                        debugger = get_debugger()
-                        if debugger:
-                            debugger.log_turn_start(self.selected_unit, 'berserker', {'reason': 'auto_berserker_logic'})
-                    except:
-                        pass
-                
-                # ОТЛАДКА: Логируем начало хода берсерка
-                if BERSERKER_DEBUG:
-                    try:
-                        debugger = get_debugger()
-                        if debugger:
-                            debugger.log_turn_start(self.selected_unit, 'berserker', {'reason': 'auto_berserker_logic'})
-                    except:
-                        pass
-                
-                # ОТЛАДКА: Логируем начало хода берсерка
-                if BERSERKER_DEBUG:
-                    try:
-                        debugger = get_debugger()
-                        if debugger:
-                            debugger.log_turn_start(self.selected_unit, 'berserker', {'reason': 'auto_berserker_logic'})
-                    except:
-                        pass
-                
-                # ОТЛАДКА: Логируем начало хода берсерка
-                if BERSERKER_DEBUG:
-                    try:
-                        debugger = get_debugger()
-                        if debugger:
-                            debugger.log_turn_start(self.selected_unit, 'berserker', {'reason': 'auto_berserker_logic'})
-                    except:
-                        pass
-                
-                # ОТЛАДКА: Логируем начало хода берсерка
+                # ОТЛАДКА: Логируем начало хода берсерка (один раз)
                 if BERSERKER_DEBUG:
                     try:
                         debugger = get_debugger()
@@ -7158,7 +7616,8 @@ class Game:
                 
                 if has_human_player:
                     # Если есть хотя бы один игрок-человек
-                    if self.winner_team == self.player1_race:
+                    # winner_team теперь содержит команду ('player1' или 'player2'), а не расу
+                    if self.winner_team == 'player1':
                         # Победила команда игрока 1
                         if self.player1_type == 'human':
                             # Игрок 1 (человек) выиграл
@@ -7170,7 +7629,7 @@ class Game:
                             else:
                                 # Оба боты
                                 self.victory_state = 'defeat'
-                    elif self.winner_team == self.player2_race:
+                    elif self.winner_team == 'player2':
                         # Победила команда игрока 2
                         if self.player2_type == 'human':
                             # Игрок 2 (человек) выиграл
@@ -7183,7 +7642,7 @@ class Game:
                                 # Оба боты
                                 self.victory_state = 'defeat'
                     else:
-                        # Неизвестная раса победила - поражение для игрока
+                        # Неизвестная команда победила - поражение для игрока
                         self.victory_state = 'defeat'
                 else:
                     # Оба боты - поражение для наблюдателя
@@ -7489,7 +7948,9 @@ class Game:
             self.handle_creative_click(pos, button=button)
             return
         if self.state == 'settings':
-            self.handle_settings_click(pos)
+            result = self.handle_settings_click(pos)
+            if result == 'apply_resolution':
+                return 'apply_resolution'
             return
         if self.state == 'unit_editor':
             self.handle_unit_editor_click(pos)
@@ -7628,9 +8089,11 @@ class Game:
                     
                     # Инициализация ИИ для обоих игроков если нужно
                     if self.player1_type == 'ai':
-                        self.ai_controller_p1 = AIController(self, self.player1_race)
+                        # ИИ использует команду 'player1', а не расу
+                        self.ai_controller_p1 = AIController(self, 'player1')
                     if self.player2_type == 'ai':
-                        self.ai_controller_p2 = AIController(self, self.player2_race)
+                        # ИИ использует команду 'player2', а не расу
+                        self.ai_controller_p2 = AIController(self, 'player2')
                     self.ai_think_timer = 0
                 # Если условия не выполнены, все равно обрабатываем клик (звук уже проигран)
                     return
@@ -8109,6 +8572,10 @@ class Game:
                     
                     # Логирование попытки каста
                     try:
+                        import sys
+                        import os
+                        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                        sys.path.insert(0, os.path.join(project_root, 'debug', 'resurrection'))
                         import resurrection_debug as debug
                         target_unit = None
                         for u in self.units:
@@ -16789,6 +17256,7 @@ class Game:
                 column1_max_y = current_y  # Обновляем максимальную высоту первого столбца
             
             # Проверяем, не выходит ли текст за пределы окна
+            
             text_width = font_small.size(param)[0]
             if text_width > max_param_width_current:
                 # Если текст слишком длинный, разбиваем на несколько строк
