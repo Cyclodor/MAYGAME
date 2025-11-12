@@ -8,6 +8,30 @@ GRID_WIDTH = SCREEN_WIDTH // CELL_SIZE
 GRID_HEIGHT = SCREEN_HEIGHT // CELL_SIZE
 SCALE = 1.0  # Масштаб для отображения
 
+# Масштаб для преобразования координат мыши (устанавливается в main.py)
+# Параметры масштабирования экрана
+RENDER_SCALE = 1.0
+RENDER_OFFSET_X = 0
+RENDER_OFFSET_Y = 0
+
+# Масштаб для преобразования координат мыши (устанавливается в main.py)
+MOUSE_SCALE_X = 1.0
+MOUSE_SCALE_Y = 1.0
+
+# Функция для получения масштабированных координат мыши
+# pygame должен быть импортирован перед использованием
+def get_scaled_mouse_pos():
+    """Возвращает координаты мыши, преобразованные в координаты внутреннего полотна"""
+    try:
+        import pygame
+        mx, my = pygame.mouse.get_pos()
+        # Учитываем смещение и масштаб
+        mx = (mx - RENDER_OFFSET_X) / max(MOUSE_SCALE_X, 1e-6)
+        my = (my - RENDER_OFFSET_Y) / max(MOUSE_SCALE_Y, 1e-6)
+        return int(mx), int(my)
+    except:
+        return (0, 0)
+
 # Доступные разрешения
 AVAILABLE_RESOLUTIONS = [
     (800, 600),

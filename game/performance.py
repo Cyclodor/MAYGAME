@@ -58,21 +58,27 @@ def get_performance_profile():
     info = get_system_info()
     
     # Максимальный профиль производительности: используем ВСЕ доступные ресурсы системы
-    # Определяем доступную память и используем до 50% для кэширования
-    max_cache_mb = min(2048, int(info['ram_total_gb'] * 512))  # До 512MB на GB RAM или 2GB максимум
+    # Определяем доступную память и используем максимум для кэширования (до 75% доступной RAM)
+    ram_available_gb = info.get('ram_available_gb', info['ram_total_gb'])
+    # Используем до 75% доступной RAM для кэширования или минимум 512MB на GB RAM
+    max_cache_mb = min(int(ram_available_gb * 1024 * 0.75), int(info['ram_total_gb'] * 1024))  # До 75% RAM
+    max_cache_mb = max(max_cache_mb, int(info['ram_total_gb'] * 512))  # Минимум 512MB на GB RAM
+    max_cache_mb = min(max_cache_mb, 4096)  # Максимум 4GB для кэша
     
     profile = {
         'use_numpy': NUMPY_AVAILABLE,
         'use_hardware_accel': True,
         'cache_aggressive': True,  # Максимальное кэширование
         'preload_resources': True,  # Предзагрузка всех ресурсов
-        'max_cache_size_mb': max_cache_mb,  # Используем максимум памяти для кэша
-        'animation_fps': 120,  # Максимальная частота анимации (неограниченная)
+        'max_cache_size_mb': max_cache_mb,  # Используем максимум памяти для кэша (до 75% RAM)
+        'animation_fps': 240,  # Максимальная частота анимации
         'grass_quality': 'ultra',  # Максимальное качество травы
-        'barrier_animation_fps': 120,  # Максимальная частота для барьеров
+        'barrier_animation_fps': 240,  # Максимальная частота для барьеров
         'multithreading': MULTIPROCESSING_AVAILABLE and info['cpu_count'] > 1,  # Используем многопоточность
         'use_all_cores': True,  # Используем все доступные ядра CPU
         'max_fps': 0,  # 0 = неограниченный FPS для максимальной производительности
+        'thread_pool_size': info.get('cpu_count', 1) * 2,  # Пулы потоков для параллельной обработки
+        'precompute_cache': True,  # Предвычисление кэшей при загрузке
     }
     
     return profile

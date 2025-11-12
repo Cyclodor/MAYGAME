@@ -19,7 +19,6 @@ class AnimationManager:
         game: ссылка на главный объект Game для доступа к screen и draw()
         """
         self.game = game
-        self.screen = game.screen
     
     def animate_queue_move(self, old_queue, new_queue):
         """Анимация перемещения очереди (заглушка)"""
@@ -43,7 +42,7 @@ class AnimationManager:
             alpha = max(40, 200 - int(200 * i / frames))
             s = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
             pygame.draw.circle(s, (*color, alpha), (cx, cy), r, 4)
-            self.screen.blit(s, (0, 0))
+            self.game.screen.blit(s, (0, 0))
             pygame.display.flip()
             pygame.time.delay(10)  # Уменьшена задержка для плавности
 
@@ -60,6 +59,14 @@ class AnimationManager:
         while cy != dest_y:
             cy += step_y
             path.append((cx, cy))
+        movement_cycle = getattr(unit, '_movement_cycle', None)
+        if not movement_cycle:
+            movement_cycle = ('Walk', 'WalkAlt')
+        if isinstance(movement_cycle, str):
+            movement_cycle = (movement_cycle,)
+        if len(movement_cycle) == 1:
+            movement_cycle = (movement_cycle[0], movement_cycle[0])
+        primary_step, secondary_step = movement_cycle[0], movement_cycle[1]
         # Проигрываем шаги
         for px, py in path:
             unit.x, unit.y = px, py
@@ -72,13 +79,13 @@ class AnimationManager:
         start = (caster.x * CELL_SIZE + CELL_SIZE // 2, caster.y * CELL_SIZE + CELL_SIZE // 2)
         end = (target.x * CELL_SIZE + CELL_SIZE // 2, target.y * CELL_SIZE + CELL_SIZE // 2)
         # Полёт огненной стрелы с текстурами и пламенем
-        animate_fire_arrow_fly(self.screen, start, end, redraw_callback=self.game.draw)
+        animate_fire_arrow_fly(self.game.screen, start, end, redraw_callback=self.game.draw)
         # Эпичный взрыв в точке попадания
-        animate_fire_explosion(self.screen, end[0], end[1])
+        animate_fire_explosion(self.game.screen, end[0], end[1])
 
     def animate_explosion(self, x, y, color):
         """Простая анимация взрыва"""
-        pygame.draw.circle(self.screen, color, (x, y), 12)
+        pygame.draw.circle(self.game.screen, color, (x, y), 12)
         pygame.display.flip()
 
     def animate_roots(self, target):
@@ -114,7 +121,7 @@ class AnimationManager:
             r = 8 + int(i * 0.5)
             a = max(0, 180 - int(i * 4.5))
             pygame.draw.circle(s, (120, 200, 255, a), (cx, cy), r, 3)
-            self.screen.blit(s, (0, 0))
+            self.game.screen.blit(s, (0, 0))
             pygame.display.flip()
             pygame.time.delay(8)  # Уменьшена задержка для плавности
 
@@ -132,7 +139,7 @@ class AnimationManager:
             alpha = max(60, 220 - int(200 * i / frames))
             pygame.draw.circle(s, (255, 120, 40, alpha), (cx, cy), r, 4)
             pygame.draw.circle(s, (255, 200, 120, max(20, alpha - 40)), (cx, cy), max(2, r - 6), 2)
-            self.screen.blit(s, (0, 0))
+            self.game.screen.blit(s, (0, 0))
             pygame.display.flip()
             pygame.time.delay(8)  # Уменьшена задержка для плавности
 

@@ -1,9 +1,1665 @@
 import pygame
 import random
 import math
-from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT, GRID_WIDTH, GRID_HEIGHT
+import os
+from .config import CELL_SIZE, SCREEN_WIDTH, SCREEN_HEIGHT, GRID_WIDTH, GRID_HEIGHT, GOLD
+
+# Кэш для загруженных текстур
+_texture_cache = {}
+
+def _legacy_crossbowman_texture(animation_state='Idle'):
+    """Генерируем профильную текстуру арбалетчика с вариациями поз."""
+    cache_key = f'crossbowman_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def outlined_rect(target, rect, fill, outline=(30, 25, 20), width=1):
+        pygame.draw.rect(target, fill, rect)
+        pygame.draw.rect(target, outline, rect, width)
+
+    def gradient_band(target, rect, top_color, bottom_color):
+        x, y, w, h = rect
+        for i in range(h):
+            t = i / max(1, h - 1)
+            color = (
+                int(top_color[0] + (bottom_color[0] - top_color[0]) * t),
+                int(top_color[1] + (bottom_color[1] - top_color[1]) * t),
+                int(top_color[2] + (bottom_color[2] - top_color[2]) * t)
+            )
+            pygame.draw.line(target, color, (x, y + i), (x + w - 1, y + i))
+
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, crossbow_angle=0,
+                  crossbow_raise=0, head_tilt=0, crouch=0, show_dagger=False,
+                  dagger_phase=0, lighten=False):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        crossbow = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        quiver = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (45, 40, 36, 160)
+        armor_dark = (110, 108, 104)
+        armor_mid = (162, 156, 142)
+        armor_light = (206, 198, 184)
+        cloth = (88, 108, 158)
+        leather_dark = (92, 66, 46)
+        leather_mid = (132, 96, 66)
+        leather_light = (174, 138, 94)
+        boots_dark = (64, 50, 36)
+        boots_light = (92, 70, 52)
+        skin = (240, 214, 182)
+        metal = (210, 210, 218)
+        steel = (168, 174, 184)
+        visor = (86, 95, 112)
+        string = (72, 58, 48)
+
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        back_leg_rect = pygame.Rect(12 + leg_back_shift, 24 + base_y, 6, 11)
+        front_leg_rect = pygame.Rect(22 + leg_front_shift, 24 + base_y - 1, 7, 12)
+        outlined_rect(body, back_leg_rect, boots_dark, outline=(40, 32, 24))
+        outlined_rect(body, front_leg_rect, boots_light, outline=(40, 32, 24))
+
+        gradient_band(body, (12, 19 + base_y, 17, 5), leather_mid, leather_dark)
+        pygame.draw.rect(body, (40, 32, 24), (12, 19 + base_y, 17, 5), 1)
+
+        torso_rect = pygame.Rect(13 + torso_shift, 10 + base_y, 18, 12)
+        gradient_band(body, torso_rect, armor_light, armor_dark)
+        pygame.draw.rect(body, (40, 35, 30), torso_rect, 1)
+        pygame.draw.rect(body, armor_mid, (13 + torso_shift, 14 + base_y, 18, 3))
+
+        pygame.draw.ellipse(body, armor_mid, (10 + torso_shift, 10 + base_y, 10, 6))
+        pygame.draw.ellipse(body, armor_light, (11 + torso_shift, 11 + base_y, 8, 3))
+        pygame.draw.rect(body, cloth, (11 + torso_shift, 12 + base_y, 5, 12))
+        pygame.draw.rect(body, (40, 35, 30), (11 + torso_shift, 12 + base_y, 5, 12), 1)
+
+        front_arm = pygame.Rect(19 + torso_shift, 14 + base_y, 10, 4)
+        back_arm = pygame.Rect(13 + torso_shift, 15 + base_y, 8, 4)
+        outlined_rect(body, back_arm, leather_mid, outline=(40, 32, 24))
+        outlined_rect(body, front_arm, leather_light, outline=(40, 32, 24))
+        pygame.draw.rect(body, metal, (27 + torso_shift, 14 + base_y, 4, 4))
+
+        helmet = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = 22 + torso_shift
+        head_y = 5 + base_y + head_tilt
+        pygame.draw.ellipse(helmet, armor_mid, (head_x - 7, head_y, 14, 10))
+        pygame.draw.rect(helmet, armor_dark, (head_x - 7, head_y - 2, 14, 4))
+        pygame.draw.rect(helmet, visor, (head_x - 3, head_y + 3, 9, 4))
+        pygame.draw.rect(helmet, steel, (head_x - 3, head_y + 2, 7, 2))
+        pygame.draw.polygon(helmet, GOLD, [(head_x - 1, head_y - 2), (head_x + 1, head_y - 6), (head_x + 4, head_y - 2)])
+        pygame.draw.polygon(helmet, (60, 52, 40), [(head_x - 1, head_y - 2), (head_x + 1, head_y - 6), (head_x + 4, head_y - 2)], 1)
+        pygame.draw.polygon(helmet, skin, [(head_x + 4, head_y + 4), (head_x + 6, head_y + 5), (head_x + 4, head_y + 6)])
+        pygame.draw.rect(helmet, skin, (head_x - 1, head_y + 6, 4, 3))
+        pygame.draw.line(helmet, (40, 32, 24), (head_x - 1, head_y + 7), (head_x + 2, head_y + 7))
+        body.blit(helmet, (0, 0))
+
+        outlined_rect(quiver, pygame.Rect(8, 12 + base_y, 5, 13), leather_dark, outline=(32, 26, 18))
+        pygame.draw.rect(quiver, leather_mid, (8, 20 + base_y, 5, 4))
+        for i in range(3):
+            pygame.draw.line(quiver, metal, (9 + i, 11 + base_y), (9 + i, 16 + base_y), 1)
+            pygame.draw.circle(quiver, metal, (9 + i, 11 + base_y), 1)
+
+        if show_dagger:
+            dagger = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            if dagger_phase == 0:
+                pygame.draw.rect(dagger, leather_dark, (20 + torso_shift, 15 + base_y, 2, 6))
+                pygame.draw.polygon(dagger, metal, [(21 + torso_shift, 15 + base_y),
+                                                    (24 + torso_shift, 16 + base_y),
+                                                    (21 + torso_shift, 19 + base_y)])
+            elif dagger_phase == 1:
+                pygame.draw.rect(dagger, leather_dark, (26 + torso_shift, 14 + base_y, 3, 8))
+                pygame.draw.polygon(dagger, metal, [(29 + torso_shift, 15 + base_y),
+                                                    (34 + torso_shift, 13 + base_y),
+                                                    (30 + torso_shift, 18 + base_y)])
+            else:
+                pygame.draw.rect(dagger, leather_dark, (22 + torso_shift, 14 + base_y, 2, 7))
+                pygame.draw.polygon(dagger, metal, [(23 + torso_shift, 14 + base_y),
+                                                    (26 + torso_shift, 15 + base_y),
+                                                    (23 + torso_shift, 18 + base_y)])
+            body.blit(dagger, (0, 0))
+
+        pygame.draw.rect(crossbow, leather_dark, (18, 18 + crossbow_raise + base_y, 16, 4))
+        pygame.draw.rect(crossbow, (40, 30, 20), (18, 18 + crossbow_raise + base_y, 16, 4), 1)
+        pygame.draw.rect(crossbow, metal, (24, 14 + crossbow_raise + base_y, 4, 8))
+        pygame.draw.rect(crossbow, (50, 40, 30), (24, 14 + crossbow_raise + base_y, 4, 8), 1)
+        pygame.draw.rect(crossbow, GOLD, (22, 20 + crossbow_raise + base_y, 8, 2))
+        pygame.draw.line(crossbow, string, (19, 18 + crossbow_raise + base_y), (33, 18 + crossbow_raise + base_y), 1)
+        pygame.draw.polygon(crossbow, metal, [(24, 15 + crossbow_raise + base_y), (28, 15 + crossbow_raise + base_y), (30, 18 + crossbow_raise + base_y), (22, 18 + crossbow_raise + base_y)])
+        pygame.draw.rect(crossbow, metal, (25, 17 + crossbow_raise + base_y, 2, 4))
+        pygame.draw.rect(crossbow, (80, 65, 45), (24, 17 + crossbow_raise + base_y, 4, 1))
+        pygame.draw.rect(crossbow, metal, (28, 17 + crossbow_raise + base_y, 2, 6))
+
+        body.blit(quiver, (0, 0))
+        final_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        final_surface.blit(body, (0, 0))
+
+        if crossbow_angle != 0:
+            cb_rotated = pygame.transform.rotate(crossbow, crossbow_angle)
+            cb_rect = cb_rotated.get_rect(center=(CELL_SIZE // 2 + 6, CELL_SIZE // 2 - 4 + crossbow_raise))
+            final_surface.blit(cb_rotated, cb_rect.topleft)
+        else:
+            final_surface.blit(crossbow, (0, 0))
+
+        if lighten:
+            wash = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            wash.fill((255, 245, 220, 90))
+            final_surface.blit(wash, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        return final_surface
+
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=-1, torso_shift=0, crossbow_angle=-6, crossbow_raise=-1, head_tilt=0),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-3, torso_shift=-1, crossbow_angle=-4, crossbow_raise=-1, head_tilt=-1),
+        'WalkAlt': dict(leg_front_shift=-1, leg_back_shift=2, torso_shift=1, crossbow_angle=-2, crossbow_raise=0, head_tilt=1),
+        'Attack': dict(torso_shift=-1, crossbow_angle=-18, crossbow_raise=-3, head_tilt=-1),
+        'Attack02': dict(torso_shift=-1, crossbow_angle=6, crossbow_raise=-1, head_tilt=0),
+        'Attack03': dict(torso_shift=-1, crossbow_angle=14, crossbow_raise=2, head_tilt=1),
+        'MeleePrep': dict(torso_shift=-2, crossbow_angle=-10, crossbow_raise=4, head_tilt=-1, show_dagger=True, dagger_phase=0),
+        'MeleeStrike': dict(torso_shift=-1, crossbow_angle=12, crossbow_raise=5, head_tilt=0, show_dagger=True, dagger_phase=1),
+        'MeleeRecover': dict(torso_shift=-1, crossbow_angle=-4, crossbow_raise=2, head_tilt=0, show_dagger=True, dagger_phase=2),
+        'Hurt': dict(torso_shift=-2, crouch=2, crossbow_raise=2, head_tilt=-3, lighten=True),
+        'Death': dict(torso_shift=-3, crouch=5, crossbow_angle=20, crossbow_raise=6, head_tilt=6, lighten=True),
+        'Corpse': dict(torso_shift=-3, crouch=6, crossbow_angle=22, crossbow_raise=6, head_tilt=6, lighten=True),
+    }
+
+    params = params_map.get(animation_state, params_map['Idle'])
+    surface = build_pose(**params)
+
+    if animation_state == 'Hurt':
+        overlay = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        overlay.fill((255, 80, 80, 110))
+        surface.blit(overlay, (0, 0))
+    elif animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 70)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-6, 10))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 88)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 6))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+def load_crossbowman_texture(animation_state='Idle'):
+    """Новая генерация профильной текстуры арбалетчика с расширенными кадрами."""
+    cache_key = f'crossbowman_v2_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def outlined_rect(target, rect, fill, outline=(35, 28, 20), width=1):
+        pygame.draw.rect(target, fill, rect)
+        pygame.draw.rect(target, outline, rect, width)
+
+    def gradient_band(target, rect, top_color, bottom_color):
+        x, y, w, h = rect
+        for i in range(h):
+            t = i / max(1, h - 1)
+            color = (
+                int(top_color[0] + (bottom_color[0] - top_color[0]) * t),
+                int(top_color[1] + (bottom_color[1] - top_color[1]) * t),
+                int(top_color[2] + (bottom_color[2] - top_color[2]) * t)
+            )
+            pygame.draw.line(target, color, (x, y + i), (x + w - 1, y + i))
+
+    def build_pose(
+        leg_front_shift=0,
+        leg_back_shift=0,
+        torso_shift=0,
+        crossbow_angle=0,
+        crossbow_raise=0,
+        head_tilt=0,
+        crouch=0,
+        show_dagger=False,
+        dagger_phase=0,
+        lighten=False,
+        muzzle_flash=False,
+        string_pull=0,
+        bolt_visible=True,
+        motion_blur=False,
+        head_offset_x=0,
+        head_offset_y=0,
+        crossbow_offset_x=0,
+        crossbow_offset_y=0,
+        quiver_sway=0,
+    ):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        crossbow = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        quiver = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (45, 40, 36, 170)
+        armor_dark = (110, 108, 104)
+        armor_mid = (166, 158, 142)
+        armor_light = (208, 200, 184)
+        cloth = (90, 112, 162)
+        leather_dark = (95, 70, 48)
+        leather_mid = (132, 98, 64)
+        leather_light = (178, 144, 96)
+        boots_dark = (60, 48, 36)
+        boots_light = (96, 74, 54)
+        skin = (240, 214, 182)
+        metal = (210, 210, 218)
+        steel = (170, 176, 188)
+        visor = (86, 98, 116)
+        string = (70, 56, 46)
+
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        back_leg_rect = pygame.Rect(12 + leg_back_shift, 24 + base_y, 6, 11)
+        front_leg_rect = pygame.Rect(22 + leg_front_shift, 24 + base_y - 1, 7, 12)
+        outlined_rect(body, back_leg_rect, boots_dark)
+        outlined_rect(body, front_leg_rect, boots_light)
+
+        gradient_band(body, (12, 19 + base_y, 17, 5), leather_mid, leather_dark)
+        pygame.draw.rect(body, (42, 34, 26), (12, 19 + base_y, 17, 5), 1)
+
+        torso_rect = pygame.Rect(13 + torso_shift, 10 + base_y, 18, 12)
+        gradient_band(body, torso_rect, armor_light, armor_dark)
+        pygame.draw.rect(body, (40, 35, 30), torso_rect, 1)
+        pygame.draw.rect(body, armor_mid, (13 + torso_shift, 14 + base_y, 18, 3))
+
+        pygame.draw.ellipse(body, armor_mid, (10 + torso_shift, 10 + base_y, 10, 6))
+        pygame.draw.ellipse(body, armor_light, (11 + torso_shift, 11 + base_y, 8, 3))
+        pygame.draw.rect(body, cloth, (11 + torso_shift, 12 + base_y, 5, 12))
+        pygame.draw.rect(body, (40, 35, 30), (11 + torso_shift, 12 + base_y, 5, 12), 1)
+
+        front_arm = pygame.Rect(19 + torso_shift, 14 + base_y, 10, 4)
+        back_arm = pygame.Rect(13 + torso_shift, 15 + base_y, 8, 4)
+        outlined_rect(body, back_arm, leather_mid)
+        outlined_rect(body, front_arm, leather_light)
+        pygame.draw.rect(body, metal, (27 + torso_shift, 14 + base_y, 4, 4))
+
+        helmet = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = 21 + torso_shift + head_offset_x
+        head_y = 6 + base_y + head_tilt + head_offset_y
+        crown_rect = (head_x - 9, head_y - 6, 18, 13)
+        pygame.draw.ellipse(helmet, armor_mid, crown_rect)
+        pygame.draw.ellipse(helmet, armor_dark, crown_rect, 1)
+        brow_plate = pygame.Rect(head_x - 8, head_y - 1, 16, 6)
+        pygame.draw.rect(helmet, armor_dark, brow_plate)
+        pygame.draw.rect(helmet, armor_mid, brow_plate.inflate(-3, -1))
+        visor_rect = pygame.Rect(head_x - 7, head_y + 1, 14, 6)
+        pygame.draw.rect(helmet, visor, visor_rect)
+        slit_rect = visor_rect.inflate(-6, -4)
+        slit_rect.height = max(1, slit_rect.height)
+        pygame.draw.rect(helmet, steel, slit_rect)
+        pygame.draw.rect(helmet, (28, 24, 20), visor_rect, 1)
+        nasal = [
+            (head_x - 1, head_y + 1),
+            (head_x + 1, head_y + 1),
+            (head_x + 2, head_y + 8),
+            (head_x - 2, head_y + 8),
+        ]
+        pygame.draw.polygon(helmet, armor_dark, nasal)
+        pygame.draw.line(helmet, steel, (head_x, head_y - 3), (head_x, head_y + 7), 1)
+        cheek_guard_left = pygame.Rect(head_x - 8, head_y + 2, 3, 8)
+        cheek_guard_right = pygame.Rect(head_x + 5, head_y + 2, 3, 8)
+        pygame.draw.rect(helmet, armor_mid, cheek_guard_left)
+        pygame.draw.rect(helmet, armor_mid, cheek_guard_right)
+        pygame.draw.rect(helmet, armor_dark, cheek_guard_left, 1)
+        pygame.draw.rect(helmet, armor_dark, cheek_guard_right, 1)
+        crest = [
+            (head_x, head_y - 6),
+            (head_x + 3, head_y - 11),
+            (head_x + 5, head_y - 12),
+            (head_x + 2, head_y - 7),
+        ]
+        pygame.draw.polygon(helmet, GOLD, crest)
+        pygame.draw.polygon(helmet, (62, 54, 42), crest, 1)
+        body.blit(helmet, (0, 0))
+
+        quiver_x = 8 + quiver_sway
+        outlined_rect(quiver, pygame.Rect(quiver_x, 12 + base_y, 5, 13), leather_dark)
+        pygame.draw.rect(quiver, leather_mid, (quiver_x, 20 + base_y, 5, 4))
+        for i in range(3):
+            pygame.draw.line(quiver, metal, (quiver_x + 1 + i, 11 + base_y), (quiver_x + 1 + i, 16 + base_y), 1)
+            pygame.draw.circle(quiver, metal, (quiver_x + 1 + i, 11 + base_y), 1)
+
+        if show_dagger:
+            dagger = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            if dagger_phase == 0:
+                pygame.draw.rect(dagger, leather_dark, (20 + torso_shift, 15 + base_y, 2, 6))
+                pygame.draw.polygon(dagger, metal, [(21 + torso_shift, 15 + base_y),
+                                                    (24 + torso_shift, 16 + base_y),
+                                                    (21 + torso_shift, 19 + base_y)])
+            elif dagger_phase == 1:
+                pygame.draw.rect(dagger, leather_dark, (26 + torso_shift, 14 + base_y, 3, 8))
+                pygame.draw.polygon(dagger, metal, [(29 + torso_shift, 15 + base_y),
+                                                    (35 + torso_shift, 13 + base_y),
+                                                    (30 + torso_shift, 19 + base_y)])
+            else:
+                pygame.draw.rect(dagger, leather_dark, (23 + torso_shift, 14 + base_y, 2, 7))
+                pygame.draw.polygon(dagger, metal, [(24 + torso_shift, 14 + base_y),
+                                                    (27 + torso_shift, 15 + base_y),
+                                                    (24 + torso_shift, 18 + base_y)])
+            body.blit(dagger, (0, 0))
+
+        stock_rect = pygame.Rect(18, 18 + crossbow_raise + base_y, 16, 4)
+        pygame.draw.rect(crossbow, leather_dark, stock_rect)
+        pygame.draw.rect(crossbow, (40, 30, 20), stock_rect, 1)
+        pygame.draw.rect(crossbow, metal, (24, 14 + crossbow_raise + base_y, 4, 8))
+        pygame.draw.rect(crossbow, (50, 40, 30), (24, 14 + crossbow_raise + base_y, 4, 8), 1)
+        pygame.draw.rect(crossbow, GOLD, (22, 20 + crossbow_raise + base_y, 8, 2))
+        pygame.draw.polygon(
+            crossbow,
+            metal,
+            [
+                (24, 15 + crossbow_raise + base_y),
+                (28, 15 + crossbow_raise + base_y),
+                (30, 18 + crossbow_raise + base_y),
+                (22, 18 + crossbow_raise + base_y),
+            ],
+        )
+        pygame.draw.rect(crossbow, metal, (25, 17 + crossbow_raise + base_y, 2, 4))
+        pygame.draw.rect(crossbow, (80, 65, 45), (24, 17 + crossbow_raise + base_y, 4, 1))
+        pygame.draw.rect(crossbow, metal, (28, 17 + crossbow_raise + base_y, 2, 6))
+
+        string_base_y = 19 + crossbow_raise + base_y
+        pull = max(-4, min(6, string_pull))
+        mid_y = string_base_y - int(pull * 1.3)
+        left_anchor = (19, string_base_y)
+        right_anchor = (33, string_base_y)
+        pygame.draw.line(crossbow, string, left_anchor, (26, mid_y), 2)
+        pygame.draw.line(crossbow, string, (26, mid_y), right_anchor, 2)
+
+        if bolt_visible:
+            bolt_rect = pygame.Rect(23, string_base_y - 2, 7, 3)
+            pygame.draw.rect(crossbow, (142, 108, 70), bolt_rect)
+            pygame.draw.rect(crossbow, (64, 48, 32), bolt_rect, 1)
+
+        body.blit(quiver, (0, 0))
+        final_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        final_surface.blit(body, (0, 0))
+
+        if crossbow_angle != 0:
+            cb_rotated = pygame.transform.rotate(crossbow, crossbow_angle)
+            cb_rect = cb_rotated.get_rect(
+                center=(
+                    CELL_SIZE // 2 + 6 + crossbow_offset_x,
+                    CELL_SIZE // 2 - 4 + crossbow_raise + crossbow_offset_y,
+                )
+            )
+            final_surface.blit(cb_rotated, cb_rect.topleft)
+        else:
+            final_surface.blit(crossbow, (crossbow_offset_x, crossbow_offset_y))
+
+        if lighten:
+            wash = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            wash.fill((255, 240, 200, 70))
+            final_surface.blit(wash, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        if motion_blur:
+            blur = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            pygame.draw.ellipse(
+                blur,
+                (255, 220, 160, 70),
+                (16 + crossbow_offset_x, 14 + crossbow_raise + base_y + crossbow_offset_y, 24, 10),
+            )
+            final_surface.blit(blur, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        if muzzle_flash:
+            flash = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            tip_x = 34 + crossbow_offset_x
+            tip_y = 17 + crossbow_raise + base_y + crossbow_offset_y
+            pygame.draw.circle(flash, (255, 240, 200, 210), (tip_x, tip_y), 5)
+            pygame.draw.circle(flash, (255, 170, 60, 170), (tip_x + 3, tip_y - 1), 8, 2)
+            final_surface.blit(flash, (0, 0))
+
+        return final_surface
+
+    attack_draw = dict(
+        torso_shift=-3,
+        crossbow_angle=-24,
+        crossbow_raise=-5,
+        head_tilt=-3,
+        string_pull=6,
+        crossbow_offset_x=-1,
+        crossbow_offset_y=-1,
+    )
+    attack_aim = dict(
+        torso_shift=-2,
+        crossbow_angle=-8,
+        crossbow_raise=-3,
+        head_tilt=-1,
+        string_pull=6,
+        head_offset_x=-1,
+        head_offset_y=-1,
+    )
+    attack_release = dict(
+        torso_shift=-1,
+        crossbow_angle=10,
+        crossbow_raise=2,
+        head_tilt=0,
+        string_pull=-3,
+        bolt_visible=False,
+        motion_blur=False,
+        muzzle_flash=False,
+    )
+    attack_follow = dict(
+        torso_shift=0,
+        crossbow_angle=18,
+        crossbow_raise=4,
+        head_tilt=1,
+        string_pull=-3,
+        bolt_visible=False,
+        motion_blur=False,
+        crossbow_offset_x=2,
+        crossbow_offset_y=1,
+    )
+    attack_recover = dict(
+        torso_shift=-1,
+        crossbow_angle=-6,
+        crossbow_raise=-1,
+        head_tilt=0,
+        string_pull=2,
+        bolt_visible=False,
+    )
+
+    melee_guard = dict(
+        torso_shift=-3,
+        crossbow_angle=-14,
+        crossbow_raise=6,
+        head_tilt=-2,
+        show_dagger=True,
+        dagger_phase=0,
+        string_pull=2,
+        bolt_visible=False,
+        quiver_sway=-1,
+    )
+    melee_windup = dict(
+        torso_shift=-2,
+        crossbow_angle=4,
+        crossbow_raise=7,
+        head_tilt=0,
+        show_dagger=True,
+        dagger_phase=1,
+        string_pull=2,
+        bolt_visible=False,
+        motion_blur=True,
+    )
+    melee_strike = dict(
+        torso_shift=-1,
+        crossbow_angle=18,
+        crossbow_raise=6,
+        head_tilt=1,
+        show_dagger=True,
+        dagger_phase=1,
+        string_pull=-3,
+        bolt_visible=False,
+        motion_blur=True,
+        crossbow_offset_x=2,
+    )
+    melee_follow = dict(
+        torso_shift=-1,
+        crossbow_angle=10,
+        crossbow_raise=4,
+        head_tilt=0,
+        show_dagger=True,
+        dagger_phase=2,
+        string_pull=-2,
+        bolt_visible=False,
+    )
+    melee_recover = dict(
+        torso_shift=-2,
+        crossbow_angle=-6,
+        crossbow_raise=2,
+        head_tilt=-1,
+        show_dagger=True,
+        dagger_phase=2,
+        string_pull=1,
+        bolt_visible=False,
+    )
+
+    hurt_start = dict(
+        torso_shift=-3,
+        crouch=3,
+        crossbow_angle=-6,
+        crossbow_raise=3,
+        head_tilt=-4,
+        string_pull=1,
+        bolt_visible=True,
+        head_offset_x=-1,
+    )
+    hurt_hold = dict(
+        torso_shift=-2,
+        crouch=4,
+        crossbow_angle=0,
+        crossbow_raise=4,
+        head_tilt=-3,
+        string_pull=0,
+        bolt_visible=False,
+    )
+    hurt_recover = dict(
+        torso_shift=-1,
+        crouch=2,
+        crossbow_angle=-4,
+        crossbow_raise=1,
+        head_tilt=-1,
+        string_pull=1,
+        bolt_visible=False,
+    )
+
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=-1, torso_shift=0, crossbow_angle=-6, crossbow_raise=-1, head_tilt=0, string_pull=1),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-2, torso_shift=-1, crossbow_angle=-4, crossbow_raise=-2, head_tilt=-1, string_pull=2, head_offset_y=-1),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-3, torso_shift=-1, crossbow_angle=-4, crossbow_raise=-1, head_tilt=-1, string_pull=0),
+        'WalkAlt': dict(leg_front_shift=-1, leg_back_shift=2, torso_shift=1, crossbow_angle=-2, crossbow_raise=0, head_tilt=1, string_pull=0),
+        'Attack': attack_draw,
+        'AttackDraw': attack_draw,
+        'Attack02': attack_aim,
+        'AttackAim': attack_aim,
+        'Attack03': attack_release,
+        'AttackRelease': attack_release,
+        'AttackFollow': attack_follow,
+        'AttackRecover': attack_recover,
+        'MeleePrep': melee_guard,
+        'MeleeGuard': melee_guard,
+        'MeleeWindup': melee_windup,
+        'MeleeStrike': melee_strike,
+        'MeleeFollow': melee_follow,
+        'MeleeRecover': melee_recover,
+        'Hurt': hurt_start,
+        'HurtStart': hurt_start,
+        'HurtHold': hurt_hold,
+        'HurtRecover': hurt_recover,
+        'Death': dict(torso_shift=-3, crouch=5, crossbow_angle=20, crossbow_raise=6, head_tilt=6, string_pull=-2, bolt_visible=False, motion_blur=False, lighten=True),
+        'Corpse': dict(torso_shift=-3, crouch=6, crossbow_angle=22, crossbow_raise=6, head_tilt=6, string_pull=-2, bolt_visible=False),
+    }
+
+    params = params_map.get(animation_state, params_map['Idle'])
+    surface = build_pose(**params)
+
+    if animation_state == 'Hurt':
+        overlay = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        overlay.fill((255, 90, 90, 130))
+        surface.blit(overlay, (0, 0))
+    elif animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 70)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-6, 10))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 88)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 6))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_peasant_texture(animation_state='Idle'):
+    cache_key = f'peasant_v2_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        leg_front_shift=0,
+        leg_back_shift=0,
+        torso_shift=0,
+        head_tilt=0,
+        crouch=0,
+        arm_raise=0,
+        tool_angle=90,
+        tool_raise=0,
+        tool_reach=0,
+        bag_sway=0,
+        idle_sash=False,
+        motion_blur=False,
+    ):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pitchfork = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        sack = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (42, 38, 32, 165)
+        shirt_light = (216, 204, 180)
+        shirt_shadow = (184, 170, 150)
+        pants = (96, 92, 84)
+        sash = (162, 98, 54)
+        sash_dark = (130, 74, 44)
+        skin = (235, 210, 190)
+        hair = (102, 68, 42)
+        boots = (70, 52, 40)
+        boots_light = (92, 70, 54)
+        wood = (160, 120, 72)
+        iron = (170, 176, 186)
+
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        back_leg = pygame.Rect(12 + leg_back_shift, 25 + base_y, 6, 11)
+        front_leg = pygame.Rect(23 + leg_front_shift, 24 + base_y, 7, 12)
+        pygame.draw.rect(body, boots, back_leg)
+        pygame.draw.rect(body, (48, 38, 28), back_leg, 1)
+        pygame.draw.rect(body, boots_light, front_leg)
+        pygame.draw.rect(body, (48, 38, 28), front_leg, 1)
+
+        pants_rect = pygame.Rect(12 + torso_shift, 21 + base_y, 19, 6)
+        pygame.draw.rect(body, pants, pants_rect)
+        pygame.draw.rect(body, (48, 40, 34), pants_rect, 1)
+
+        torso_rect = pygame.Rect(13 + torso_shift, 11 + base_y, 17, 11)
+        pygame.draw.rect(body, shirt_light, torso_rect)
+        pygame.draw.rect(body, (98, 88, 74), torso_rect, 1)
+        pygame.draw.rect(body, shirt_shadow, torso_rect.inflate(-2, -2))
+
+        if idle_sash:
+            sash_rect = pygame.Rect(12 + torso_shift, 17 + base_y, 19, 4)
+            pygame.draw.rect(body, sash, sash_rect)
+            pygame.draw.rect(body, sash_dark, sash_rect, 1)
+
+        back_arm = pygame.Rect(12 + torso_shift, 14 + base_y, 5, 4)
+        front_arm = pygame.Rect(23 + torso_shift, 13 + base_y - arm_raise, 5, 5)
+        pygame.draw.rect(body, shirt_shadow, back_arm)
+        pygame.draw.rect(body, (96, 84, 70), back_arm, 1)
+        pygame.draw.rect(body, shirt_light, front_arm)
+        pygame.draw.rect(body, (96, 84, 70), front_arm, 1)
+
+        head = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(head, skin, (head_x - 6, head_y, 12, 12))
+        pygame.draw.ellipse(head, hair, (head_x - 7, head_y - 1, 14, 6))
+        pygame.draw.rect(head, hair, (head_x - 7, head_y + 3, 14, 4), 1)
+        pygame.draw.rect(head, (60, 46, 36), (head_x - 2, head_y + 5, 5, 1))
+        pygame.draw.rect(head, (60, 46, 36), (head_x - 2, head_y + 7, 4, 1))
+        pygame.draw.polygon(head, hair, [(head_x - 6, head_y + 10), (head_x - 3, head_y + 12), (head_x - 6, head_y + 12)])
+        body.blit(head, (0, 0))
+
+        sack_rect = pygame.Rect(9 + bag_sway, 14 + base_y, 7, 9)
+        pygame.draw.ellipse(sack, (186, 162, 126), sack_rect)
+        pygame.draw.ellipse(sack, (150, 130, 102), sack_rect, 1)
+        pygame.draw.rect(sack, (150, 130, 102), (sack_rect.x + 2, sack_rect.y + 1, sack_rect.width - 4, 2))
+        body.blit(sack, (0, 0))
+
+        shaft_start = (26 + tool_reach // 2, 16 + base_y + tool_raise)
+        angle_rad = math.radians(tool_angle)
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+        for offset in range(-1, 2):
+            start = (shaft_start[0] + offset, shaft_start[1])
+            end = (start[0] + int(20 * cos_a), start[1] + int(-20 * sin_a))
+            pygame.draw.line(pitchfork, wood, start, end, 2 if offset == 0 else 1)
+        tine_origin = (shaft_start[0] + int(20 * cos_a), shaft_start[1] + int(-20 * sin_a))
+        for i in range(-2, 3):
+            tine = (tine_origin[0] + int(i * 2.5), tine_origin[1] - 6)
+            pygame.draw.line(pitchfork, iron, tine_origin, tine, 2)
+        pygame.draw.circle(pitchfork, iron, tine_origin, 3)
+        body.blit(pitchfork, (0, 0))
+
+        if motion_blur:
+            blur = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            pygame.draw.ellipse(
+                blur,
+                (220, 210, 180, 70),
+                (shaft_start[0] - 14, shaft_start[1] - 8, 24, 10),
+            )
+            body.blit(blur, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        return body
+
+    params_map = {
+        'Idle': dict(),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, bag_sway=-1, idle_sash=True),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=-1, bag_sway=-1, tool_angle=96, tool_reach=2),
+        'WalkAlt': dict(leg_front_shift=-1, leg_back_shift=2, torso_shift=1, head_tilt=1, bag_sway=1, tool_angle=84, tool_reach=2),
+        'AttackWindup': dict(torso_shift=-2, head_tilt=-3, arm_raise=2, tool_angle=60, tool_raise=4, tool_reach=4),
+        'AttackStrike': dict(torso_shift=-1, head_tilt=0, arm_raise=4, tool_angle=12, tool_raise=-4, tool_reach=12, motion_blur=True),
+        'AttackRecover': dict(torso_shift=-2, head_tilt=-1, arm_raise=1, tool_angle=78, tool_raise=2, tool_reach=6),
+        'HurtStart': dict(crouch=3, head_tilt=-4, torso_shift=-3, tool_angle=-40, tool_raise=4),
+        'HurtHold': dict(crouch=4, head_tilt=-2, torso_shift=-2, tool_angle=-12, tool_raise=8),
+        'HurtRecover': dict(crouch=2, head_tilt=-1, torso_shift=-2, tool_angle=-20, tool_raise=2),
+        'Death': dict(crouch=6, torso_shift=-4, head_tilt=6, tool_angle=70, tool_raise=10, motion_blur=False),
+        'Corpse': dict(crouch=6, torso_shift=-4, head_tilt=6, tool_angle=90, tool_raise=10, motion_blur=False),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 82)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 4))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 92)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 8))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_spearman_texture(animation_state='Idle'):
+    cache_key = f'spearman_v2_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        leg_front_shift=0,
+        leg_back_shift=0,
+        torso_shift=0,
+        head_tilt=0,
+        crouch=0,
+        shield_angle=0,
+        shield_raise=0,
+        spear_angle=-6,
+        spear_raise=0,
+        spear_reach=0,
+        motion_blur=False,
+        brace=False,
+    ):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        spear = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shield = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (40, 38, 32, 170)
+        armor_dark = (118, 116, 108)
+        armor_mid = (164, 158, 144)
+        armor_light = (206, 198, 182)
+        cloth = (84, 104, 156)
+        leather = (108, 82, 56)
+        leather_dark = (86, 62, 44)
+        skin = (232, 208, 184)
+        metal = (182, 186, 198)
+        bronze = (184, 140, 72)
+
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        back_leg = pygame.Rect(12 + leg_back_shift, 24 + base_y, 6, 12)
+        front_leg = pygame.Rect(22 + leg_front_shift, 23 + base_y, 8, 13)
+        pygame.draw.rect(body, leather_dark, back_leg)
+        pygame.draw.rect(body, (40, 32, 26), back_leg, 1)
+        pygame.draw.rect(body, leather, front_leg)
+        pygame.draw.rect(body, (40, 32, 26), front_leg, 1)
+
+        waist_rect = pygame.Rect(12 + torso_shift, 19 + base_y, 19, 6)
+        pygame.draw.rect(body, cloth, waist_rect)
+        pygame.draw.rect(body, (40, 32, 28), waist_rect, 1)
+        pygame.draw.rect(body, armor_mid, waist_rect.inflate(-6, -2))
+
+        torso_rect = pygame.Rect(13 + torso_shift, 11 + base_y, 18, 10)
+        pygame.draw.rect(body, armor_light, torso_rect)
+        pygame.draw.rect(body, (54, 44, 36), torso_rect, 1)
+        pygame.draw.rect(body, armor_mid, torso_rect.inflate(-2, -2))
+
+        pauldrons = pygame.Rect(11 + torso_shift, 10 + base_y, 10, 5)
+        pygame.draw.ellipse(body, armor_dark, pauldrons)
+        pygame.draw.ellipse(body, armor_light, (pauldrons[0] + 1, pauldrons[1] + 1, pauldrons[2] - 2, pauldrons[3] - 2))
+
+        head = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = 23 + torso_shift
+        head_y = 5 + base_y + head_tilt
+        pygame.draw.ellipse(head, armor_mid, (head_x - 7, head_y, 14, 12))
+        pygame.draw.rect(head, armor_dark, (head_x - 7, head_y + 4, 14, 6), 1)
+        pygame.draw.rect(head, metal, (head_x - 4, head_y + 5, 8, 2))
+        pygame.draw.rect(head, (48, 40, 32), (head_x - 2, head_y + 7, 4, 1))
+        pygame.draw.rect(head, skin, (head_x - 2, head_y + 8, 5, 3))
+        pygame.draw.polygon(head, bronze, [(head_x, head_y - 2), (head_x + 3, head_y - 5), (head_x + 4, head_y - 2)])
+        body.blit(head, (0, 0))
+
+        front_arm = pygame.Rect(22 + torso_shift, 14 + base_y, 9, 4)
+        back_arm = pygame.Rect(13 + torso_shift, 15 + base_y, 7, 4)
+        pygame.draw.rect(body, armor_mid, back_arm)
+        pygame.draw.rect(body, (50, 42, 34), back_arm, 1)
+        pygame.draw.rect(body, armor_light, front_arm)
+        pygame.draw.rect(body, (50, 42, 34), front_arm, 1)
+
+        shield_center = (15 + torso_shift, 20 + base_y - shield_raise)
+        pygame.draw.circle(shield, armor_dark, shield_center, 10)
+        pygame.draw.circle(shield, armor_light, shield_center, 8)
+        pygame.draw.circle(shield, bronze, shield_center, 3)
+        if shield_angle:
+            shield = pygame.transform.rotate(shield, shield_angle)
+        body.blit(shield, shield.get_rect(center=shield_center))
+
+        spear_start = (26, 16 + base_y + spear_raise)
+        angle_rad = math.radians(spear_angle)
+        cos_a = math.cos(angle_rad)
+        sin_a = math.sin(angle_rad)
+        spear_length = 22 + spear_reach
+        spear_end = (spear_start[0] + int(spear_length * cos_a), spear_start[1] - int(spear_length * sin_a))
+        pygame.draw.line(spear, (142, 110, 60), spear_start, spear_end, 3)
+        pygame.draw.line(spear, (96, 72, 44), spear_start, spear_end, 1)
+        spear_tip = [
+            (spear_end[0], spear_end[1]),
+            (spear_end[0] + int(6 * math.cos(angle_rad + math.pi / 2)), spear_end[1] - int(6 * math.sin(angle_rad + math.pi / 2))),
+            (spear_end[0] + int(12 * cos_a), spear_end[1] - int(12 * sin_a)),
+        ]
+        pygame.draw.polygon(spear, metal, spear_tip)
+        pygame.draw.polygon(spear, (90, 96, 110), spear_tip, 1)
+        body.blit(spear, (0, 0))
+
+        if brace:
+            brace_block = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            pygame.draw.rect(
+                brace_block,
+                (200, 200, 210, 60),
+                (spear_start[0] - 8, spear_start[1] - 6, 18, 8),
+            )
+            body.blit(brace_block, (0, 0))
+
+        if motion_blur:
+            blur = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            pygame.draw.ellipse(
+                blur,
+                (210, 210, 220, 70),
+                (spear_start[0] - 10, spear_start[1] - 6, 26, 10),
+            )
+            body.blit(blur, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        return body
+
+    params_map = {
+        'Idle': dict(spear_angle=92, spear_raise=0, spear_reach=2),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-2, torso_shift=-1, head_tilt=-1, spear_angle=96, spear_raise=1),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-3, torso_shift=-1, head_tilt=-1, spear_angle=100, spear_raise=2, spear_reach=3),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=1, spear_angle=88, spear_raise=1, spear_reach=2),
+        'AttackPrep': dict(torso_shift=-2, head_tilt=-2, spear_angle=46, spear_raise=6, spear_reach=6, shield_angle=12, brace=True),
+        'AttackThrust': dict(torso_shift=0, head_tilt=0, spear_angle=12, spear_raise=-2, spear_reach=12, motion_blur=True, shield_angle=-6),
+        'AttackRecover': dict(torso_shift=-1, head_tilt=-1, spear_angle=82, spear_raise=4, spear_reach=4, shield_angle=8),
+        'HurtStart': dict(crouch=3, torso_shift=-3, head_tilt=-4, spear_angle=70, spear_raise=8, shield_raise=2),
+        'HurtHold': dict(crouch=4, torso_shift=-2, head_tilt=-2, spear_angle=96, spear_raise=6, shield_raise=4),
+        'HurtRecover': dict(crouch=2, torso_shift=-1, head_tilt=-1, spear_angle=86, spear_raise=4, shield_raise=2),
+        'Death': dict(crouch=6, torso_shift=-4, head_tilt=5, spear_angle=62, spear_raise=10, shield_angle=-24),
+        'Corpse': dict(crouch=6, torso_shift=-4, head_tilt=5, spear_angle=94, spear_raise=8, shield_angle=-32),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 76)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-9, 6))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 94)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-13, 10))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_swordsman_texture(animation_state='Idle'):
+    cache_key = f'swordsman_v2_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        leg_front_shift=0,
+        leg_back_shift=0,
+        torso_shift=0,
+        head_tilt=0,
+        crouch=0,
+        sword_angle=0,
+        sword_raise=0,
+        sword_reach=0,
+        shield_tilt=0,
+        shield_raise=0,
+        cloak_sway=0,
+        motion_blur=False,
+        guard=False,
+    ):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        sword = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shield = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        cloak = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (38, 34, 30, 170)
+        armor_dark = (120, 118, 110)
+        armor_mid = (170, 164, 150)
+        armor_light = (210, 202, 190)
+        cloth = (68, 88, 138)
+        leather = (96, 74, 52)
+        leather_dark = (80, 60, 44)
+        skin = (232, 208, 184)
+        metal = (190, 194, 206)
+        steel = (220, 224, 234)
+        trim = (112, 172, 200)
+
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        back_leg = pygame.Rect(11 + leg_back_shift, 24 + base_y, 7, 12)
+        front_leg = pygame.Rect(22 + leg_front_shift, 23 + base_y, 8, 13)
+        pygame.draw.rect(body, leather_dark, back_leg)
+        pygame.draw.rect(body, (40, 32, 24), back_leg, 1)
+        pygame.draw.rect(body, leather, front_leg)
+        pygame.draw.rect(body, (40, 32, 24), front_leg, 1)
+
+        skirt_rect = pygame.Rect(12 + torso_shift, 19 + base_y, 19, 7)
+        pygame.draw.rect(body, cloth, skirt_rect)
+        pygame.draw.rect(body, (36, 30, 26), skirt_rect, 1)
+        pygame.draw.rect(body, armor_mid, skirt_rect.inflate(-6, -2))
+
+        torso_rect = pygame.Rect(13 + torso_shift, 11 + base_y, 18, 10)
+        pygame.draw.rect(body, armor_light, torso_rect)
+        pygame.draw.rect(body, (50, 42, 34), torso_rect, 1)
+        pygame.draw.rect(body, armor_mid, torso_rect.inflate(-3, -2))
+        pygame.draw.rect(body, trim, (torso_rect[0] + 7, torso_rect[1] + 1, 4, torso_rect[3] - 2))
+
+        pygame.draw.ellipse(body, armor_dark, (11 + torso_shift, 10 + base_y, 10, 5))
+        pygame.draw.ellipse(body, armor_light, (12 + torso_shift, 11 + base_y, 8, 3))
+
+        cloak_rect = pygame.Rect(9 + cloak_sway, 12 + base_y, 22, 18)
+        pygame.draw.ellipse(cloak, (46, 60, 90, 150), cloak_rect)
+        body.blit(cloak, (0, 0))
+
+        head = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = 23 + torso_shift
+        head_y = 5 + base_y + head_tilt
+        pygame.draw.ellipse(head, armor_mid, (head_x - 7, head_y, 14, 12))
+        pygame.draw.rect(head, armor_dark, (head_x - 7, head_y + 4, 14, 6), 1)
+        pygame.draw.rect(head, steel, (head_x - 3, head_y + 5, 6, 2))
+        pygame.draw.rect(head, skin, (head_x - 2, head_y + 8, 4, 3))
+        pygame.draw.rect(head, (42, 34, 28), (head_x - 2, head_y + 6, 4, 1))
+        pygame.draw.polygon(head, trim, [(head_x, head_y - 3), (head_x + 2, head_y - 6), (head_x + 4, head_y - 3)])
+        body.blit(head, (0, 0))
+
+        front_arm = pygame.Rect(22 + torso_shift, 14 + base_y, 8, 4)
+        back_arm = pygame.Rect(13 + torso_shift, 15 + base_y, 7, 4)
+        pygame.draw.rect(body, armor_mid, back_arm)
+        pygame.draw.rect(body, (44, 36, 30), back_arm, 1)
+        pygame.draw.rect(body, armor_light, front_arm)
+        pygame.draw.rect(body, (44, 36, 30), front_arm, 1)
+
+        shield_center = (15 + torso_shift, 20 + base_y - shield_raise)
+        pygame.draw.polygon(
+            shield,
+            armor_dark,
+            [
+                (shield_center[0] - 9, shield_center[1]),
+                (shield_center[0], shield_center[1] - 12),
+                (shield_center[0] + 9, shield_center[1]),
+                (shield_center[0], shield_center[1] + 10),
+            ],
+        )
+        pygame.draw.polygon(
+            shield,
+            armor_light,
+            [
+                (shield_center[0] - 7, shield_center[1]),
+                (shield_center[0], shield_center[1] - 10),
+                (shield_center[0] + 7, shield_center[1]),
+                (shield_center[0], shield_center[1] + 8),
+            ],
+        )
+        pygame.draw.polygon(
+            shield,
+            trim,
+            [
+                (shield_center[0] - 2, shield_center[1] - 2),
+                (shield_center[0], shield_center[1] - 6),
+                (shield_center[0] + 2, shield_center[1] - 2),
+                (shield_center[0], shield_center[1] + 1),
+            ],
+        )
+        if shield_tilt:
+            shield = pygame.transform.rotate(shield, shield_tilt)
+        body.blit(shield, shield.get_rect(center=shield_center))
+
+        sword_start = (27, 16 + base_y + sword_raise)
+        angle_rad = math.radians(sword_angle)
+        sword_length = 18 + sword_reach
+        sword_end = (
+            sword_start[0] + int(sword_length * math.cos(angle_rad)),
+            sword_start[1] - int(sword_length * math.sin(angle_rad)),
+        )
+        pygame.draw.line(sword, (88, 70, 52), sword_start, sword_end, 4)
+        pygame.draw.line(sword, (58, 44, 36), sword_start, sword_end, 1)
+        guard_rect = pygame.Rect(sword_start[0] - 2, sword_start[1] - 1, 6, 3)
+        pygame.draw.rect(sword, metal, guard_rect)
+        pygame.draw.rect(sword, (96, 96, 104), guard_rect, 1)
+        blade_end = (
+            sword_end[0] + int(8 * math.cos(angle_rad)),
+            sword_end[1] - int(8 * math.sin(angle_rad)),
+        )
+        pygame.draw.line(sword, steel, sword_end, blade_end, 3)
+        pygame.draw.line(sword, (120, 130, 150), sword_end, blade_end, 1)
+        body.blit(sword, (0, 0))
+
+        if motion_blur:
+            blur = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            pygame.draw.ellipse(
+                blur,
+                (220, 225, 240, 80),
+                (sword_start[0] - 12, sword_start[1] - 8, 26, 12),
+            )
+            body.blit(blur, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        return body
+
+    params_map = {
+        'Idle': dict(sword_angle=94, sword_raise=0, sword_reach=2, shield_tilt=4),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-2, torso_shift=-1, head_tilt=-1, shield_tilt=8, cloak_sway=-2, sword_angle=98, sword_raise=1),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-3, torso_shift=-1, head_tilt=-1, sword_angle=104, sword_raise=2, sword_reach=3, cloak_sway=-4),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=1, torso_shift=1, head_tilt=1, sword_angle=86, sword_raise=1, sword_reach=3, cloak_sway=6),
+        'AttackPrep': dict(torso_shift=-3, head_tilt=-2, sword_angle=48, sword_raise=6, sword_reach=6, shield_tilt=14),
+        'AttackSlash': dict(torso_shift=-1, head_tilt=0, sword_angle=32, sword_raise=-3, sword_reach=10, motion_blur=True, shield_tilt=-6),
+        'AttackRecover': dict(torso_shift=-2, head_tilt=-1, sword_angle=88, sword_raise=3, sword_reach=4, shield_tilt=6),
+        'Block': dict(torso_shift=-2, head_tilt=-1, sword_angle=84, sword_raise=4, shield_tilt=18),
+        'HurtStart': dict(crouch=3, torso_shift=-3, head_tilt=-4, sword_angle=70, sword_raise=5, shield_raise=2),
+        'HurtHold': dict(crouch=4, torso_shift=-2, head_tilt=-3, sword_angle=94, sword_raise=6, shield_raise=4),
+        'HurtRecover': dict(crouch=2, torso_shift=-1, head_tilt=-1, sword_angle=86, sword_raise=3),
+        'Death': dict(crouch=6, torso_shift=-4, head_tilt=6, sword_angle=74, sword_raise=8, shield_tilt=-20),
+        'Corpse': dict(crouch=6, torso_shift=-4, head_tilt=6, sword_angle=98, sword_raise=8, shield_tilt=-30),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 78)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 4))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 96)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-14, 8))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_gryphon_texture(animation_state='Idle'):
+    cache_key = f'gryphon_v3_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        leg_front_shift=0,
+        leg_back_shift=0,
+        body_shift=0,
+        head_tilt=0,
+        wing_angle=0,
+        wing_raise=0,
+        claw_reach=0,
+        tail_sway=0,
+        crouch=0,
+        beak_open=False,
+        motion_blur=False,
+    ):
+        surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (32, 30, 28, 170)
+        feather_dark = (88, 78, 64)
+        feather_mid = (152, 138, 118)
+        feather_light = (204, 192, 170)
+        fur_dark = (96, 68, 44)
+        fur_light = (158, 118, 70)
+        beak_color = (210, 160, 70)
+        eye_color = (220, 228, 240)
+        claw_color = (230, 220, 210)
+        tail_color = (98, 80, 58)
+
+        base_y = crouch
+        ground = CELL_SIZE - 8 + base_y
+        center_x = CELL_SIZE // 2 + body_shift
+
+        pygame.draw.ellipse(surface, shadow, (center_x - 22, ground - 2, 44, 6))
+
+        body_rect = pygame.Rect(center_x - 10, ground - 22, 20, 14)
+        pygame.draw.ellipse(surface, feather_mid, body_rect)
+        pygame.draw.ellipse(surface, feather_dark, body_rect, 1)
+        pygame.draw.ellipse(surface, feather_light, (body_rect.x + 4, body_rect.y + 3, body_rect.width - 8, body_rect.height - 8))
+
+        tail_points = [
+            (center_x - 10, ground - 16),
+            (center_x - 20 + tail_sway, ground - 6),
+            (center_x - 6, ground - 4),
+        ]
+        pygame.draw.polygon(surface, tail_color, tail_points)
+        pygame.draw.polygon(surface, (60, 50, 42), tail_points, 1)
+
+        back_leg = pygame.Rect(center_x - 14 + leg_back_shift, ground - 6, 6, 10)
+        front_leg = pygame.Rect(center_x + 6 + leg_front_shift, ground - 8 - claw_reach, 6, 12 + claw_reach)
+        pygame.draw.rect(surface, fur_dark, back_leg)
+        pygame.draw.rect(surface, (44, 32, 24), back_leg, 1)
+        pygame.draw.rect(surface, fur_light, front_leg)
+        pygame.draw.rect(surface, (44, 32, 24), front_leg, 1)
+
+        upper_leg = pygame.Rect(center_x + 2 + leg_front_shift, ground - 14 - claw_reach, 8, 6)
+        pygame.draw.rect(surface, fur_dark, upper_leg)
+        pygame.draw.rect(surface, (44, 34, 26), upper_leg, 1)
+
+        claw = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        claw_x = center_x + 10 + leg_front_shift
+        claw_y = ground - 2 - claw_reach
+        claw_shape = [
+            (claw_x, claw_y),
+            (claw_x + 8, claw_y - 6),
+            (claw_x + 12, claw_y),
+            (claw_x + 8, claw_y + 6),
+            (claw_x - 2, claw_y + 4),
+        ]
+        pygame.draw.polygon(claw, claw_color, claw_shape)
+        pygame.draw.polygon(claw, (182, 172, 170), claw_shape, 1)
+        talons = [
+            [(claw_x + 6, claw_y - 4), (claw_x + 14, claw_y - 10), (claw_x + 12, claw_y)],
+            [(claw_x + 4, claw_y + 2), (claw_x + 12, claw_y + 4), (claw_x + 6, claw_y + 9)],
+        ]
+        for talon in talons:
+            pygame.draw.polygon(claw, (210, 200, 190), talon)
+            pygame.draw.polygon(claw, (150, 140, 140), talon, 1)
+        surface.blit(claw, (0, 0))
+
+        wing = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shoulder_y = body_rect.top + 4 - wing_raise
+        left_wing_points = [
+            (center_x - 6, shoulder_y),
+            (center_x - 18, shoulder_y - 10),
+            (center_x - 22, shoulder_y + 2),
+            (center_x - 18, shoulder_y + 8),
+            (center_x - 8, shoulder_y + 4),
+        ]
+        pygame.draw.polygon(wing, feather_light, left_wing_points)
+        pygame.draw.polygon(wing, feather_dark, left_wing_points, 1)
+        for i in range(4):
+            t = i / 3.0
+            fx = int(center_x - 6 - 12 * t)
+            pygame.draw.line(wing, feather_dark, (fx, shoulder_y - int(10 * t)), (fx - 2, shoulder_y + 6), 1)
+        if wing_angle:
+            wing = pygame.transform.rotate(wing, wing_angle)
+        surface.blit(wing, (0, 0))
+        right_wing = pygame.transform.flip(wing, True, False)
+        surface.blit(right_wing, (0, 0))
+
+        neck_rect = pygame.Rect(center_x - 4, body_rect.top - 6 - head_tilt, 10, 14)
+        pygame.draw.ellipse(surface, feather_light, neck_rect)
+        pygame.draw.ellipse(surface, feather_dark, neck_rect, 1)
+
+        head = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = center_x + 6
+        head_y = body_rect.top - 4 - head_tilt
+        pygame.draw.ellipse(head, feather_light, (head_x - 6, head_y, 12, 9))
+        pygame.draw.ellipse(head, feather_dark, (head_x - 6, head_y, 12, 9), 1)
+        eye_center = (head_x + 1, head_y + 4)
+        pygame.draw.circle(head, eye_color, eye_center, 2)
+        pygame.draw.circle(head, (30, 40, 60), eye_center, 1)
+        beak = [
+            (head_x + 3, head_y + 3),
+            (head_x + 10, head_y + (0 if beak_open else 3)),
+            (head_x + 3, head_y + 5),
+        ]
+        pygame.draw.polygon(head, beak_color, beak)
+        pygame.draw.line(head, (160, 120, 50), (head_x + 3, head_y + 3), (head_x + 10, head_y + (0 if beak_open else 3)), 2)
+        surface.blit(head, (0, 0))
+
+        if motion_blur:
+            blur = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            pygame.draw.ellipse(blur, (220, 210, 200, 70), (claw_x - 14, claw_y - 10, 26, 14))
+            surface.blit(blur, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+        return surface
+
+    params_map = {
+        'Idle': dict(wing_angle=-2, tail_sway=-1),
+        'IdleBreath': dict(wing_angle=-6, head_tilt=-2, tail_sway=-2),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, claw_reach=3, body_shift=-1, tail_sway=-3),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, claw_reach=2, body_shift=1, tail_sway=3),
+        'AttackClaw': dict(claw_reach=7, head_tilt=-2, motion_blur=True, body_shift=2, wing_angle=8),
+        'AttackBeak': dict(head_tilt=-6, beak_open=True, claw_reach=4, wing_angle=-4),
+        'AttackWing': dict(wing_angle=26, wing_raise=6, motion_blur=True),
+        'HurtStart': dict(crouch=4, body_shift=-3, head_tilt=-6, wing_angle=-18),
+        'HurtHold': dict(crouch=6, body_shift=-2, head_tilt=-4, wing_angle=-12),
+        'HurtRecover': dict(crouch=3, body_shift=-1, head_tilt=-2, wing_angle=-8),
+        'Death': dict(crouch=8, body_shift=-4, head_tilt=8, wing_angle=36, claw_reach=4),
+        'Corpse': dict(crouch=8, body_shift=-4, head_tilt=8, wing_angle=48, claw_reach=4),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 84)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-16, 4))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 102)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-20, 8))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def _render_human_hero(hero_class):
+    surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+    armor_base = (196, 188, 172)
+    armor_shadow = (112, 102, 90)
+    cloth_primary = (88, 112, 168)
+    gold = (218, 192, 96)
+    skin = (238, 216, 192)
+    leather = (110, 84, 52)
+
+    pygame.draw.ellipse(surf, (38, 34, 28, 160), (6, CELL_SIZE - 8, CELL_SIZE - 12, 6))
+
+    torso = pygame.Rect(16, 14, 18, 16)
+    pygame.draw.rect(surf, armor_base, torso)
+    pygame.draw.rect(surf, armor_shadow, torso, 2)
+    pygame.draw.rect(surf, cloth_primary, torso.inflate(-6, -4))
+
+    head = pygame.Rect(18, 4, 14, 12)
+    pygame.draw.ellipse(surf, skin, head)
+    pygame.draw.ellipse(surf, armor_base, (head.x - 2, head.y - 4, head.width + 4, head.height - 4), 2)
+    pygame.draw.circle(surf, (40, 32, 24), (head.centerx - 2, head.y + 6), 1)
+    pygame.draw.circle(surf, (40, 32, 24), (head.centerx + 2, head.y + 6), 1)
+
+    pygame.draw.rect(surf, leather, (14, 22, 8, 14))
+    pygame.draw.rect(surf, leather, (28, 22, 8, 14))
+
+    if hero_class == 'warrior':
+        pygame.draw.rect(surf, armor_base, (12, 18, 24, 4))
+        pygame.draw.rect(surf, gold, (16, 18, 16, 4), 1)
+        pygame.draw.rect(surf, armor_base, (32, 14, 4, 22))
+        pygame.draw.rect(surf, gold, (30, 14, 8, 4))
+        pygame.draw.rect(surf, (220, 220, 232), (32, 8, 3, 10), 2)
+        pygame.draw.line(surf, (200, 200, 220), (33, 8), (33, 2), 2)
+        pygame.draw.polygon(surf, armor_shadow, [(12, 24), (6, 30), (12, 34), (22, 34), (22, 24)])
+        pygame.draw.polygon(surf, gold, [(12, 24), (6, 30), (12, 34), (22, 34), (22, 24)], 1)
+    elif hero_class == 'archer':
+        pygame.draw.rect(surf, (84, 112, 68), (14, 14, 4, 20))
+        pygame.draw.rect(surf, (84, 112, 68), (32, 14, 4, 20))
+        pygame.draw.rect(surf, (64, 88, 52), (32, 16, 4, 12))
+        pygame.draw.line(surf, (210, 210, 220), (34, 16), (34, 32), 2)
+        bow_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.arc(bow_surface, (120, 80, 40), (4, 8, 32, 32), 0.3, 2.84, 3)
+        surf.blit(bow_surface, (0, 0))
+        pygame.draw.line(surf, (220, 220, 220), (10, 22), (34, 16), 2)
+        pygame.draw.rect(surf, (76, 56, 34), (10, 20, 6, 18))
+    else:  # mage
+        pygame.draw.rect(surf, (96, 122, 194), (12, 18, 24, 20))
+        pygame.draw.rect(surf, (60, 80, 132), (12, 18, 24, 20), 2)
+        pygame.draw.polygon(surf, (72, 92, 152), [(16, 18), (20, 8), (24, 18)])
+        pygame.draw.line(surf, (160, 140, 100), (32, 10), (32, 32), 4)
+        pygame.draw.circle(surf, (120, 200, 240), (32, 10), 5)
+        pygame.draw.circle(surf, (180, 240, 255), (32, 10), 3)
+
+    return surf
+
+
+def _render_elf_hero(hero_class):
+    surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+    cloak_light = (104, 190, 140)
+    cloak_shadow = (62, 132, 92)
+    silver = (198, 214, 226)
+    gold = (220, 204, 140)
+    skin = (228, 238, 206)
+    hair = (92, 180, 140)
+
+    pygame.draw.ellipse(surf, (26, 40, 32, 150), (6, CELL_SIZE - 10, CELL_SIZE - 12, 8))
+
+    torso = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+    pygame.draw.rect(torso, cloak_light, (18, 14, 14, 18))
+    pygame.draw.rect(torso, cloak_shadow, (18, 14, 14, 18), 2)
+    pygame.draw.rect(torso, cloak_shadow, (16, 22, 18, 2))
+    pygame.draw.rect(torso, cloak_light, (16, 26, 6, 14))
+    pygame.draw.rect(torso, cloak_light, (28, 26, 6, 14))
+    surf.blit(torso, (0, 0))
+
+    head_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+    pygame.draw.ellipse(head_surface, skin, (20, 6, 12, 12))
+    pygame.draw.polygon(head_surface, skin, [(18, 11), (12, 5), (18, 7)])
+    pygame.draw.polygon(head_surface, skin, [(34, 11), (40, 5), (34, 7)])
+    pygame.draw.ellipse(head_surface, hair, (19, 4, 14, 8))
+    pygame.draw.circle(head_surface, (36, 70, 40), (24, 11), 1)
+    pygame.draw.circle(head_surface, (36, 70, 40), (28, 11), 1)
+    surf.blit(head_surface, (0, 0))
+
+    if hero_class == 'warrior':
+        sword = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(sword, silver, (30, 10, 4, 24))
+        pygame.draw.rect(sword, gold, (28, 20, 8, 3))
+        pygame.draw.rect(sword, (220, 230, 240), (30, 6, 3, 8))
+        surf.blit(sword, (0, 0))
+        shield = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.polygon(shield, silver, [(12, 18), (6, 26), (12, 34), (20, 30)])
+        pygame.draw.polygon(shield, gold, [(12, 18), (6, 26), (12, 34), (20, 30)], 2)
+        surf.blit(shield, (0, 0))
+    elif hero_class == 'archer':
+        bow = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.arc(bow, (118, 156, 112), (6, 4, 28, 36), 0.1, 3.04, 3)
+        pygame.draw.line(bow, silver, (12, 22), (30, 14), 2)
+        pygame.draw.rect(bow, (108, 86, 58), (10, 20, 4, 18))
+        quiver = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(quiver, (110, 84, 60), (28, 12, 5, 18))
+        pygame.draw.polygon(quiver, silver, [(30, 12), (34, 8), (32, 16)])
+        surf.blit(bow, (0, 0))
+        surf.blit(quiver, (0, 0))
+    else:  # mage
+        robe = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(robe, (84, 152, 146), (16, 14, 16, 20))
+        pygame.draw.rect(robe, (58, 118, 108), (16, 14, 16, 20), 2)
+        staff = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(staff, (120, 86, 52), (30, 6, 4, 26))
+        pygame.draw.circle(staff, (160, 220, 200), (32, 6), 5)
+        pygame.draw.circle(staff, (220, 255, 240), (32, 6), 3)
+        surf.blit(robe, (0, 0))
+        surf.blit(staff, (0, 0))
+
+    return surf
+
+
+def _render_elf_unit(unit):
+    surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+    leaf_light = (130, 200, 150)
+    leaf_mid = (82, 150, 102)
+    leaf_dark = (56, 96, 68)
+    bark = (120, 88, 58)
+    silver = (198, 214, 226)
+    gold = (220, 204, 140)
+    skin = (228, 238, 206)
+    hair = (86, 168, 120)
+    shadow_color = (32, 40, 36, 140)
+
+    pygame.draw.ellipse(surf, shadow_color, (6, CELL_SIZE - 9, CELL_SIZE - 12, 6))
+
+    def draw_head(target, cx, cy, hair_color):
+        head_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.ellipse(head_surface, skin, (cx - 6, cy - 6, 12, 12))
+        pygame.draw.polygon(head_surface, skin, [(cx - 8, cy), (cx - 12, cy - 6), (cx - 2, cy - 4)])
+        pygame.draw.polygon(head_surface, skin, [(cx + 8, cy), (cx + 12, cy - 6), (cx + 2, cy - 4)])
+        pygame.draw.ellipse(head_surface, hair_color, (cx - 7, cy - 8, 14, 6))
+        pygame.draw.circle(head_surface, (40, 80, 50), (cx - 2, cy - 1), 1)
+        pygame.draw.circle(head_surface, (40, 80, 50), (cx + 2, cy - 1), 1)
+        target.blit(head_surface, (0, 0))
+
+    def draw_humanoid_body(target, tunic_top, tunic_bottom, belt_color):
+        torso = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(torso, tunic_top, (18, 16, 14, 12))
+        pygame.draw.rect(torso, tunic_bottom, (18, 26, 14, 10))
+        pygame.draw.rect(torso, belt_color, (18, 24, 14, 3))
+        pygame.draw.rect(torso, leaf_dark, (18, 16, 14, 20), 2)
+        pygame.draw.rect(torso, tunic_bottom, (14, 28, 6, 12))
+        pygame.draw.rect(torso, tunic_bottom, (26, 28, 6, 12))
+        target.blit(torso, (0, 0))
+
+    if unit == 'elf_archer':
+        draw_humanoid_body(surf, leaf_mid, leaf_light, leaf_dark)
+        draw_head(surf, 24, 16, hair)
+        bow = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.arc(bow, (116, 150, 96), (4, 4, 28, 36), 0.12, 3.02, 3)
+        pygame.draw.line(bow, silver, (10, 22), (30, 14), 2)
+        pygame.draw.rect(bow, (120, 88, 52), (12, 20, 4, 18))
+        surf.blit(bow, (0, 0))
+        quiver = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(quiver, (100, 72, 40), (30, 12, 4, 18))
+        pygame.draw.polygon(quiver, silver, [(32, 12), (36, 8), (34, 16)])
+        surf.blit(quiver, (0, 0))
+    elif unit == 'elf_scout':
+        draw_humanoid_body(surf, (100, 160, 116), leaf_mid, leaf_dark)
+        draw_head(surf, 24, 16, (92, 156, 120))
+        daggers = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.polygon(daggers, silver, [(30, 14), (36, 12), (32, 18)])
+        pygame.draw.rect(daggers, (120, 88, 52), (28, 18, 5, 10))
+        pygame.draw.polygon(daggers, silver, [(18, 30), (12, 34), (18, 36)])
+        pygame.draw.rect(daggers, (120, 88, 52), (16, 28, 4, 8))
+        surf.blit(daggers, (0, 0))
+    elif unit == 'dryad':
+        trunk = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(trunk, bark, (18, 18, 14, 18))
+        pygame.draw.rect(trunk, (80, 58, 38), (18, 18, 14, 18), 2)
+        pygame.draw.circle(trunk, leaf_mid, (16, 16), 8)
+        pygame.draw.circle(trunk, leaf_mid, (32, 14), 7)
+        pygame.draw.circle(trunk, leaf_light, (24, 10), 6)
+        draw_head(trunk, 24, 18, (86, 140, 90))
+        surf.blit(trunk, (0, 0))
+    elif unit == 'druid':
+        robe = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(robe, (90, 152, 140), (16, 16, 16, 20))
+        pygame.draw.rect(robe, (60, 118, 108), (16, 16, 16, 20), 2)
+        draw_head(robe, 24, 14, (120, 200, 160))
+        staff = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(staff, (110, 70, 40), (30, 8, 4, 26))
+        pygame.draw.circle(staff, (160, 220, 200), (32, 6), 5)
+        pygame.draw.circle(staff, (220, 255, 240), (32, 6), 3)
+        surf.blit(robe, (0, 0))
+        surf.blit(staff, (0, 0))
+    elif unit == 'pixie':
+        surf.fill((0, 0, 0, 0))
+        pygame.draw.ellipse(surf, (220, 255, 240, 110), (6, 20, 32, 12))
+        pygame.draw.ellipse(surf, (220, 255, 240, 140), (4, 8, 18, 26))
+        pygame.draw.ellipse(surf, (220, 255, 240, 140), (26, 8, 18, 26))
+        pygame.draw.circle(surf, (255, 220, 240), (22, 18), 6)
+        pygame.draw.circle(surf, (200, 120, 200), (20, 18), 2)
+        pygame.draw.circle(surf, (200, 120, 200), (24, 18), 2)
+    elif unit == 'ent':
+        ent = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(ent, bark, (12, 10, 24, 26))
+        pygame.draw.rect(ent, (70, 52, 34), (12, 10, 24, 26), 2)
+        pygame.draw.rect(ent, bark, (8, 18, 6, 20))
+        pygame.draw.rect(ent, bark, (32, 18, 6, 20))
+        pygame.draw.circle(ent, leaf_mid, (16, 6), 8)
+        pygame.draw.circle(ent, leaf_mid, (32, 6), 8)
+        pygame.draw.circle(ent, leaf_light, (24, 2), 6)
+        surf.blit(ent, (0, 0))
+    elif unit == 'unicorn':
+        uni = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.ellipse(uni, (236, 236, 246), (10, 20, 28, 14))
+        pygame.draw.ellipse(uni, (210, 210, 220), (10, 20, 28, 14), 2)
+        pygame.draw.rect(uni, (236, 236, 246), (14, 24, 6, 12))
+        pygame.draw.rect(uni, (236, 236, 246), (28, 24, 6, 12))
+        pygame.draw.ellipse(uni, (236, 236, 246), (22, 10, 12, 10))
+        pygame.draw.polygon(uni, gold, [(28, 10), (32, 2), (30, 12)])
+        pygame.draw.circle(uni, (80, 100, 140), (28, 14), 2)
+        surf.blit(uni, (0, 0))
+    else:
+        draw_humanoid_body(surf, leaf_mid, leaf_light, leaf_dark)
+        draw_head(surf, 24, 16, hair)
+
+    return surf
+
+
+_ELF_ANIMATION_BLUEPRINTS = {
+    'elf_archer': {
+        'Idle': {},
+        'IdleBreath': {'offset': (0, -2)},
+        'Walk': {'offset': (2, 0)},
+        'WalkAlt': {'offset': (-2, 0)},
+        'AttackDraw': {'offset': (-1, -3), 'tint': (10, 40, 10, 60)},
+        'AttackRelease': {'offset': (2, -4), 'tint': (160, 160, 60, 70)},
+        'AttackRecover': {'offset': (1, -1)},
+        'MeleePrep': {'offset': (-2, 0), 'rotate': -6},
+        'MeleeStrike': {'offset': (3, -2), 'rotate': 7},
+        'MeleeRecover': {'offset': (1, -1)},
+        'TurnLeft': {'offset': (-2, 1), 'rotate': -8},
+        'TurnRight': {'offset': (2, -1), 'rotate': 8},
+        'Hurt': {'offset': (-1, 2), 'rotate': 8},
+        'Death': {'offset': (-10, 12), 'rotate': 86, 'dim': 110},
+        'Corpse': {'offset': (-14, 16), 'rotate': 104, 'dim': 150, 'alpha': 220},
+    },
+    'elf_scout': {
+        'Idle': {},
+        'IdleBreath': {'offset': (0, -1)},
+        'Walk': {'offset': (2, 0)},
+        'WalkAlt': {'offset': (-2, 0)},
+        'AttackPrep': {'offset': (-1, -1), 'rotate': -6},
+        'AttackStrike': {'offset': (3, -2), 'rotate': 8},
+        'AttackRecover': {'offset': (1, -1)},
+        'TurnLeft': {'offset': (-2, 1), 'rotate': -10},
+        'TurnRight': {'offset': (2, -1), 'rotate': 10},
+        'Hurt': {'offset': (-2, 2), 'rotate': 10},
+        'Death': {'offset': (-8, 10), 'rotate': 82, 'dim': 110},
+        'Corpse': {'offset': (-12, 14), 'rotate': 102, 'dim': 160, 'alpha': 220},
+    },
+    'dryad': {
+        'Idle': {},
+        'IdleSway': {'offset': (1, -1)},
+        'Walk': {'offset': (1, 0)},
+        'WalkAlt': {'offset': (-1, 0)},
+        'CastStart': {'offset': (0, -2), 'glow': {'color': (120, 200, 150), 'alpha': 80}},
+        'CastRelease': {'offset': (0, -3), 'glow': {'color': (190, 255, 210), 'alpha': 130}},
+        'CastRecover': {'offset': (0, -1)},
+        'TurnLeft': {'offset': (-1, 0), 'rotate': -6},
+        'TurnRight': {'offset': (1, -1), 'rotate': 6},
+        'Hurt': {'offset': (-1, 2), 'rotate': 6},
+        'Death': {'offset': (-10, 12), 'rotate': 92, 'dim': 120},
+        'Corpse': {'offset': (-14, 16), 'rotate': 110, 'dim': 170, 'alpha': 210},
+    },
+    'druid': {
+        'Idle': {},
+        'IdleBreath': {'offset': (0, -2)},
+        'Walk': {'offset': (1, 0)},
+        'WalkAlt': {'offset': (-1, 0)},
+        'CastStart': {'offset': (0, -3), 'glow': {'color': (140, 210, 200), 'alpha': 90}},
+        'CastRelease': {'offset': (0, -4), 'glow': {'color': (200, 255, 240), 'alpha': 130}},
+        'CastRecover': {'offset': (0, -2)},
+        'TurnLeft': {'offset': (-1, 0), 'rotate': -6},
+        'TurnRight': {'offset': (1, -1), 'rotate': 6},
+        'Hurt': {'offset': (-1, 2), 'rotate': 8},
+        'Death': {'offset': (-10, 12), 'rotate': 88, 'dim': 120},
+        'Corpse': {'offset': (-14, 16), 'rotate': 106, 'dim': 170, 'alpha': 220},
+    },
+    'pixie': {
+        'Idle': {},
+        'IdlePulse': {'scale': 1.04},
+        'IdleHover': {'offset': (0, -3)},
+        'CastStart': {'scale': 1.08, 'glow': {'color': (210, 240, 255), 'alpha': 120}},
+        'CastRelease': {'scale': 1.12, 'glow': {'color': (255, 255, 255), 'alpha': 160}},
+        'CastRecover': {'scale': 1.02},
+        'TurnLeft': {'offset': (-1, -2), 'rotate': -4},
+        'TurnRight': {'offset': (1, -2), 'rotate': 4},
+        'Hurt': {'offset': (-1, 2), 'dim': 80},
+        'Death': {'offset': (0, 6), 'scale': 0.9, 'dim': 140},
+        'Corpse': {'offset': (0, 10), 'scale': 0.82, 'dim': 180, 'alpha': 170},
+    },
+    'ent': {
+        'Idle': {},
+        'IdleBreath': {'offset': (0, -1)},
+        'StepLeft': {'offset': (-1, 0)},
+        'StepRight': {'offset': (1, 0)},
+        'SlamPrep': {'offset': (-2, -1), 'rotate': -4},
+        'SlamHit': {'offset': (3, -2), 'rotate': 5},
+        'SlamRecover': {'offset': (1, -1)},
+        'TurnLeft': {'offset': (-2, 0), 'rotate': -6},
+        'TurnRight': {'offset': (2, -1), 'rotate': 6},
+        'Hurt': {'offset': (-1, 2), 'rotate': 6},
+        'Death': {'offset': (-8, 10), 'rotate': 78, 'dim': 130},
+        'Corpse': {'offset': (-12, 14), 'rotate': 96, 'dim': 170, 'alpha': 220},
+    },
+    'unicorn': {
+        'Idle': {},
+        'IdleBreath': {'offset': (0, -1)},
+        'Walk': {'offset': (2, 0)},
+        'WalkAlt': {'offset': (-2, 0)},
+        'ChargePrep': {'offset': (-2, -1), 'rotate': -3},
+        'ChargeImpact': {'offset': (3, -2), 'rotate': 5},
+        'ChargeRecover': {'offset': (1, -1)},
+        'TurnLeft': {'offset': (-2, -1), 'rotate': -5},
+        'TurnRight': {'offset': (2, -1), 'rotate': 5},
+        'Hurt': {'offset': (-1, 2), 'rotate': 6},
+        'Death': {'offset': (-10, 12), 'rotate': 86, 'dim': 130},
+        'Corpse': {'offset': (-12, 16), 'rotate': 108, 'dim': 170, 'alpha': 210},
+    },
+}
+
+
+def _apply_tint(surface, color):
+    tint = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+    if len(color) == 3:
+        tint.fill((*color, 90))
+    else:
+        tint.fill(color)
+    surface.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+
+def _apply_dim(surface, value):
+    dim = max(0, min(255, value))
+    overlay = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+    overlay.fill((dim, dim, dim, 0))
+    surface.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+
+
+def _apply_glow(surface, glow_spec):
+    color = glow_spec.get('color', (200, 255, 220))
+    alpha = glow_spec.get('alpha', 120)
+    overlay = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+    overlay.fill((*color, alpha))
+    surface.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
+
+def _render_elf_animation_frame(unit_key, state):
+    cache_key = f'elf_anim_{unit_key}_{state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    blueprint = _ELF_ANIMATION_BLUEPRINTS.get(unit_key, {})
+    ops = blueprint.get(state) or blueprint.get('Idle', {})
+
+    base = _render_elf_unit(unit_key)
+    image = base
+
+    if 'scale' in ops:
+        factor = ops['scale']
+        width = max(1, int(image.get_width() * factor))
+        height = max(1, int(image.get_height() * factor))
+        image = pygame.transform.smoothscale(image, (width, height))
+
+    if 'rotate' in ops:
+        image = pygame.transform.rotate(image, ops['rotate'])
+
+    if 'flip' in ops:
+        fx, fy = ops['flip']
+        image = pygame.transform.flip(image, fx, fy)
+
+    target = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+    offset_x, offset_y = ops.get('offset', (0, 0))
+    rect = image.get_rect(center=(CELL_SIZE // 2 + offset_x, CELL_SIZE // 2 + offset_y))
+    target.blit(image, rect)
+
+    if 'tint' in ops:
+        _apply_tint(target, ops['tint'])
+
+    if 'dim' in ops:
+        _apply_dim(target, ops['dim'])
+
+    if 'glow' in ops:
+        _apply_glow(target, ops['glow'])
+
+    if ops.get('alpha') is not None:
+        target.set_alpha(ops['alpha'])
+
+    _texture_cache[cache_key] = target
+    return target
+
+
+def load_elf_archer_texture(animation_state='Idle'):
+    return _render_elf_animation_frame('elf_archer', animation_state)
+
+
+def load_elf_scout_texture(animation_state='Idle'):
+    return _render_elf_animation_frame('elf_scout', animation_state)
+
+
+def load_dryad_texture(animation_state='Idle'):
+    return _render_elf_animation_frame('dryad', animation_state)
+
+
+def load_druid_texture(animation_state='Idle'):
+    return _render_elf_animation_frame('druid', animation_state)
+
+
+def load_pixie_texture(animation_state='Idle'):
+    return _render_elf_animation_frame('pixie', animation_state)
+
+
+def load_ent_texture(animation_state='Idle'):
+    return _render_elf_animation_frame('ent', animation_state)
+
+
+def load_unicorn_texture(animation_state='Idle'):
+    return _render_elf_animation_frame('unicorn', animation_state)
 
 def load_image(name, scale=1):
+    # Используем процедурную генерацию (как было раньше)
     image = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
     # Разделяем имя на части
     parts = name.split('_')
@@ -21,6 +1677,14 @@ def load_image(name, scale=1):
         unit = name
         team = 'human'
         hero_class = None
+    target_size = None
+    if scale != 1:
+        target_size = (int(CELL_SIZE * scale), int(CELL_SIZE * scale))
+
+    def _apply_scale(surface):
+        if target_size:
+            return pygame.transform.smoothscale(surface, target_size)
+        return surface
     # Цветовые схемы
     if team == 'human':
         main_color = (180, 160, 100)
@@ -52,77 +1716,10 @@ def load_image(name, scale=1):
         cloth = (80, 60, 120)
     # Герой
     if unit == 'hero':
-        # Рисуем героя в зависимости от расы и класса
         if team == 'human':
-            if hero_class == 'warrior':
-                # Воин-человек: рыцарь в доспехах
-                image.fill((180, 160, 100))
-                pygame.draw.rect(image, (200,200,220), (10, 16, 20, 20))  # Латы
-                pygame.draw.ellipse(image, (200,200,220), (10, 6, 20, 14))  # Шлем
-                pygame.draw.ellipse(image, skin, (14, 10, 12, 8))  # Лицо
-                pygame.draw.circle(image, (0,0,0), (18, 14), 1)
-                pygame.draw.circle(image, (0,0,0), (22, 14), 1)
-                pygame.draw.rect(image, gold, (14, 8, 12, 4))  # Корона на шлеме
-                pygame.draw.rect(image, (220,220,240), (28, 24, 6, 14))  # Меч
-                pygame.draw.rect(image, gold, (26, 22, 10, 4))  # Гарда
-                pygame.draw.ellipse(image, accent, (2, 22, 12, 18))  # Щит
-            elif hero_class == 'archer':
-                # Лучник-человек
-                image.fill((140, 160, 120))
-                pygame.draw.rect(image, (120,140,80), (14, 20, 12, 16))  # Туника
-                pygame.draw.ellipse(image, skin, (14, 8, 12, 12))  # Лицо
-                pygame.draw.ellipse(image, (100,120,60), (12, 4, 16, 10))  # Капюшон
-                pygame.draw.circle(image, (0,0,0), (18, 14), 1)
-                pygame.draw.circle(image, (0,0,0), (22, 14), 1)
-                pygame.draw.arc(image, (140,100,60), (4, 10, 24, 24), 0.7, 2.4, 3)  # Лук
-                pygame.draw.line(image, (200,200,200), (16, 22), (26, 14), 2)  # Стрела
-                pygame.draw.rect(image, (100,80,40), (26, 18, 4, 12))  # Колчан
-            else:  # mage
-                # Маг-человек
-                image.fill((160, 140, 180))
-                pygame.draw.rect(image, (100,120,200), (10, 20, 20, 16))  # Мантия
-                pygame.draw.ellipse(image, skin, (12, 8, 16, 14))  # Лицо
-                pygame.draw.polygon(image, (80,100,180), [(14,10),(20,4),(26,10)])  # Остроконечная шляпа
-                pygame.draw.circle(image, (0,0,0), (17, 15), 1)
-                pygame.draw.circle(image, (0,0,0), (23, 15), 1)
-                pygame.draw.line(image, (140,120,80), (28, 12), (28, 30), 3)  # Посох
-                pygame.draw.circle(image, (100,180,255), (28, 12), 4)  # Кристалл
-                pygame.draw.circle(image, (120,200,255), (28, 12), 2)
-        
+            return _apply_scale(_render_human_hero(hero_class))
         elif team == 'elf':
-            if hero_class == 'archer':  # Лучник по умолчанию
-                image.fill((60, 180, 80))
-                pygame.draw.rect(image, (100, 200, 100), (12, 20, 16, 16))  # Одежда
-                pygame.draw.ellipse(image, (220, 255, 200), (12, 8, 16, 16))  # Лицо
-                pygame.draw.polygon(image, (220, 255, 200), [(10, 14), (4, 8), (12, 10)])  # Ухо
-                pygame.draw.polygon(image, (220, 255, 200), [(30, 14), (36, 8), (28, 10)])  # Ухо
-                pygame.draw.circle(image, (0,100,0), (17, 14), 2)
-                pygame.draw.circle(image, (0,100,0), (23, 14), 2)
-                pygame.draw.polygon(image, (200,180,60), [(14,12),(20,6),(26,12)])  # Венец
-                pygame.draw.arc(image, (80,140,40), (2, 8, 28, 28), 0.5, 2.6, 3)  # Длинный лук
-                pygame.draw.line(image, (220,220,220), (14, 20), (30, 12), 2)  # Стрела
-            elif hero_class == 'warrior':
-                image.fill((60, 180, 80))
-                pygame.draw.rect(image, (120,200,120), (10, 18, 20, 18))  # Лёгкие доспехи
-                pygame.draw.ellipse(image, (220, 255, 200), (12, 8, 16, 14))  # Лицо
-                pygame.draw.polygon(image, (220, 255, 200), [(10, 14), (4, 8), (12, 10)])
-                pygame.draw.polygon(image, (220, 255, 200), [(30, 14), (36, 8), (28, 10)])
-                pygame.draw.circle(image, (0,100,0), (17, 14), 2)
-                pygame.draw.circle(image, (0,100,0), (23, 14), 2)
-                pygame.draw.polygon(image, (200,180,60), [(14,10),(20,4),(26,10)])
-                pygame.draw.rect(image, (220,240,220), (28, 22, 5, 14))  # Эльфийский клинок
-                pygame.draw.rect(image, (180,160,60), (26, 20, 9, 4))
-            else:  # mage
-                image.fill((60, 180, 80))
-                pygame.draw.rect(image, (80,160,140), (10, 20, 20, 16))  # Мантия природы
-                pygame.draw.ellipse(image, (220, 255, 200), (12, 8, 16, 14))
-                pygame.draw.polygon(image, (220, 255, 200), [(10, 14), (4, 8), (12, 10)])
-                pygame.draw.polygon(image, (220, 255, 200), [(30, 14), (36, 8), (28, 10)])
-                pygame.draw.circle(image, (0,100,0), (17, 14), 2)
-                pygame.draw.circle(image, (0,100,0), (23, 14), 2)
-                pygame.draw.line(image, (100,140,60), (30, 10), (30, 32), 3)  # Посох друида
-                pygame.draw.circle(image, (120,255,120), (30, 10), 4)  # Зелёный кристалл
-        
+            return _apply_scale(_render_elf_hero(hero_class))
         elif team == 'undead':
             if hero_class == 'mage':  # Маг по умолчанию (лич)
                 image.fill((120, 100, 180))
@@ -150,7 +1747,6 @@ def load_image(name, scale=1):
                 pygame.draw.circle(image, (180,40,220), (23, 14), 2)
                 pygame.draw.arc(image, (60,40,80), (4, 10, 24, 24), 0.6, 2.5, 3)  # Костяной лук
                 pygame.draw.line(image, (200,200,200), (16, 22), (28, 14), 2)
-        
         elif team == 'demon':
             if hero_class == 'warrior':  # Воин по умолчанию
                 image.fill((140, 40, 20))
@@ -183,7 +1779,6 @@ def load_image(name, scale=1):
                 pygame.draw.circle(image, (255,40,0), (23, 14), 2)
                 pygame.draw.arc(image, (140,40,20), (4, 10, 24, 24), 0.6, 2.5, 3)
                 pygame.draw.line(image, (255,120,60), (16, 22), (28, 14), 2)  # Огненная стрела
-        
         elif team == 'dwarf':
             if hero_class == 'warrior':  # Воин по умолчанию
                 image.fill((100, 120, 160))
@@ -216,7 +1811,6 @@ def load_image(name, scale=1):
                 pygame.draw.circle(image, (200,180,80), (30, 10), 5)  # Руна
                 for i in range(3):
                     pygame.draw.circle(image, gold, (30, 16+i*6), 2)  # Руны на посохе
-        
         elif team == 'shadow':
             if hero_class == 'mage':  # Маг по умолчанию (чернокнижник)
                 image.fill((40,0,60))
@@ -231,19 +1825,34 @@ def load_image(name, scale=1):
                 image.fill((40,0,60))
                 pygame.draw.rect(image, (60,0,90), (10, 18, 20, 18))  # Теневая броня
                 pygame.draw.ellipse(image, (200,180,120), (12, 10, 16, 12))
-                pygame.draw.rect(image, (40,0,60), (10, 8, 20, 8))  # Шлем
-                pygame.draw.circle(image, (140,0,200), (17, 15), 2)
-                pygame.draw.circle(image, (140,0,200), (23, 15), 2)
-                pygame.draw.rect(image, (100,0,140), (28, 22, 6, 14))  # Теневой клинок
-                pygame.draw.rect(image, (80,0,120), (26, 20, 10, 4))
+                pygame.draw.circle(image, (120,0,180), (18, 16), 2)
+                pygame.draw.circle(image, (120,0,180), (22, 16), 2)
+                pygame.draw.rect(image, (80,0,120), (28, 22, 6, 14))  # Клинок
             else:  # archer
                 image.fill((40,0,60))
-                pygame.draw.rect(image, (60,0,90), (12, 20, 16, 16))
+                pygame.draw.rect(image, (80,0,120), (12, 20, 16, 16))
                 pygame.draw.ellipse(image, (200,180,120), (12, 10, 16, 12))
-                pygame.draw.circle(image, (140,0,200), (17, 15), 2)
-                pygame.draw.circle(image, (140,0,200), (23, 15), 2)
-                pygame.draw.arc(image, (80,0,120), (4, 10, 24, 24), 0.6, 2.5, 3)
-                pygame.draw.line(image, (140,0,200), (16, 22), (28, 14), 2)  # Теневая стрела
+                pygame.draw.circle(image, (120,0,180), (18, 16), 2)
+                pygame.draw.circle(image, (120,0,180), (22, 16), 2)
+                pygame.draw.arc(image, (120,0,160), (4, 10, 24, 24), 0.5, 2.6, 3)
+                pygame.draw.line(image, (200,120,240), (16, 22), (28, 14), 2)
+        else:
+            image.fill(main_color)
+        return _apply_scale(image)
+
+    if team == 'human':
+        human_unit_textures = {
+            'peasant': load_peasant_texture('Idle'),
+            'spearman': load_spearman_texture('Idle'),
+            'swordsman': load_swordsman_texture('Idle'),
+            'gryphon': load_gryphon_texture('Idle'),
+            'crossbowman': load_crossbowman_texture('Idle'),
+        }
+        if unit in human_unit_textures:
+            return _apply_scale(human_unit_textures[unit])
+
+    if team == 'elf':
+        return _apply_scale(_render_elf_unit(unit))
     # Воин
     elif unit == 'warrior':
         image.fill(main_color)
@@ -325,25 +1934,16 @@ def load_image(name, scale=1):
         pygame.draw.ellipse(image, accent, (2, 22, 10, 16))
         pygame.draw.circle(image, gold, (7, 30), 2)  # украшение щита
     elif unit == 'crossbowman':
-        # Основа
-        image.fill((100, 120, 140))
-        # Детализированная одежда арбалетчика
-        pygame.draw.rect(image, cloth, (14, 20, 12, 16))  # туника
-        pygame.draw.rect(image, (80,100,140), (16, 22, 8, 12))  # внутренняя туника
-        # Лицо
-        pygame.draw.ellipse(image, skin, (14, 8, 12, 12))
-        pygame.draw.circle(image, (0,0,0), (18, 14), 1)
-        pygame.draw.circle(image, (0,0,0), (22, 14), 1)
-        # Капюшон
-        pygame.draw.ellipse(image, cloth, (12, 4, 16, 10))
-        pygame.draw.rect(image, (60,80,120), (14, 6, 12, 6))
-        # Арбалет
-        pygame.draw.line(image, (120,80,40), (8, 36), (32, 36), 4)  # лук
-        pygame.draw.line(image, (200,180,160), (20, 36), (20, 28), 3)  # стрела
-        pygame.draw.polygon(image, (160,160,180), [(20,28),(18,24),(22,24)])  # наконечник
-        # Колчан
-        pygame.draw.rect(image, (180,140,80), (26, 18, 4, 10))
-        pygame.draw.rect(image, (160,120,60), (27, 20, 2, 6))
+        # ВСЕГДА используем текстуру из файла (старые текстуры)
+        texture = load_crossbowman_texture('Idle')
+        if texture is not None:
+            # Если текстура загружена, используем её
+            image.blit(texture, (0, 0))
+        else:
+            # Если текстура не найдена, создаём простую заглушку (не процедурную генерацию)
+            image.fill((100, 120, 140))
+            # Простой квадрат как заглушка
+            pygame.draw.rect(image, (80, 100, 120), (10, 10, 20, 20))
     elif unit == 'swordsman':
         # Основа
         image.fill((100, 100, 120))
@@ -1663,39 +3263,78 @@ def _draw_rotated_arrow(screen, x, y, angle, style='normal'):
         pygame.draw.polygon(screen, (255, 200, 80), [flame1, inner2, inner3])
 
 def animate_arrow(screen, start, end, redraw_callback=None, style='normal'):
-    frames = 60  # Увеличено до 60 кадров для максимальной плавности
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 40  # Пикселей за кадр - повышенная скорость
     dx = end[0] - start[0]
     dy = end[1] - start[1]
+    distance = math.sqrt(dx*dx + dy*dy)
     angle = math.atan2(dy, dx)
-    for i in range(frames):
-        pygame.event.pump()
-        if redraw_callback:
-            redraw_callback()
-        t = i / (frames-1)
-        x = int(start[0] * (1-t) + end[0] * t)
-        y = int(start[1] * (1-t) + end[1] * t)
-        _draw_rotated_arrow(screen, x, y, angle, style=style)
-        pygame.display.flip()
-        pygame.time.delay(12)  # Уменьшена задержка для плавности
-
-def animate_arrow_fly(screen, start, end, redraw_callback=None):
-    return animate_arrow(screen, start, end, redraw_callback=redraw_callback, style='normal')
-
-def animate_fire_arrow_fly(screen, start, end, redraw_callback=None):
-    """Улучшенная анимация полета огненной стрелы с детальными эффектами"""
-    frames = 80  # Увеличено до 80 кадров для максимальной плавности
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-    angle = math.atan2(dy, dx)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
+    x, y = float(start[0]), float(start[1])
     
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
         
-        t = i / (frames-1)
-        x = int(start[0] * (1-t) + end[0] * t)
-        y = int(start[1] * (1-t) + end[1] * t)
+        # Двигаем снаряд с фиксированной скоростью
+        x += step_x
+        y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == frames - 1 or (abs(x - end[0]) < abs(step_x) and abs(y - end[1]) < abs(step_y)):
+            x, y = end[0], end[1]
+        
+        _draw_rotated_arrow(screen, int(x), int(y), angle, style=style)
+        pygame.display.flip()
+        pygame.time.delay(5)  # Минимальная задержка для максимальной скорости
+
+def animate_arrow_fly(screen, start, end, redraw_callback=None):
+    return animate_arrow(screen, start, end, redraw_callback=redraw_callback, style='normal')
+
+def animate_fire_arrow_fly(screen, start, end, redraw_callback=None):
+    """Улучшенная анимация полета огненной стрелы с детальными эффектами"""
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 48  # Повышенная скорость для огненной стрелы
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    distance = math.sqrt(dx*dx + dy*dy)
+    angle = math.atan2(dy, dx)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
+    x, y = float(start[0]), float(start[1])
+    
+    for i in range(frames):
+        pygame.event.pump()
+        if redraw_callback:
+            redraw_callback()
+        
+        # Двигаем снаряд с фиксированной скоростью
+        x += step_x
+        y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == frames - 1 or (abs(x - end[0]) < abs(step_x) and abs(y - end[1]) < abs(step_y)):
+            x, y = end[0], end[1]
         
         # Создаем слой эффектов
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -1759,23 +3398,43 @@ def animate_fire_arrow_fly(screen, start, end, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Минимальная задержка для максимальной скорости
 
 def animate_ice_arrow(screen, start, end, redraw_callback=None):
     """Анимация полета ледяной стрелы с ледяными эффектами"""
-    frames = 100  # Увеличено до 100 кадров для максимальной плавности
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 44  # Повышенная скорость для ледяной стрелы
     dx = end[0] - start[0]
     dy = end[1] - start[1]
+    distance = math.sqrt(dx*dx + dy*dy)
     angle = math.atan2(dy, dx)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
+    x, y = float(start[0]), float(start[1])
     
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
         
-        t = i / (frames - 1) if frames > 1 else 1.0
-        x = int(start[0] * (1-t) + end[0] * t)
-        y = int(start[1] * (1-t) + end[1] * t)
+        # Двигаем снаряд с фиксированной скоростью
+        x += step_x
+        y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == frames - 1 or (abs(x - end[0]) < abs(step_x) and abs(y - end[1]) < abs(step_y)):
+            x, y = end[0], end[1]
+        
+        t = i / max(1, frames - 1)  # Для анимации эффектов
         
         # Создаем слой эффектов
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
@@ -1843,32 +3502,78 @@ def animate_ice_arrow(screen, start, end, redraw_callback=None):
         pygame.time.delay(10)  # Уменьшена задержка для плавности
 
 def animate_magic_projectile(screen, start, end, color=(120,40,180)):
-    frames = 60  # Увеличено до 60 кадров для максимальной плавности
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 40  # Повышенная скорость
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    distance = math.sqrt(dx*dx + dy*dy)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
+    x, y = float(start[0]), float(start[1])
+    
     for i in range(frames):
         pygame.event.pump()
-        t = i / (frames-1)
-        x = int(start[0] * (1-t) + end[0] * t)
-        y = int(start[1] * (1-t) + end[1] * t)
+        
+        # Двигаем снаряд с фиксированной скоростью
+        x += step_x
+        y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == frames - 1 or (abs(x - end[0]) < abs(step_x) and abs(y - end[1]) < abs(step_y)):
+            x, y = end[0], end[1]
+        
         # Перерисовываем поле перед каждым кадром
         # Рисуем только магический шар (без следа)
-        pygame.draw.circle(screen, color, (x, y), 12)
-        pygame.draw.circle(screen, (200,200,255), (x, y), 6)
+        pygame.draw.circle(screen, color, (int(x), int(y)), 12)
+        pygame.draw.circle(screen, (200,200,255), (int(x), int(y)), 6)
         pygame.display.flip()
-        pygame.time.delay(12)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Минимальная задержка для максимальной скорости
 
 def animate_magic_fly(screen, start, end, color=(120,40,180), redraw_callback=None):
-    frames = 30  # Увеличено с 10 до 30 кадров
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 40  # Повышенная скорость
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    distance = math.sqrt(dx*dx + dy*dy)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
+    x, y = float(start[0]), float(start[1])
+    
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
-        t = i / (frames-1)
-        x = int(start[0] * (1-t) + end[0] * t)
-        y = int(start[1] * (1-t) + end[1] * t)
-        pygame.draw.circle(screen, color, (x, y), 12)
-        pygame.draw.circle(screen, (220,220,255), (x, y), 6)
+        
+        # Двигаем снаряд с фиксированной скоростью
+        x += step_x
+        y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == frames - 1 or (abs(x - end[0]) < abs(step_x) and abs(y - end[1]) < abs(step_y)):
+            x, y = end[0], end[1]
+        
+        pygame.draw.circle(screen, color, (int(x), int(y)), 12)
+        pygame.draw.circle(screen, (220,220,255), (int(x), int(y)), 6)
         pygame.display.flip()
-        pygame.time.delay(20)
+        pygame.time.delay(5)  # Минимальная задержка для максимальной скорости
 
 def animate_stone_skin(screen, target_px, redraw_callback=None):
     # Анимация каменной корки: наложение серых колец и трещин, затем осыпание
@@ -2053,7 +3758,7 @@ def animate_curse_voodoo(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(20)
+        pygame.time.delay(5)  # Минимальная задержка для максимальной скорости
 
 def animate_rune_shield_spell(screen, target_px, redraw_callback=None):
     # Руна щита: камень с зелёным руническим знаком (щит) и белыми частицами
@@ -2120,10 +3825,25 @@ def animate_meteor_rain(screen, meteors, redraw_callback=None, explosion_sound_c
             'exploded': False
         })
     
-    max_flight_frames = 60  # Увеличено до 60 кадров для максимальной плавности
+    # Фиксированная скорость полета метеоритов независимо от расстояния
+    PROJECTILE_SPEED = 52  # Повышенная скорость для метеоритов
     explode_frames = 80  # Увеличено до 80 кадров для максимальной плавности
     if not meteor_data:
         return  # Нет метеоритов для анимации
+    
+    # Рассчитываем количество кадров полета для каждого метеорита на основе расстояния
+    for meteor in meteor_data:
+        dx = meteor['end'][0] - meteor['start'][0]
+        dy = meteor['end'][1] - meteor['start'][1]
+        distance = math.sqrt(dx*dx + dy*dy)
+        meteor['flight_frames'] = max(1, int(distance / PROJECTILE_SPEED))
+        meteor['step_x'] = (dx / distance * PROJECTILE_SPEED) if distance > 0 else 0
+        meteor['step_y'] = (dy / distance * PROJECTILE_SPEED) if distance > 0 else 0
+        meteor['x'] = float(meteor['start'][0])
+        meteor['y'] = float(meteor['start'][1])
+        meteor['angle'] = math.atan2(dy, dx)
+    
+    max_flight_frames = max(meteor['flight_frames'] for meteor in meteor_data)
     max_delay = max(meteor['delay'] for meteor in meteor_data)
     max_total_frames = max_flight_frames + explode_frames + max_delay
     
@@ -2149,7 +3869,7 @@ def animate_meteor_rain(screen, meteors, redraw_callback=None, explosion_sound_c
             frame = meteor['current_frame']
             
             # Этап полета
-            if frame < max_flight_frames and not meteor['exploded']:
+            if frame < meteor['flight_frames'] and not meteor['exploded']:
                 # Проигрываем звук полета один раз
                 if not flight_sounds_played[meteor_idx] and flight_sound_callback:
                     try:
@@ -2158,13 +3878,18 @@ def animate_meteor_rain(screen, meteors, redraw_callback=None, explosion_sound_c
                         pass
                     flight_sounds_played[meteor_idx] = True
                 
-                t = frame / (max_flight_frames - 1) if max_flight_frames > 1 else 1.0
-                ball_x = int(meteor['start'][0] * (1-t) + meteor['end'][0] * t)
-                ball_y = int(meteor['start'][1] * (1-t) + meteor['end'][1] * t)
+                # Двигаем метеорит с фиксированной скоростью
+                meteor['x'] += meteor['step_x']
+                meteor['y'] += meteor['step_y']
                 
-                dx = meteor['end'][0] - meteor['start'][0]
-                dy = meteor['end'][1] - meteor['start'][1]
-                angle = math.atan2(dy, dx)
+                # Проверяем, достигли ли мы цели
+                if frame == meteor['flight_frames'] - 1 or (abs(meteor['x'] - meteor['end'][0]) < abs(meteor['step_x']) and abs(meteor['y'] - meteor['end'][1]) < abs(meteor['step_y'])):
+                    meteor['x'], meteor['y'] = meteor['end'][0], meteor['end'][1]
+                
+                ball_x = int(meteor['x'])
+                ball_y = int(meteor['y'])
+                angle = meteor['angle']
+                t = frame / max(1, meteor['flight_frames'] - 1)  # Для анимации эффектов
                 
                 base_r = 12
                 stone_r = base_r + int(3 * math.sin(t * 3))
@@ -2214,7 +3939,7 @@ def animate_meteor_rain(screen, meteors, redraw_callback=None, explosion_sound_c
                 meteor['current_frame'] += 1
                 
                 # Переход к взрыву
-                if frame >= max_flight_frames - 1:
+                if frame >= meteor['flight_frames'] - 1:
                     meteor['exploded'] = True
                     meteor['explode_start_frame'] = global_frame
             
@@ -2499,54 +4224,78 @@ def animate_rune_haste_spell(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Минимальная задержка для максимальной скорости
 
 def animate_fireball(screen, start_px, end_px, redraw_callback=None, explosion_sound_callback=None, flight_sound_callback=None):
     # Горящий камень летит к цели, затем взрыв после приземления
-    flight_frames = 80  # Увеличено до 80 кадров для максимальной плавности
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 48  # Повышенная скорость для огненного шара
+    dx = end_px[0] - start_px[0]
+    dy = end_px[1] - start_px[1]
+    distance = math.sqrt(dx*dx + dy*dy)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    flight_frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
     # Воспроизводим звук полёта в начале анимации
     if flight_sound_callback:
         flight_sound_callback()
+    
+    ball_x, ball_y = float(start_px[0]), float(start_px[1])
+    angle = math.atan2(dy, dx)
+    
     # Этап 1: полет горящего камня
     for i in range(flight_frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        t = i / (flight_frames-1)
+        
+        # Двигаем снаряд с фиксированной скоростью
+        ball_x += step_x
+        ball_y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == flight_frames - 1 or (abs(ball_x - end_px[0]) < abs(step_x) and abs(ball_y - end_px[1]) < abs(step_y)):
+            ball_x, ball_y = end_px[0], end_px[1]
+        
         # Позиция камня
-        ball_x = int(start_px[0] * (1-t) + end_px[0] * t)
-        ball_y = int(start_px[1] * (1-t) + end_px[1] * t)
-        # Направление полёта
-        dx = end_px[0] - start_px[0]
-        dy = end_px[1] - start_px[1]
-        angle = math.atan2(dy, dx)
+        ball_x_int = int(ball_x)
+        ball_y_int = int(ball_y)
         # Размер горящего камня (неравномерный, как настоящий камень)
         base_r = 12
+        t = i / max(1, flight_frames - 1)  # Для анимации эффектов
         # Камень с неровной формой
         stone_r = base_r + int(3 * math.sin(t * 3))
         # Тёмное ядро камня
-        pygame.draw.circle(overlay, (60, 50, 45, 255), (ball_x, ball_y), stone_r)
-        pygame.draw.circle(overlay, (90, 70, 60, 240), (ball_x, ball_y), int(stone_r*0.9))
+        pygame.draw.circle(overlay, (60, 50, 45, 255), (ball_x_int, ball_y_int), stone_r)
+        pygame.draw.circle(overlay, (90, 70, 60, 240), (ball_x_int, ball_y_int), int(stone_r*0.9))
         # Раскалённые трещины на камне
         for crack in range(4):
             crack_angle = angle + crack * math.pi / 2
-            crack_x = ball_x + int(stone_r * 0.6 * math.cos(crack_angle))
-            crack_y = ball_y + int(stone_r * 0.6 * math.sin(crack_angle))
-            pygame.draw.line(overlay, (255, 180, 60, 220), (ball_x, ball_y), (crack_x, crack_y), 2)
+            crack_x = ball_x_int + int(stone_r * 0.6 * math.cos(crack_angle))
+            crack_y = ball_y_int + int(stone_r * 0.6 * math.sin(crack_angle))
+            pygame.draw.line(overlay, (255, 180, 60, 220), (ball_x_int, ball_y_int), (crack_x, crack_y), 2)
         # Раскалённые края (огненные точки по краю)
         for edge in range(8):
             edge_angle = edge * (2*math.pi / 8.0) + t
-            edge_x = ball_x + int(stone_r * 0.85 * math.cos(edge_angle))
-            edge_y = ball_y + int(stone_r * 0.85 * math.sin(edge_angle))
+            edge_x = ball_x_int + int(stone_r * 0.85 * math.cos(edge_angle))
+            edge_y = ball_y_int + int(stone_r * 0.85 * math.sin(edge_angle))
             pygame.draw.circle(overlay, (255, 140, 40, 200), (edge_x, edge_y), 3)
             pygame.draw.circle(overlay, (255, 220, 100, 150), (edge_x, edge_y), 2)
         # Длинный огненный хвост
         tail_length = 35
         for j in range(15):
             trail_t = j / 15.0
-            trail_x = ball_x - int(tail_length * trail_t * math.cos(angle))
-            trail_y = ball_y - int(tail_length * trail_t * math.sin(angle))
+            trail_x = ball_x_int - int(tail_length * trail_t * math.cos(angle))
+            trail_y = ball_y_int - int(tail_length * trail_t * math.sin(angle))
             trail_r = max(2, int(base_r * (1 - trail_t * 0.9)))
             tail_alpha = int(220 * (1 - trail_t * 0.7))
             # Градиент хвоста от яркого к тусклому
@@ -3023,15 +4772,38 @@ def animate_frost_impact(screen, center, redraw_callback=None):
 
 def animate_forget_spell_fly(screen, start, end, redraw_callback=None):
     """Детализированная анимация полета заклинания Забвение"""
-    frames = 80  # Увеличено до 80 кадров для максимальной плавности  # Увеличено для плавности
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 44  # Повышенная скорость
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    distance = math.sqrt(dx*dx + dy*dy)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
+    x, y = float(start[0]), float(start[1])
+    
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
         
-        t = i / (frames-1)
-        x = int(start[0] * (1-t) + end[0] * t)
-        y = int(start[1] * (1-t) + end[1] * t)
+        # Двигаем снаряд с фиксированной скоростью
+        x += step_x
+        y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == frames - 1 or (abs(x - end[0]) < abs(step_x) and abs(y - end[1]) < abs(step_y)):
+            x, y = end[0], end[1]
+        
+        t = i / max(1, frames - 1)  # Для анимации эффектов
         
         # Создаем летящий кристалл забвения с детализацией
         crystal_surface = pygame.Surface((30, 30), pygame.SRCALPHA)
@@ -3079,22 +4851,45 @@ def animate_forget_spell_fly(screen, start, end, redraw_callback=None):
                              (rune_x, rune_y), 1)
         
         # Применяем кристалл к экрану
-        screen.blit(crystal_surface, (x - 15, y - 15))
+        screen.blit(crystal_surface, (int(x) - 15, int(y) - 15))
         
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Минимальная задержка для максимальной скорости
 
 def animate_slow_spell(screen, start, end, redraw_callback=None):
     """Замедление: густые шипастые лозы с тенями оплетают цель"""
-    frames = 80  # Увеличено до 80 кадров для максимальной плавности
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 42  # Повышенная скорость
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    distance = math.sqrt(dx*dx + dy*dy)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
+    x, y = float(start[0]), float(start[1])
+    
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
         
-        t = i / (frames-1)
-        x = int(start[0] * (1-t) + end[0] * t)
-        y = int(start[1] * (1-t) + end[1] * t)
+        # Двигаем снаряд с фиксированной скоростью
+        x += step_x
+        y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == frames - 1 or (abs(x - end[0]) < abs(step_x) and abs(y - end[1]) < abs(step_y)):
+            x, y = end[0], end[1]
+        
+        t = i / max(1, frames - 1)  # Для анимации эффектов
         
         # Эффект замедления с корнями
         slow_surface = pygame.Surface((CELL_SIZE*3, CELL_SIZE*3), pygame.SRCALPHA)
@@ -3175,15 +4970,38 @@ def animate_slow_spell(screen, start, end, redraw_callback=None):
 
 def animate_slow_spell_fly(screen, start, end, redraw_callback=None):
     """Анимация полета заклинания Замедление"""
-    frames = 30  # Увеличено для плавности
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 42  # Повышенная скорость
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    distance = math.sqrt(dx*dx + dy*dy)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
+    x, y = float(start[0]), float(start[1])
+    
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
         
-        t = i / (frames-1)
-        x = int(start[0] * (1-t) + end[0] * t)
-        y = int(start[1] * (1-t) + end[1] * t)
+        # Двигаем снаряд с фиксированной скоростью
+        x += step_x
+        y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == frames - 1 or (abs(x - end[0]) < abs(step_x) and abs(y - end[1]) < abs(step_y)):
+            x, y = end[0], end[1]
+        
+        t = i / max(1, frames - 1)  # Для анимации эффектов
         
         # Создаем летящий корень
         root_surface = pygame.Surface((25, 25), pygame.SRCALPHA)
@@ -3206,10 +5024,10 @@ def animate_slow_spell_fly(screen, start, end, redraw_callback=None):
                              (particle_x, particle_y), 1)
         
         # Применяем к экрану
-        screen.blit(root_surface, (x - 12, y - 12))
+        screen.blit(root_surface, (int(x) - 12, int(y) - 12))
         
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Минимальная задержка для максимальной скорости
 
 def animate_bless_spell(screen, start, end, redraw_callback=None):
     """Новая анимация Благословения: святой символ, золотой столп света,
@@ -3288,15 +5106,38 @@ def animate_bless_spell(screen, start, end, redraw_callback=None):
 
 def animate_bless_spell_fly(screen, start, end, redraw_callback=None):
     """Анимация полета заклинания Благословение"""
-    frames = 30  # Увеличено для плавности
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 45  # Повышенная скорость
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    distance = math.sqrt(dx*dx + dy*dy)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
+    x, y = float(start[0]), float(start[1])
+    
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
         
-        t = i / (frames-1)
-        x = int(start[0] * (1-t) + end[0] * t)
-        y = int(start[1] * (1-t) + end[1] * t)
+        # Двигаем снаряд с фиксированной скоростью
+        x += step_x
+        y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == frames - 1 or (abs(x - end[0]) < abs(step_x) and abs(y - end[1]) < abs(step_y)):
+            x, y = end[0], end[1]
+        
+        t = i / max(1, frames - 1)  # Для анимации эффектов
         
         # Создаем летящий кубок
         cup_surface = pygame.Surface((20, 20), pygame.SRCALPHA)
@@ -3316,10 +5157,10 @@ def animate_bless_spell_fly(screen, start, end, redraw_callback=None):
                              (particle_x, particle_y), 2)
         
         # Применяем к экрану
-        screen.blit(cup_surface, (x - 10, y - 10))
+        screen.blit(cup_surface, (int(x) - 10, int(y) - 10))
         
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Минимальная задержка для максимальной скорости
 
 def animate_dispel_spell(screen, start, end, redraw_callback=None):
     """Детальная анимация заклинания Снятие чар с расходящимися волнами"""
@@ -3473,15 +5314,38 @@ def animate_stone_skin(screen, target_pos, redraw_callback=None):
 
 def animate_dispel_spell_fly(screen, start, end, redraw_callback=None):
     """Анимация полета заклинания Снятие чар"""
-    frames = 30  # Увеличено для плавности
+    # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
+    PROJECTILE_SPEED = 44  # Повышенная скорость
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    distance = math.sqrt(dx*dx + dy*dy)
+    
+    # Рассчитываем количество кадров на основе расстояния и фиксированной скорости
+    frames = max(1, int(distance / PROJECTILE_SPEED))
+    
+    # Нормализуем вектор направления
+    if distance > 0:
+        step_x = dx / distance * PROJECTILE_SPEED
+        step_y = dy / distance * PROJECTILE_SPEED
+    else:
+        step_x = step_y = 0
+    
+    x, y = float(start[0]), float(start[1])
+    
     for i in range(frames):
         pygame.event.pump()
         if redraw_callback:
             redraw_callback()
         
-        t = i / (frames-1)
-        x = int(start[0] * (1-t) + end[0] * t)
-        y = int(start[1] * (1-t) + end[1] * t)
+        # Двигаем снаряд с фиксированной скоростью
+        x += step_x
+        y += step_y
+        
+        # Проверяем, достигли ли мы цели
+        if i == frames - 1 or (abs(x - end[0]) < abs(step_x) and abs(y - end[1]) < abs(step_y)):
+            x, y = end[0], end[1]
+        
+        t = i / max(1, frames - 1)  # Для анимации эффектов
         
         # Создаем летящую волну очищения
         wave_surface = pygame.Surface((25, 25), pygame.SRCALPHA)
@@ -3506,10 +5370,10 @@ def animate_dispel_spell_fly(screen, start, end, redraw_callback=None):
                              (particle_x, particle_y), 2)
         
         # Применяем к экрану
-        screen.blit(wave_surface, (x - 12, y - 12))
+        screen.blit(wave_surface, (int(x) - 12, int(y) - 12))
         
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Минимальная задержка для максимальной скорости
 
 # Улучшенная анимация: ускорение воздуха с детальными эффектами ветра
 def animate_air_haste_spell(screen, start, end, redraw_callback=None):

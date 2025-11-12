@@ -1,8 +1,8 @@
 {
-  "music_volume": 0.3,
-  "sfx_volume": 0.3,
+  "music_volume": 0.1,
+  "sfx_volume": 0.2,
   "muted": false,
-  "screen_width": 1024,
-  "screen_height": 768,
+  "screen_width": 800,
+  "screen_height": 600,
   "fullscreen": false
 }

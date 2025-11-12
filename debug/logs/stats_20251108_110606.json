@@ -1,0 +1,93 @@
+{
+  "session_id": "20251108_110606",
+  "session_start": "2025-11-08T11:06:06.086841",
+  "session_end": "2025-11-08T11:06:12.795102",
+  "stats": {
+    "session_id": "20251108_110606",
+    "session_duration_seconds": 6.708273,
+    "total_logs": 16,
+    "by_level": {
+      "DEBUG": 5,
+      "INFO": 6,
+      "WARNING": 4,
+      "ERROR": 0,
+      "CRITICAL": 1
+    },
+    "by_category": {
+      "GAME": 0,
+      "COMBAT": 0,
+      "UNITS": 0,
+      "SPELLS": 0,
+      "AI": 0,
+      "UI": 0,
+      "ANIMATION": 0,
+      "SOUND": 0,
+      "GRAPHICS": 0,
+      "BERSERKER": 0,
+      "RESURRECTION": 0,
+      "BATTLE_MANAGER": 0,
+      "TURN_SYSTEM": 0,
+      "VALIDATION": 1,
+      "DIAGNOSTICS": 6,
+      "METRICS": 1,
+      "SYSTEM": 3,
+      "ERROR": 1,
+      "PERFORMANCE": 4
+    },
+    "error_count": 0,
+    "warning_count": 4,
+    "critical_count": 1
+  },
+  "recent_errors": [],
+  "recent_warnings": [
+    {
+      "timestamp": "2025-11-08T11:06:08.690432",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.8 (порог: 80.0)",
+      "extra_data": {
+        "fps": 26.799946338898142,
+        "memory_mb": 103.96484375,
+        "memory_percent": 1.2904148575889145
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:06:09.701460",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 18.9 (порог: 80.0)",
+      "extra_data": {
+        "fps": 18.903577091640855,
+        "memory_mb": 103.9921875,
+        "memory_percent": 1.2907542490600068
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:06:10.864507",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 16.1 (порог: 80.0)",
+      "extra_data": {
+        "fps": 16.083935506215447,
+        "memory_mb": 103.9921875,
+        "memory_percent": 1.2907542490600068
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:06:11.759362",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 15.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 15.184541610531284,
+        "memory_mb": 104.06640625,
+        "memory_percent": 1.2916754544815432
+      }
+    }
+  ],
+  "critical_history": [
+    {
+      "timestamp": "2025-11-08T11:06:12.795027",
+      "category": "ERROR",
+      "message": "Критическая ошибка при работе игры",
+      "extra_data": null,
+      "exception": "name 'load_crossbowman_texture' is not defined"
+    }
+  ]
+}

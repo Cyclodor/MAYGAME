@@ -1,0 +1,384 @@
+{
+  "session_id": "20251108_112501",
+  "session_start": "2025-11-08T11:25:01.561312",
+  "session_end": "2025-11-08T11:25:26.927859",
+  "stats": {
+    "session_id": "20251108_112501",
+    "session_duration_seconds": 25.366552,
+    "total_logs": 48,
+    "by_level": {
+      "DEBUG": 5,
+      "INFO": 6,
+      "WARNING": 30,
+      "ERROR": 6,
+      "CRITICAL": 1
+    },
+    "by_category": {
+      "GAME": 0,
+      "COMBAT": 0,
+      "UNITS": 0,
+      "SPELLS": 0,
+      "AI": 0,
+      "UI": 0,
+      "ANIMATION": 0,
+      "SOUND": 0,
+      "GRAPHICS": 0,
+      "BERSERKER": 0,
+      "RESURRECTION": 0,
+      "BATTLE_MANAGER": 0,
+      "TURN_SYSTEM": 0,
+      "VALIDATION": 13,
+      "DIAGNOSTICS": 10,
+      "METRICS": 1,
+      "SYSTEM": 3,
+      "ERROR": 1,
+      "PERFORMANCE": 20
+    },
+    "error_count": 6,
+    "warning_count": 30,
+    "critical_count": 1
+  },
+  "recent_errors": [
+    {
+      "timestamp": "2025-11-08T11:25:12.943557",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:13.027048",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-08T11:25:17.872997",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:17.943542",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-08T11:25:23.336780",
+      "category": "VALIDATION",
+      "message": "[turn_queue] Юнит в очереди ходов не найден в списке юнитов",
+      "extra_data": {
+        "unit_type": "Unknown"
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:23.346174",
+      "category": "VALIDATION",
+      "message": "Обнаружено 1 ошибок валидации",
+      "extra_data": null
+    }
+  ],
+  "recent_warnings": [
+    {
+      "timestamp": "2025-11-08T11:25:04.625606",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 32.8 (порог: 80.0)",
+      "extra_data": {
+        "fps": 32.838762834083326,
+        "memory_mb": 113.3828125,
+        "memory_percent": 1.4073109771322876
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:05.600749",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 22.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 22.20844190857554,
+        "memory_mb": 113.43359375,
+        "memory_percent": 1.4079412755786018
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:06.675635",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 24.8 (порог: 80.0)",
+      "extra_data": {
+        "fps": 24.764646972257474,
+        "memory_mb": 113.42578125,
+        "memory_percent": 1.407844306586861
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:07.726716",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 19.1 (порог: 80.0)",
+      "extra_data": {
+        "fps": 19.130481529694308,
+        "memory_mb": 113.46484375,
+        "memory_percent": 1.4083291515455645
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:08.785780",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 15.4 (порог: 80.0)",
+      "extra_data": {
+        "fps": 15.386162475587433,
+        "memory_mb": 117.421875,
+        "memory_percent": 1.457443945862212
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:09.824130",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 17.9 (порог: 80.0)",
+      "extra_data": {
+        "fps": 17.901122477316054,
+        "memory_mb": 117.44140625,
+        "memory_percent": 1.4576863683415635
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:10.773272",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 16.3 (порог: 80.0)",
+      "extra_data": {
+        "fps": 16.349340892664113,
+        "memory_mb": 117.78515625,
+        "memory_percent": 1.461953003978153
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:11.823792",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 13.8 (порог: 80.0)",
+      "extra_data": {
+        "fps": 13.837372094168398,
+        "memory_mb": 117.765625,
+        "memory_percent": 1.4617105814988012
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:12.657845",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 725 > 325",
+      "extra_data": {
+        "unit_type": "pixie",
+        "health": 725,
+        "max_health": 325
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:12.826543",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1210 > 990",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1210,
+        "max_health": 990
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:13.114365",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:13.137671",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-08T11:25:13.283320",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 12.0 (порог: 80.0)",
+      "extra_data": {
+        "fps": 12.046765932514477,
+        "memory_mb": 117.796875,
+        "memory_percent": 1.4620984574657638
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:14.262110",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 12.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 12.232036471126783,
+        "memory_mb": 117.79296875,
+        "memory_percent": 1.4620499729698935
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:15.361803",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 12.3 (порог: 80.0)",
+      "extra_data": {
+        "fps": 12.282179676190292,
+        "memory_mb": 117.80859375,
+        "memory_percent": 1.462243910953375
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:16.290805",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 13.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 13.244076465720257,
+        "memory_mb": 117.8046875,
+        "memory_percent": 1.4621954264575046
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:17.319643",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 22.1 (порог: 80.0)",
+      "extra_data": {
+        "fps": 22.099117323770667,
+        "memory_mb": 117.81640625,
+        "memory_percent": 1.4623408799451156
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:17.676130",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 725 > 325",
+      "extra_data": {
+        "unit_type": "pixie",
+        "health": 725,
+        "max_health": 325
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:17.735149",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1210 > 990",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1210,
+        "max_health": 990
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:18.391556",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 20.4 (порог: 80.0)",
+      "extra_data": {
+        "fps": 20.448988465033498,
+        "memory_mb": 117.8046875,
+        "memory_percent": 1.4621954264575046
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:19.415913",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 15.6 (порог: 80.0)",
+      "extra_data": {
+        "fps": 15.554972582852326,
+        "memory_mb": 117.7890625,
+        "memory_percent": 1.4620014884740231
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:20.468519",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 14.8 (порог: 80.0)",
+      "extra_data": {
+        "fps": 14.780983346158957,
+        "memory_mb": 117.78515625,
+        "memory_percent": 1.461953003978153
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:23.247334",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 18.9 (порог: 80.0)",
+      "extra_data": {
+        "fps": 18.889528605351156,
+        "memory_mb": 117.734375,
+        "memory_percent": 1.4613227055318385
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:23.313421",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 725 > 325",
+      "extra_data": {
+        "unit_type": "pixie",
+        "health": 725,
+        "max_health": 325
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:23.327799",
+      "category": "VALIDATION",
+      "message": "[unit_health] Здоровье юнита превышает максимум: 1209 > 990",
+      "extra_data": {
+        "unit_type": "ent",
+        "health": 1209,
+        "max_health": 990
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:23.357004",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:23.365231",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2025-11-08T11:25:24.604808",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 18.5 (порог: 80.0)",
+      "extra_data": {
+        "fps": 18.4697960588312,
+        "memory_mb": 117.81640625,
+        "memory_percent": 1.4623408799451156
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:25.624693",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 39.1 (порог: 80.0)",
+      "extra_data": {
+        "fps": 39.115792253723285,
+        "memory_mb": 117.80078125,
+        "memory_percent": 1.4621469419616342
+      }
+    },
+    {
+      "timestamp": "2025-11-08T11:25:26.642778",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 40.5 (порог: 80.0)",
+      "extra_data": {
+        "fps": 40.51729115818644,
+        "memory_mb": 117.8125,
+        "memory_percent": 1.462292395449245
+      }
+    }
+  ],
+  "critical_history": [
+    {
+      "timestamp": "2025-11-08T11:25:26.927779",
+      "category": "ERROR",
+      "message": "Критическая ошибка при работе игры",
+      "extra_data": null,
+      "exception": "cannot access local variable 'CELL_SIZE' where it is not associated with a value"
+    }
+  ]
+}

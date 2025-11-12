@@ -18,6 +18,24 @@ except ImportError as e:
     def get_debug_system():
         return None
 
+def _latest_source_mtime(paths):
+    latest = 0.0
+    for path in paths:
+        if not os.path.exists(path):
+            continue
+        if os.path.isfile(path):
+            latest = max(latest, os.path.getmtime(path))
+            continue
+        for root, _, files in os.walk(path):
+            for fname in files:
+                if fname.endswith(".py"):
+                    try:
+                        latest = max(latest, os.path.getmtime(os.path.join(root, fname)))
+                    except OSError:
+                        pass
+    return latest
+
+
 def auto_rebuild_exe():
     exe_name = 'main.exe'
     dist_path = os.path.join('dist', exe_name)
@@ -30,8 +48,10 @@ def auto_rebuild_exe():
     else:
         main_py_time = os.path.getmtime('main.py')
         main_spec_time = os.path.getmtime('main.spec')
-        if main_py_time > main_spec_time:
-            print("Обнаружены изменения в main.py. Пересобираю исполняемый файл...")
+        project_sources_time = _latest_source_mtime(['main.py', 'game', 'tools'])
+        exe_time = os.path.getmtime(exe_path) if os.path.exists(exe_path) else 0
+        if main_py_time > main_spec_time or project_sources_time > exe_time:
+            print("Обнаружены изменения в исходниках. Пересобираю исполняемый файл...")
             subprocess.run(['py', '-m', 'PyInstaller', '--onefile', '--windowed', 'main.py'])
             print("Исполняемый файл обновлен!")
             need_rebuild = True
@@ -51,6 +71,22 @@ def main():
     mixer.init()
     auto_rebuild_exe()
     
+    # Получаем разрешение экрана монитора
+    try:
+        # Получаем размеры всех доступных дисплеев
+        desktop_sizes = pygame.display.get_desktop_sizes()
+        if desktop_sizes:
+            # Используем разрешение основного монитора (первого в списке)
+            monitor_width, monitor_height = desktop_sizes[0]
+            print(f"Разрешение монитора: {monitor_width}x{monitor_height}")
+        else:
+            # Fallback, если не удалось получить размеры
+            monitor_width, monitor_height = 1920, 1080
+            print(f"Не удалось определить разрешение монитора, используется {monitor_width}x{monitor_height}")
+    except Exception as e:
+        print(f"Ошибка получения разрешения монитора: {e}")
+        monitor_width, monitor_height = 1920, 1080
+    
     # Загружаем настройки разрешения
     settings_path = os.path.join('data', 'settings.json')
     screen_width = SCREEN_WIDTH
@@ -68,12 +104,22 @@ def main():
     except Exception as e:
         print(f"Ошибка загрузки настроек разрешения: {e}")
     
-    # Применяем разрешение
+    # В полноэкранном режиме используем разрешение монитора
+    if fullscreen:
+        screen_width = monitor_width
+        screen_height = monitor_height
+        print(f"Полноэкранный режим: использование разрешения монитора {screen_width}x{screen_height}")
+    
+    # Базовое разрешение внутреннего полотна (фиксировано)
+    BASE_WIDTH = 800
+    BASE_HEIGHT = 600
+    
+    # Настройки базового разрешения в конфиге (логическая область)
     import game.config as config
-    config.SCREEN_WIDTH = screen_width
-    config.SCREEN_HEIGHT = screen_height
-    config.GRID_WIDTH = screen_width // config.CELL_SIZE
-    config.GRID_HEIGHT = screen_height // config.CELL_SIZE
+    config.SCREEN_WIDTH = BASE_WIDTH
+    config.SCREEN_HEIGHT = BASE_HEIGHT
+    config.GRID_WIDTH = BASE_WIDTH // config.CELL_SIZE
+    config.GRID_HEIGHT = BASE_HEIGHT // config.CELL_SIZE
     
     # Создаем экран с учетом полноэкранного режима и аппаратным ускорением
     flags = pygame.FULLSCREEN if fullscreen else 0
@@ -82,11 +128,11 @@ def main():
     flags |= pygame.HWSURFACE | pygame.DOUBLEBUF
     # Пытаемся использовать максимальные возможности видеокарты
     try:
-        screen = pygame.display.set_mode((screen_width, screen_height), flags)
+        display_screen = pygame.display.set_mode((screen_width, screen_height), flags)
     except:
         # Если аппаратное ускорение недоступно, используем программный рендеринг
         flags = pygame.FULLSCREEN if fullscreen else 0
-        screen = pygame.display.set_mode((screen_width, screen_height), flags)
+        display_screen = pygame.display.set_mode((screen_width, screen_height), flags)
     pygame.display.set_caption("Фэнтези Стратегия")
     
     # Инициализация системы логирования и отладки
@@ -118,9 +164,55 @@ def main():
             traceback.print_exc()
             debug_system = None
     
-    # Передаем экран в игру
-    game = Game(screen)
+    # Внутренняя поверхность для рендеринга
+    render_surface = pygame.Surface((BASE_WIDTH, BASE_HEIGHT))
+    
+    # Передаем внутреннюю поверхность в игру
+    game = Game(render_surface)
     clock = pygame.time.Clock()
+    
+    # Начальный масштаб и смещения
+    def update_render_params():
+        # Рассчитываем масштаб с сохранением пропорций
+        scale = min(screen_width / BASE_WIDTH, screen_height / BASE_HEIGHT)
+        scaled_width = int(BASE_WIDTH * scale)
+        scaled_height = int(BASE_HEIGHT * scale)
+        offset_x = (screen_width - scaled_width) // 2
+        offset_y = (screen_height - scaled_height) // 2
+        # Сохраняем в конфиг для использования в игре
+        config.RENDER_SCALE = scale
+        config.RENDER_OFFSET_X = offset_x
+        config.RENDER_OFFSET_Y = offset_y
+        # Масштаб для координат мыши
+        config.MOUSE_SCALE_X = scale
+        config.MOUSE_SCALE_Y = scale
+        return scale, scaled_width, scaled_height, offset_x, offset_y
+    
+    scale, scaled_width, scaled_height, offset_x, offset_y = update_render_params()
+
+    original_flip = pygame.display.flip
+
+    def present_frame():
+        nonlocal display_screen, render_surface
+        display_screen.fill((0, 0, 0))
+        scale = max(config.RENDER_SCALE, 1e-6)
+        scaled_w = int(config.BASE_WIDTH * scale)
+        scaled_h = int(config.BASE_HEIGHT * scale)
+        if scaled_w > 0 and scaled_h > 0:
+            if abs(scale - 1.0) < 1e-6:
+                surface_to_blit = render_surface
+            else:
+                surface_to_blit = pygame.transform.smoothscale(render_surface, (scaled_w, scaled_h))
+            display_screen.blit(surface_to_blit, (config.RENDER_OFFSET_X, config.RENDER_OFFSET_Y))
+        original_flip()
+
+    pygame.display.flip = present_frame
+    
+    def screen_to_base(pos):
+        scale = max(config.RENDER_SCALE, 1e-6)
+        x = int((pos[0] - config.RENDER_OFFSET_X) / scale)
+        y = int((pos[1] - config.RENDER_OFFSET_Y) / scale)
+        return x, y
     
     # Выводим информацию о дебаггере
     print("\n" + "="*50)
@@ -144,28 +236,30 @@ def main():
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
-                    # Обычный клик левой кнопкой
-                    result = game.handle_click(event.pos, button=1)
+                    # Обычный клик левой кнопкой (координаты уже в правильном масштабе)
+                    base_pos = screen_to_base(event.pos)
+                    result = game.handle_click(base_pos, button=1)
                     # Проверяем, нужно ли применить изменения разрешения
                     if result == 'apply_resolution':
                         # Применяем изменения разрешения
-                        new_screen = game.apply_resolution_change(screen)
-                        if new_screen != screen:
-                            screen = new_screen
-                            screen_width = game.screen_width
-                            screen_height = game.screen_height
-                            # Обновляем глобальные переменные
-                            import game.config as config
-                            config.SCREEN_WIDTH = screen_width
-                            config.SCREEN_HEIGHT = screen_height
-                            config.GRID_WIDTH = screen_width // config.CELL_SIZE
-                            config.GRID_HEIGHT = screen_height // config.CELL_SIZE
-                            game.screen = screen
+                        new_display_screen = game.apply_resolution_change(display_screen)
+                        if new_display_screen:
+                            display_screen = new_display_screen
+                        screen_width = game.screen_width
+                        screen_height = game.screen_height
+                        # Обновляем конфиг внутреннего полотна
+                        config.SCREEN_WIDTH = BASE_WIDTH
+                        config.SCREEN_HEIGHT = BASE_HEIGHT
+                        config.GRID_WIDTH = BASE_WIDTH // config.CELL_SIZE
+                        config.GRID_HEIGHT = BASE_HEIGHT // config.CELL_SIZE
+                        scale, scaled_width, scaled_height, offset_x, offset_y = update_render_params()
+                        game.screen = render_surface
                 elif event.button == 3:
                     # Обработка правой кнопки мыши
+                    base_pos = screen_to_base(event.pos)
                     if game.state == 'creative':
                         # Удаление юнитов в креативе правой кнопкой
-                        game.handle_click(event.pos, button=3)
+                        game.handle_click(base_pos, button=3)
                     else:
                         # Cancel prepared spell if any
                         if (hasattr(game, 'selected_unit') and game.selected_unit and 
@@ -177,8 +271,8 @@ def main():
                         clicked_unit = None
                         from game.config import CELL_SIZE
                         for unit in game.units:
-                            if (unit.x * CELL_SIZE <= event.pos[0] < (unit.x+1)*CELL_SIZE and 
-                                unit.y * CELL_SIZE <= event.pos[1] < (unit.y+1)*CELL_SIZE):
+                            if (unit.x * CELL_SIZE <= base_pos[0] < (unit.x+1)*CELL_SIZE and 
+                                unit.y * CELL_SIZE <= base_pos[1] < (unit.y+1)*CELL_SIZE):
                                 clicked_unit = unit
                                 break
                         
@@ -187,8 +281,8 @@ def main():
                         if (clicked_unit and 
                             game.last_click_unit == clicked_unit and
                             game.last_click_pos and
-                            abs(event.pos[0] - game.last_click_pos[0]) < 10 and
-                            abs(event.pos[1] - game.last_click_pos[1]) < 10 and
+                            abs(base_pos[0] - game.last_click_pos[0]) < 10 and
+                            abs(base_pos[1] - game.last_click_pos[1]) < 10 and
                             current_time - game.last_click_time < 500 and
                             game.last_click_button == 3):
                             # Двойной клик правой кнопкой - открываем окно юнита
@@ -200,7 +294,7 @@ def main():
                         else:
                             # Сохраняем информацию о клике для проверки двойного клика
                             game.last_click_time = current_time
-                            game.last_click_pos = event.pos
+                            game.last_click_pos = base_pos
                             game.last_click_unit = clicked_unit
                             game.last_click_button = 3
                             
@@ -216,6 +310,13 @@ def main():
                     # Отпускание правой кнопки - скрываем тултип
                     game.unit_tooltip_show = False
                     game.unit_tooltip_unit = None
+            elif event.type == pygame.MOUSEMOTION:
+                # Обновляем позицию мыши для тултипов и других элементов
+                if hasattr(game, 'handle_mouse_motion'):
+                    try:
+                        game.handle_mouse_motion(screen_to_base(event.pos))
+                    except Exception:
+                        pass
             elif event.type == pygame.MOUSEWHEEL:
                 # Прокрутка UI (креатив/редактор книг) колесом мыши
                 if hasattr(game, 'on_mouse_wheel'):
@@ -254,13 +355,29 @@ def main():
         # Передаем 0 для неограниченного FPS (используем все ресурсы CPU/GPU)
         frame_time = clock.tick(0) / 1000.0  # 0 = неограниченный FPS для максимальной производительности
         
+        # Проверяем, нужно ли обновить экран (например, после переключения полноэкранного режима)
+        if hasattr(game, '_pending_screen_update') and game._pending_screen_update:
+            new_display_screen = game._pending_screen_update
+            game._pending_screen_update = None
+            if new_display_screen:
+                display_screen = new_display_screen
+            screen_width = game.screen_width
+            screen_height = game.screen_height
+            # Обновляем конфиг внутреннего полотна
+            config.SCREEN_WIDTH = BASE_WIDTH
+            config.SCREEN_HEIGHT = BASE_HEIGHT
+            config.GRID_WIDTH = BASE_WIDTH // config.CELL_SIZE
+            config.GRID_HEIGHT = BASE_HEIGHT // config.CELL_SIZE
+            scale, scaled_width, scaled_height, offset_x, offset_y = update_render_params()
+            game.screen = render_surface
+        
         # Обновляем игру
         game.update()
         
-        # Рисуем игру
+        # Рисуем на внутренней поверхности
         game.draw()
         
-        # Обновляем экран (flip быстрее чем update для полного экрана)
+        # Масштабируем и выводим на экран
         pygame.display.flip()
         
         # Обновляем метрики FPS в системе отладки
