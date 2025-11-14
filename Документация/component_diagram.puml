@@ -1,0 +1,144 @@
+@startuml
+!theme plain
+skinparam componentStyle rectangle
+skinparam component {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  BorderThickness 2
+  FontSize 12
+}
+skinparam artifact {
+  BackgroundColor #F5F5F5
+  BorderColor #000000
+  BorderThickness 1
+  FontSize 11
+}
+skinparam node {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  BorderThickness 2
+  FontSize 11
+}
+skinparam package {
+  BackgroundColor #E8F4F8
+  BorderColor #000000
+  BorderThickness 2
+  FontSize 11
+}
+skinparam arrow {
+  Color #000000
+  Thickness 2
+}
+skinparam shadowing false
+skinparam linetype ortho
+
+title Компонентная диаграмма системы "Фэнтези Стратегия"\n(ГОСТ 19.701-90)
+
+' ============================================
+' УЗЛЫ РАЗВЕРТЫВАНИЯ
+' ============================================
+
+node "Рабочая станция" as NodeDesktop {
+  artifact "BattleGame.exe" as ArtExe
+}
+
+node "Среда разработки" as NodeDev {
+  artifact "main.py" as ArtMain
+  artifact "main_web.py" as ArtMainWeb
+}
+
+node "Веб-среда" as NodeWeb {
+  artifact "index.html" as ArtWebIndex
+  artifact "may_game.apk" as ArtWebBundle
+}
+
+' ============================================
+' КОМПОНЕНТЫ СИСТЕМЫ (иерархическая структура)
+' ============================================
+
+package "Ядро системы" {
+  component [Игровой цикл] as CompCore
+  component [Данные] as CompData
+  component [Ресурсы] as CompAssets
+}
+
+package "Игровая логика" {
+  component [Боевая система] as CompBattle
+  component [ИИ] as CompAI
+}
+
+package "Визуализация" {
+  component [Отрисовка] as CompRender
+  component [Анимации] as CompAnim
+}
+
+package "Мультимедиа" {
+  component [Звук] as CompAudio
+}
+
+package "Инструменты" {
+  component [Отладка] as CompDebug
+}
+
+' ============================================
+' ВНЕШНИЕ РЕСУРСЫ
+' ============================================
+
+artifact "assets/sprites/*" as ArtSprites
+artifact "assets/sounds/*" as ArtSounds
+artifact "data/*.json" as ArtData
+
+' ============================================
+' СВЯЗИ: Иерархия компонентов
+' (только ключевые связи для читаемости)
+' ============================================
+
+' Ядро системы - центральные связи
+CompCore --> CompData
+CompCore --> CompAssets
+CompData --> CompAssets
+
+' Игровая логика
+CompCore --> CompBattle
+CompCore --> CompAI
+CompAI --> CompBattle
+
+' Визуализация
+CompCore --> CompRender
+CompCore --> CompAnim
+CompRender --> CompAssets
+CompAnim --> CompAssets
+
+' Мультимедиа
+CompCore --> CompAudio
+CompAudio --> CompAssets
+
+' Инструменты
+CompCore --> CompDebug
+
+' Внешние ресурсы
+ArtSprites --> CompAssets
+ArtSounds --> CompAssets
+ArtData --> CompData
+
+' Артефакты развертывания
+ArtMain ..> CompCore
+ArtMainWeb ..> CompCore
+ArtExe ..> CompCore
+ArtWebBundle ..> CompCore
+
+' ============================================
+' ЛЕГЕНДА
+' ============================================
+
+legend right
+  |= Тип связи |= Описание |
+  | --> | Зависимость |
+  | ..> | Реализация |
+endlegend
+
+note bottom of CompCore
+  <b>Центральный компонент</b>\nУправляет всеми\nподсистемами
+end note
+
+@enduml

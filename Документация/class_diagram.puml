@@ -1,0 +1,195 @@
+@startuml
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  BorderThickness 1
+  FontName Arial
+  FontSize 12
+  AttributeFontName Arial
+  AttributeFontSize 11
+  AttributeFontColor #000000
+  AttributeIconSize 0
+}
+skinparam classHeader {
+  BackgroundColor #D9D9D9
+  FontColor #000000
+  FontName Arial
+  FontSize 12
+  Padding 4
+}
+skinparam ArrowColor #000000
+skinparam ArrowThickness 2
+skinparam ArrowLinetype ortho
+
+class GameSession {
+  {table}
+  |= GameSession |= |
+  | PK | Session ID |
+  | | state |
+  | | turnQueue |
+  | | currentTurn |
+  | | debugMode |
+  | | activeMap |
+  | FK1 | Battle Queue |
+  | FK2 | AI Controller |
+  | FK3 | Animation Manager |
+  | FK4 | Game Debugger |
+}
+
+class BattleQueue {
+  {table}
+  |= BattleQueue |= |
+  | PK | Queue ID |
+  | | roundIndex |
+  | | initiativeOrder |
+  | | activeUnit |
+  | | pendingActions |
+  | | resolutionLog |
+  | FK1 | Combat Unit |
+}
+
+class CombatUnit {
+  {table}
+  |= CombatUnit |= |
+  | PK | Unit ID |
+  | | name |
+  | | archetype |
+  | | team |
+  | | health |
+  | | physAttack |
+  | | physDefense |
+  | | speed |
+  | | mana |
+  | | resistances |
+  | | heroProfile |
+  | | spellLoadout |
+  | FK1 | Hero Profile |
+  | FK2 | Spell Book |
+}
+
+class HeroProfile {
+  {table}
+  |= HeroProfile |= |
+  | PK | Hero ID |
+  | | classType |
+  | | faction |
+  | | leadership |
+  | | knowledge |
+  | | moraleBonus |
+}
+
+class SpellBook {
+  {table}
+  |= SpellBook |= |
+  | PK | Book ID |
+  | | ownerType |
+  | | knownSchools |
+  | | preparedSpells |
+}
+
+class Spell {
+  {table}
+  |= Spell |= |
+  | PK | Spell ID |
+  | | name |
+  | | manaCost |
+  | | cooldown |
+  | | damage |
+  | | effectType |
+  | | targetingScope |
+  | FK1 | Spell Book |
+}
+
+class BlessSpell {
+  {table}
+  |= BlessSpell |= |
+  | PK | BlessSpell ID |
+  | | school |
+  | | blessingValue |
+  | FK1 | Spell |
+}
+
+class CurseSpell {
+  {table}
+  |= CurseSpell |= |
+  | PK | CurseSpell ID |
+  | | school |
+  | | penaltyValue |
+  | FK1 | Spell |
+}
+
+class FireballSpell {
+  {table}
+  |= FireballSpell |= |
+  | PK | FireballSpell ID |
+  | | areaRadius |
+  | | burnDuration |
+  | FK1 | Spell |
+}
+
+class HealSpell {
+  {table}
+  |= HealSpell |= |
+  | PK | HealSpell ID |
+  | | healAmount |
+  | | removeNegative |
+  | FK1 | Spell |
+}
+
+class AIController {
+  {table}
+  |= AIController |= |
+  | PK | AIController ID |
+  | | team |
+  | | strategyProfile |
+  | | threatMap |
+  | | lastDecision |
+  | FK1 | Combat Unit |
+}
+
+class AnimationManager {
+  {table}
+  |= AnimationManager |= |
+  | PK | AnimationManager ID |
+  | | activeAnimations |
+  | | spriteCache |
+  | | frameTimer |
+}
+
+class AnimatedHumanoidMixin {
+  {table}
+  |= AnimatedHumanoidMixin |= |
+  | PK | Mixin ID |
+  | | currentAnimationState |
+  | | facingDirection |
+}
+
+class GameDebugger {
+  {table}
+  |= GameDebugger |= |
+  | PK | GameDebugger ID |
+  | | trackedEvents |
+  | | breakpoints |
+  | | overlayState |
+  | | commandLog |
+}
+
+GameSession -down-> BattleQueue
+GameSession -down-> AIController
+GameSession -down-> AnimationManager
+GameSession -down-> GameDebugger
+BattleQueue -down-> CombatUnit
+CombatUnit -down-> HeroProfile
+CombatUnit -down-> SpellBook
+SpellBook -down-> Spell
+Spell -down-> BlessSpell
+Spell -down-> CurseSpell
+Spell -down-> FireballSpell
+Spell -down-> HealSpell
+AIController -down-> CombatUnit
+AnimationManager -down-> AnimatedHumanoidMixin
+
+@enduml

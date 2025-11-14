@@ -1,0 +1,32 @@
+# Отчёт о выполнении тестов
+Дата/время запуска: 2025-11-12 16:03:23
+Проект: Фэнтези Стратегия
+Всего тестов: 6
+Пройдено: 6
+Провалено: 0
+Ошибок: 0
+Пропущено: 0
+Успешность: 100.00%
+Время выполнения: 2.20 сек
+
+## Подробности
+Все обязательные проверки из TestPlan.md выполнены успешно.
+
+## Протокол unittest
+test_ai_controller_interface (debug.test_suite.test_cases.FantasyStrategyTestSuite.test_ai_controller_interface)
+TC-AI-01: наличие ключевых методов у AIController. ... ok
+test_entry_points_exist (debug.test_suite.test_cases.FantasyStrategyTestSuite.test_entry_points_exist)
+TC-GAME-01: проверка наличия основных точек входа. ... ok
+test_settings_json_structure (debug.test_suite.test_cases.FantasyStrategyTestSuite.test_settings_json_structure)
+TC-SETTINGS-01/02: структура файла настроек. ... ok
+test_spell_classes (debug.test_suite.test_cases.FantasyStrategyTestSuite.test_spell_classes)
+TC-SPELL-01/02/03: базовая проверка заклинаний. ... ok
+test_testplan_document_present (debug.test_suite.test_cases.FantasyStrategyTestSuite.test_testplan_document_present)
+Наличие TestPlan.md и актуальной версии Test_Results.md. ... ok
+test_unit_overrides_integrity (debug.test_suite.test_cases.FantasyStrategyTestSuite.test_unit_overrides_integrity)
+TC-BATTLE-01/02: проверка целостности настроек юнитов. ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 2.202s
+
+OK

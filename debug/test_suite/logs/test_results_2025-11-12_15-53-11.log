@@ -1,0 +1,31 @@
+# Test Execution Report
+Дата/время запуска: 2025-11-12 15:53:11
+Проект: Фэнтези Стратегия
+Всего тестов: 1
+Пройдено: 0
+Провалено: 0
+Ошибок: 1
+Пропущено: 0
+Успешность: 0.00%
+Время выполнения: 0.00 сек
+
+## Подробности
+### Ошибки
+- unittest.loader._FailedTest.debug: RecursionError: maximum recursion depth exceeded
+
+
+
+## Протокол unittest
+debug (unittest.loader._FailedTest.debug)
+Run the test without collecting errors in a TestResult ... ERROR
+
+======================================================================
+ERROR: debug (unittest.loader._FailedTest.debug)
+Run the test without collecting errors in a TestResult
+----------------------------------------------------------------------
+RecursionError: maximum recursion depth exceeded
+
+----------------------------------------------------------------------
+Ran 1 test in 0.002s
+
+FAILED (errors=1)

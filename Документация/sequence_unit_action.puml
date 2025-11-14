@@ -1,0 +1,114 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 0
+skinparam maxMessageSize 60
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+skinparam Participant {
+  BackgroundColor #D9D9D9
+  BorderColor #000000
+  FontName Arial
+  FontSize 12
+  FontColor #000000
+}
+
+skinparam Actor {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  FontName Arial
+  FontSize 12
+  FontColor #000000
+}
+
+skinparam LifeLineBackgroundColor #FFFFFF
+skinparam LifeLineBorderColor #000000
+skinparam LifeLineBorderThickness 1
+
+title Управление юнитом: перемещение и атака
+
+actor "Игрок" as Player
+participant "GameSession" as Game
+participant "BattleQueue" as Queue
+participant "CombatUnit" as Unit
+participant "MovementValidator" as Movement
+participant "AnimationManager" as Anim
+participant "CombatResolver" as Combat
+
+Player -> Game: 1. Клик по юниту своей команды
+activate Game
+Game -> Queue: 2. Проверка активного хода
+activate Queue
+Queue --> Game: 2.1 Подтверждение текущего юнита
+Queue -> Unit: 2.2 Получить состояние юнита
+activate Unit
+Unit --> Queue: 2.3 Состояние (has_moved, has_attacked)
+deactivate Unit
+deactivate Queue
+
+alt [Юнит уже завершил ход]
+  Game -> Player: 3. Сообщение «Юнит уже ходил»
+  deactivate Game
+else [Юнит доступен]
+  Game -> Unit: 3. Выделить юнит
+  activate Unit
+  Unit --> Game: 3.1 Юнит выделен
+deactivate Unit
+
+  Game -> Movement: 4. Рассчитать доступные клетки
+  activate Movement
+  Movement --> Game: 4.1 Список доступных клеток
+  deactivate Movement
+
+  Game -> Player: 5. Подсветка вариантов перемещения
+  deactivate Game
+
+  Player -> Game: 6. Клик по целевой клетке
+  activate Game
+  Game -> Movement: 7. Проверка валидности клетки
+  activate Movement
+  Movement --> Game: 7.1 Проверка пройдена
+  deactivate Movement
+
+  Game -> Unit: 8. Обновить позицию и очки перемещения
+  activate Unit
+  Unit --> Game: 8.1 Позиция обновлена (has_moved = True)
+  deactivate Unit
+
+  Game -> Anim: 9. Запустить анимацию перемещения
+  activate Anim
+  Anim --> Game: 9.1 Анимация завершена
+  deactivate Anim
+
+  Game -> Player: 10. Отображение новой позиции
+  deactivate Game
+
+  Player -> Game: 11. Клик по вражескому юниту
+  activate Game
+  Game -> Unit: 12. Проверка возможности атаки (has_attacked)
+  activate Unit
+  Unit --> Game: 12.1 Может атаковать
+  deactivate Unit
+
+  Game -> Combat: 13. Рассчитать урон
+  activate Combat
+  Combat --> Game: 13.1 Результат урона
+  deactivate Combat
+
+  Game -> Unit: 14. Применить урон к цели и обновить статус
+  activate Unit
+  Unit --> Game: 14.1 Цель получила урон, has_attacked = True
+  deactivate Unit
+
+  Game -> Anim: 15. Запустить анимацию атаки
+  activate Anim
+  Anim --> Game: 15.1 Анимация завершена
+  deactivate Anim
+
+  Game -> Player: 16. Обновление интерфейса боя
+  deactivate Game
+end
+
+@enduml
+

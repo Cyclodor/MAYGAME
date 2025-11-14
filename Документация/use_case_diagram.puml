@@ -1,0 +1,113 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam linetype ortho
+skinparam actor {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  BorderThickness 2
+  FontName Arial
+  FontSize 11
+  FontColor #000000
+}
+skinparam usecase {
+  BackgroundColor #F5F5F5
+  BorderColor #000000
+  BorderThickness 1
+  FontName Arial
+  FontSize 9
+  FontColor #000000
+}
+skinparam package {
+  BackgroundColor #E8F4F8
+  BorderColor #000000
+  BorderThickness 1
+  FontName Arial
+  FontSize 10
+  FontColor #000000
+}
+skinparam arrow {
+  Color #000000
+  Thickness 1
+}
+
+title Use Case диаграмма системы "Фэнтези Стратегия"
+
+left to right direction
+
+actor "Игрок" as Player
+
+package "Управление" {
+  usecase "Запуск игры" as UC1
+  usecase "Выход" as UC2
+  usecase "Настройка боя" as UC3
+  usecase "Настройки" as UC4
+}
+
+package "Игровой процесс" {
+  usecase "Управление юнитом" as UC5
+  usecase "Атака" as UC6
+  usecase "Заклинания" as UC7
+  usecase "Завершение хода" as UC8
+  usecase "Информация о юните" as UC9
+}
+
+package "Режимы" {
+  usecase "Креативный режим" as UC10
+  usecase "Игра против ИИ" as UC11
+}
+
+package "Редакторы" {
+  usecase "Редактор юнитов" as UC12
+  usecase "Редактор заклинаний" as UC13
+}
+
+package "Отладка" {
+  usecase "Режим отладки" as UC14
+}
+
+' ============================================
+' СВЯЗИ АКТОРА С USE CASE
+' ============================================
+
+Player --> UC1
+Player --> UC2
+Player --> UC3
+Player --> UC4
+Player --> UC5
+Player --> UC6
+Player --> UC7
+Player --> UC8
+Player --> UC9
+Player --> UC10
+Player --> UC11
+Player --> UC12
+Player --> UC13
+Player --> UC14
+
+' ============================================
+' ВНУТРЕННИЕ СВЯЗИ
+' ============================================
+
+UC3 --> UC5
+UC5 --> UC6
+UC5 --> UC7
+UC6 --> UC8
+UC7 --> UC8
+UC8 --> UC1
+UC10 --> UC5
+UC11 --> UC5
+UC12 --> UC5
+UC13 --> UC7
+UC14 --> UC5
+
+' ============================================
+' ЛЕГЕНДА
+' ============================================
+
+legend right
+  |= Связь |= Описание |
+  | --> | Использование |
+endlegend
+
+@enduml

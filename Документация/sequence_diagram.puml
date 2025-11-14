@@ -1,0 +1,125 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 0
+skinparam maxMessageSize 60
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+skinparam Participant {
+  BackgroundColor #D9D9D9
+  BorderColor #000000
+  FontName Arial
+  FontSize 12
+  FontColor #000000
+}
+
+skinparam Actor {
+  BackgroundColor #FFFFFF
+  BorderColor #000000
+  FontName Arial
+  FontSize 12
+  FontColor #000000
+}
+
+skinparam LifeLineBackgroundColor #FFFFFF
+skinparam LifeLineBorderColor #000000
+skinparam LifeLineBorderThickness 1
+
+title Применение заклинания героем
+
+actor "Игрок" as Player
+participant "GameSession" as Game
+participant "CombatUnit" as Hero
+participant "SpellBook" as SpellBook
+participant "Spell" as Spell
+participant "BattleQueue" as Queue
+
+Player -> Game: 1. Нажатие клавиши заклинания (1/2/3)
+activate Game
+
+Game -> Hero: 2. Получить текущего активного юнита
+activate Hero
+Hero --> Game: 2.1 Возврат героя
+deactivate Hero
+
+Game -> Hero: 3. Проверка типа юнита (Hero)
+activate Hero
+Hero --> Game: 3.1 Подтверждение типа
+deactivate Hero
+
+Game -> SpellBook: 4. Получить список заклинаний
+activate SpellBook
+SpellBook --> Game: 4.1 Список доступных заклинаний
+deactivate SpellBook
+
+Game -> Player: 5. Отображение списка заклинаний
+deactivate Game
+
+Player -> Game: 6. Выбор заклинания из списка
+activate Game
+
+Game -> Spell: 7. Получить информацию о заклинании
+activate Spell
+Spell --> Game: 7.1 Параметры заклинания (manaCost, cooldown)
+deactivate Spell
+
+Game -> Hero: 8. Проверка достаточности маны
+activate Hero
+Hero -> Hero: 8.1 Сравнение mana >= spell.manaCost
+activate Hero
+Hero --> Hero: 8.2 Результат проверки
+deactivate Hero
+Hero --> Game: 8.3 Результат проверки маны
+deactivate Hero
+
+alt [Успешная проверка маны]
+  Game -> Queue: 9. Проверка возможности хода
+  activate Queue
+  Queue --> Game: 9.1 Подтверждение активного хода
+  deactivate Queue
+  
+  Game -> Player: 10. Запрос выбора цели
+  deactivate Game
+  
+  Player -> Game: 11. Клик на цель (союзник/враг/клетка)
+  activate Game
+  
+  Game -> Spell: 12. Проверка дальности применения
+  activate Spell
+  Spell --> Game: 12.1 Результат проверки дальности
+  deactivate Spell
+  
+  Game -> Spell: 13. Применить эффект заклинания
+  activate Spell
+  Spell -> Hero: 13.1 Уменьшить ману
+  activate Hero
+  Hero --> Spell: 13.2 Подтверждение
+  deactivate Hero
+  Spell -> Spell: 13.3 Установить перезарядку
+  activate Spell
+  Spell --> Spell: 13.4 Подтверждение
+  deactivate Spell
+  Spell --> Game: 13.5 Эффект применен
+  deactivate Spell
+  
+  Game -> Hero: 14. Установить флаг used_spell_this_round
+  activate Hero
+  Hero --> Game: 14.1 Подтверждение
+  deactivate Hero
+  
+  Game -> Game: 15. Воспроизвести анимацию заклинания
+  activate Game
+  Game --> Game: 15.1 Анимация завершена
+  deactivate Game
+  
+  Game -> Player: 16. Отображение результата применения
+  deactivate Game
+else [Недостаточно маны]
+  Game -> Player: 9. Сообщение "Недостаточно маны"
+  deactivate Game
+end
+
+@enduml
+
+

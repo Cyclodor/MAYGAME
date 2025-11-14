@@ -1,0 +1,171 @@
+@startuml
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam linetype ortho
+skinparam node {
+  BackgroundColor #E8F4F8
+  BorderColor #000000
+  BorderThickness 2
+  FontName Arial
+  FontSize 12
+  FontColor #000000
+}
+skinparam artifact {
+  BackgroundColor #F5F5F5
+  BorderColor #000000
+  BorderThickness 1
+  FontName Arial
+  FontSize 9
+  FontColor #000000
+}
+skinparam database {
+  BackgroundColor #FFF4E6
+  BorderColor #000000
+  BorderThickness 1
+  FontName Arial
+  FontSize 10
+  FontColor #000000
+}
+skinparam arrow {
+  Color #000000
+  Thickness 1
+}
+
+title Диаграмма развёртывания системы "Фэнтези Стратегия"
+
+' ============================================
+' ФИЗИЧЕСКИЕ УЗЛЫ
+' ============================================
+
+node "Рабочая станция" as DesktopNode {
+  artifact "BattleGame.exe" as ExeFile
+  artifact "main.py" as MainPy
+  artifact [Игровой движок] as Engine
+  artifact [Графика] as Graphics
+  artifact [Звук] as Audio
+  artifact [Боевая система] as Battle
+  artifact [ИИ] as AI
+  artifact [Анимации] as Animation
+  artifact [Заклинания] as Spells
+  artifact [Юниты] as Units
+  artifact [Интерфейс] as UI
+  artifact [Отладка] as Debugger
+  database "Файловая система" as LocalFS
+  artifact "sprites/*.png" as Sprites
+  artifact "sounds/*.wav" as Sounds
+  artifact "settings.json" as Settings
+  artifact "unit_overrides.json" as UnitData
+  artifact "spell_overrides.json" as SpellData
+}
+
+node "Веб-сервер" as WebServer {
+  artifact [Веб-приложение] as WebApp
+  artifact [Сервер статики] as StaticServer
+  artifact "index.html" as WebIndex
+  artifact "may_game.apk" as WebBundle
+}
+
+node "Браузер" as BrowserNode {
+  artifact [Веб-движок] as WebEngine
+  artifact [Canvas] as CanvasRenderer
+  artifact [Audio API] as AudioContext
+  artifact "JS модули" as JSBundle
+}
+
+' ============================================
+' СВЯЗИ ВНУТРИ РАБОЧЕЙ СТАНЦИИ
+' ============================================
+
+ExeFile --> Engine
+MainPy --> Engine
+
+Engine --> Graphics
+Engine --> Audio
+Engine --> Battle
+Engine --> AI
+Engine --> Animation
+Engine --> Spells
+Engine --> Units
+Engine --> UI
+Engine --> Debugger
+
+Battle --> Units
+Battle --> Spells
+AI --> Battle
+AI --> Units
+Animation --> Graphics
+UI --> Graphics
+UI --> Audio
+
+LocalFS --> Sprites
+LocalFS --> Sounds
+LocalFS --> Settings
+LocalFS --> UnitData
+LocalFS --> SpellData
+
+Graphics --> Sprites
+Audio --> Sounds
+Engine --> Settings
+Units --> UnitData
+Spells --> SpellData
+
+' ============================================
+' СВЯЗИ ВНУТРИ ВЕБ-СЕРВЕРА
+' ============================================
+
+WebApp --> StaticServer
+WebIndex --> WebApp
+WebBundle --> WebApp
+
+' ============================================
+' СВЯЗИ ВНУТРИ БРАУЗЕРА
+' ============================================
+
+WebEngine --> CanvasRenderer
+WebEngine --> AudioContext
+JSBundle --> WebEngine
+
+' ============================================
+' СВЯЗИ МЕЖДУ УЗЛАМИ
+' ============================================
+
+DesktopNode -right-> WebServer : HTTP
+WebServer -right-> BrowserNode : HTTP
+
+' ============================================
+' ЛЕГЕНДА
+' ============================================
+
+legend right
+  |= Связь |= Описание |
+  | --> | Зависимость |
+  | -right-> | Развёртывание |
+endlegend
+
+' ============================================
+' ЗАМЕТКИ О РАЗВЁРТЫВАНИИ
+' ============================================
+
+note as N1
+  <b>Локальное</b>
+  EXE/Python
+  Локальные ресурсы
+end note
+
+note as N2
+  <b>Веб</b>
+  Статика
+  HTTP
+end note
+
+note as N3
+  <b>Клиент</b>
+  JS/WASM
+  Canvas/Audio
+end note
+
+DesktopNode .. N1
+WebServer .. N2
+BrowserNode .. N3
+
+@enduml
