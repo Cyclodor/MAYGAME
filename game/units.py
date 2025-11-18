@@ -14,8 +14,15 @@ from .graphics import (
     load_dryad_texture,
     load_druid_texture,
     load_pixie_texture,
+    load_fairy_texture,
     load_ent_texture,
     load_unicorn_texture,
+    load_skeleton_texture,
+    load_imp_texture,
+    load_gog_texture,
+    load_demon_texture,
+    load_cerberus_texture,
+    load_succubus_texture,
 )
 from .config import CELL_SIZE, RED, GREEN, BLUE, PURPLE, LIGHT_BLUE, TOOLTIP_BG, SCREEN_WIDTH, SCREEN_HEIGHT, GRID_WIDTH
 
@@ -282,7 +289,7 @@ class Unit:
         # Определяем магических юнитов (атакуют магией)
         magical_units = [
             'lich', 'gog', 'succubus', 'runemage', 'witch',  # Маги
-            'pixie', 'dryad', 'ghost'  # Магические существа
+            'fairy', 'dryad', 'ghost'  # Магические существа
         ]
         
         # Устанавливаем тип атаки
@@ -1843,8 +1850,9 @@ class Hero(Unit):
                 unit.luck = max(-6, min(6, self.luck))
 
 class Pixie(AnimatedHumanoidMixin, Unit):
+    """Фея (ранее Пикси) - молодая дриада."""
     def __init__(self, x, y, team):
-        super().__init__(x, y, team, 'pixie')
+        super().__init__(x, y, team, 'fairy')  # Используем 'fairy' вместо 'pixie'
         self.health = 25
         self.max_health = 25
         self.attack = 5
@@ -1856,16 +1864,17 @@ class Pixie(AnimatedHumanoidMixin, Unit):
         self.convert_old_stats_to_new()
         animation_states = [
             'Idle', 'IdlePulse', 'IdleHover',
+            'Walk', 'WalkAlt',
             'CastStart', 'CastRelease', 'CastRecover',
             'Hurt', 'TurnLeft', 'TurnRight', 'Death', 'Corpse'
         ]
         self._init_animation_system(
-            load_pixie_texture,
+            load_fairy_texture,
             animation_states,
             idle_cycle=('Idle', 'IdlePulse', 'IdleHover'),
             idle_switch_interval=480,
             idle_pause_duration=360,
-            movement_cycle=('IdleHover', 'IdlePulse'),
+            movement_cycle=('Walk', 'WalkAlt'),
             turn_sequence_duration=90,
         )
         self._melee_sequence = [
@@ -1904,7 +1913,8 @@ class ElfScout(AnimatedHumanoidMixin, Unit):
             'Idle', 'IdleBreath',
             'Walk', 'WalkAlt',
             'AttackPrep', 'AttackStrike', 'AttackRecover',
-            'Hurt', 'TurnLeft', 'TurnRight', 'Death', 'Corpse'
+            'Hurt', 'HurtStart', 'HurtHold', 'HurtRecover',
+            'TurnLeft', 'TurnRight', 'Death', 'Corpse'
         ]
         self._init_animation_system(
             load_elf_scout_texture,
@@ -1959,9 +1969,10 @@ class ElfArcher(AnimatedHumanoidMixin, Unit):
         animation_states = [
             'Idle', 'IdleBreath',
             'Walk', 'WalkAlt',
-            'AttackDraw', 'AttackRelease', 'AttackRecover',
-            'MeleePrep', 'MeleeStrike', 'MeleeRecover',
-            'Hurt', 'TurnLeft', 'TurnRight', 'Death', 'Corpse'
+            'Attack', 'AttackDraw', 'AttackAim', 'Attack02', 'AttackRelease', 'Attack03', 'AttackFollow', 'AttackRecover',
+            'MeleePrep', 'MeleeGuard', 'MeleeWindup', 'MeleeStrike', 'MeleeFollow', 'MeleeRecover',
+            'Hurt', 'HurtStart', 'HurtHold', 'HurtRecover',
+            'TurnLeft', 'TurnRight', 'Death', 'Corpse'
         ]
         self._init_animation_system(
             load_elf_archer_texture,
@@ -2078,8 +2089,8 @@ class Ent(AnimatedHumanoidMixin, Unit):
         self.convert_old_stats_to_new()
         animation_states = [
             'Idle', 'IdleBreath',
-            'StepLeft', 'StepRight',
-            'SlamPrep', 'SlamHit', 'SlamRecover',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
             'Hurt', 'TurnLeft', 'TurnRight', 'Death', 'Corpse'
         ]
         self._init_animation_system(
@@ -2088,13 +2099,13 @@ class Ent(AnimatedHumanoidMixin, Unit):
             idle_cycle=('Idle', 'IdleBreath'),
             idle_switch_interval=780,
             idle_pause_duration=620,
-            movement_cycle=('StepLeft', 'StepRight'),
+            movement_cycle=('Walk', 'WalkAlt'),
             turn_sequence_duration=140,
         )
         self._attack_sequence = [
-            ('SlamPrep', 150),
-            ('SlamHit', 190),
-            ('SlamRecover', 150),
+            ('AttackPrep', 150),
+            ('AttackStrike', 190),
+            ('AttackRecover', 150),
         ]
         self._hurt_sequence = [('Hurt', 190)]
         self._death_sequence = [('Death', 320)]
@@ -2111,7 +2122,7 @@ class Ent(AnimatedHumanoidMixin, Unit):
         self._play_sequence(self._death_sequence, game, reset_to_idle=False)
         self.set_animation_state('Corpse')
 
-class Imp(Unit):
+class Imp(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'imp')
         self.health = 25
@@ -2123,8 +2134,30 @@ class Imp(Unit):
         self.attack_range = 1
         self.base_defense = 2
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'TurnLeft', 'TurnRight', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_imp_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=600,
+            idle_pause_duration=500,
+            movement_cycle=('Walk', 'WalkAlt'),
+            turn_sequence_duration=100,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 120),
+            ('AttackStrike', 150),
+            ('AttackRecover', 100),
+        ]
+        self._hurt_sequence = [('Hurt', 150)]
+        self._death_sequence = [('Death', 200)]
 
-class Gog(Unit):
+class Gog(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'gog')
         self.health = 40
@@ -2137,8 +2170,31 @@ class Gog(Unit):
         self.attack_range = 3
         self.base_defense = 2
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackAim', 'AttackRelease', 'AttackRecover',
+            'Hurt', 'TurnLeft', 'TurnRight', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_gog_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=650,
+            idle_pause_duration=550,
+            movement_cycle=('Walk', 'WalkAlt'),
+            turn_sequence_duration=110,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackAim', 150),
+            ('AttackRelease', 180),
+            ('AttackRecover', 120),
+        ]
+        self._hurt_sequence = [('Hurt', 160)]
+        self._death_sequence = [('Death', 240)]
 
-class Demon(Unit):
+class Demon(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'demon')
         self.health = 70
@@ -2150,8 +2206,30 @@ class Demon(Unit):
         self.attack_range = 1
         self.base_defense = 6
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'TurnLeft', 'TurnRight', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_demon_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+            movement_cycle=('Walk', 'WalkAlt'),
+            turn_sequence_duration=120,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 140),
+            ('AttackStrike', 180),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 170)]
+        self._death_sequence = [('Death', 280)]
 
-class Cerberus(Unit):
+class Cerberus(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'cerberus')
         self.health = 80
@@ -2163,8 +2241,30 @@ class Cerberus(Unit):
         self.attack_range = 1
         self.base_defense = 5
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'TurnLeft', 'TurnRight', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_cerberus_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=750,
+            idle_pause_duration=650,
+            movement_cycle=('Walk', 'WalkAlt'),
+            turn_sequence_duration=130,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 150),
+            ('AttackStrike', 200),
+            ('AttackRecover', 150),
+        ]
+        self._hurt_sequence = [('Hurt', 190)]
+        self._death_sequence = [('Death', 300)]
 
-class Succubus(Unit):
+class Succubus(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'succubus')
         self.health = 50
@@ -2177,6 +2277,29 @@ class Succubus(Unit):
         self.attack_range = 4
         self.base_defense = 3
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackAim', 'AttackRelease', 'AttackRecover',
+            'Hurt', 'TurnLeft', 'TurnRight', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_succubus_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=680,
+            idle_pause_duration=580,
+            movement_cycle=('Walk', 'WalkAlt'),
+            turn_sequence_duration=115,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 140),
+            ('AttackAim', 160),
+            ('AttackRelease', 190),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 165)]
+        self._death_sequence = [('Death', 260)]
 
 # --- Гномы ---
 class Miner(Unit):
@@ -2703,7 +2826,7 @@ def get_unit_race(unit):
         'skeleton': 'undead', 'zombie': 'undead', 'ghost': 'undead', 
         'vampire': 'undead', 'lich': 'undead',
         # Эльфы
-        'pixie': 'elf', 'elf_scout': 'elf', 'elf_archer': 'elf', 
+        'fairy': 'elf', 'pixie': 'elf', 'elf_scout': 'elf', 'elf_archer': 'elf', 
         'dryad': 'elf', 'ent': 'elf',
         # Демоны
         'imp': 'demon', 'gog': 'demon', 'demon': 'demon', 

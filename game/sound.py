@@ -14,8 +14,8 @@ def load_sound(name, extension='wav'):
             if os.path.exists(path):
                 return mixer.Sound(path)
         return None
-    except Exception as e:
-        print(f"Ошибка загрузки звука: {name}.{extension} - {e}")
+    except Exception:
+        # Тихая ошибка загрузки звука - не критично для игры
         return None
 
 def load_sound_mp3(name):
