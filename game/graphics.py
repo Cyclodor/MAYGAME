@@ -182,6 +182,490 @@ def _legacy_crossbowman_texture(animation_state='Idle'):
     _texture_cache[cache_key] = surface
     return surface
 
+
+def load_greendragon_texture(animation_state='Idle'):
+    """Процедурная анимация зелёного дракона: парение, шаги и плевок огнём/ядовитыми облаками."""
+    cache_key = f'greendragon_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        torso_shift=0,
+        head_tilt=0,
+        crouch=0,
+        wing_phase=0,
+        tail_phase=0,
+        breath_size=0,
+    ):
+        surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (18, 40, 22, 180)
+        body_main = (60, 150, 80)
+        body_dark = (40, 120, 60)
+        wing = (70, 180, 100)
+        horn = (120, 210, 130)
+        eye = (255, 230, 120)
+
+        base_y = crouch
+        pygame.draw.ellipse(surf, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        # Тело
+        pygame.draw.ellipse(surf, body_main, (8 + torso_shift, 20 + base_y, 24, 14))
+        pygame.draw.ellipse(surf, body_dark, (10 + torso_shift, 22 + base_y, 20, 10))
+
+        # Хвост
+        tail = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        for i in range(3):
+            pygame.draw.circle(
+                tail,
+                body_dark,
+                (8 - i * 3, 24 + base_y + tail_phase + i * 3),
+                2,
+            )
+        pygame.draw.polygon(tail, body_main, [(0, 30 + base_y), (4, 32 + base_y), (2, 28 + base_y)])
+        surf.blit(tail, (0, 0))
+
+        # Крылья
+        wings = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        for side, sign in (('left', -1), ('right', 1)):
+            dx = 2 if side == 'left' else 28
+            flap = wing_phase * sign
+            pygame.draw.ellipse(wings, wing, (dx, 12 + base_y + flap, 10, 14))
+            pygame.draw.ellipse(wings, body_dark, (dx, 12 + base_y + flap, 10, 14), 2)
+        surf.blit(wings, (0, 0))
+
+        # Голова
+        head = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = 26 + torso_shift
+        head_y = 10 + base_y + head_tilt
+        pygame.draw.ellipse(head, body_main, (head_x, head_y, 12, 10))
+        # Глаза
+        pygame.draw.circle(head, eye, (head_x + 3, head_y + 4), 2)
+        pygame.draw.circle(head, eye, (head_x + 9, head_y + 4), 2)
+        # Рога
+        pygame.draw.polygon(head, horn, [(head_x + 2, head_y + 2), (head_x, head_y - 2), (head_x + 4, head_y + 2)])
+        pygame.draw.polygon(head, horn, [(head_x + 10, head_y + 2), (head_x + 12, head_y - 2), (head_x + 8, head_y + 2)])
+        surf.blit(head, (0, 0))
+
+        # Дыхание (огонь/яд)
+        if breath_size > 0:
+            breath = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            for i in range(breath_size):
+                pygame.draw.circle(
+                    breath,
+                    (120, 230, 120, 140),
+                    (38 + i * 2, head_y + 4),
+                    max(1, 3 - i),
+                )
+            surf.blit(breath, (0, 0))
+
+        return surf
+
+    params_map = {
+        'Idle': dict(torso_shift=0, head_tilt=0, crouch=0, wing_phase=0, tail_phase=0, breath_size=0),
+        'IdleBreath': dict(torso_shift=-1, head_tilt=-1, crouch=0, wing_phase=1, tail_phase=1, breath_size=0),
+        'Walk': dict(torso_shift=-1, head_tilt=0, crouch=0, wing_phase=2, tail_phase=2, breath_size=0),
+        'WalkAlt': dict(torso_shift=1, head_tilt=0, crouch=0, wing_phase=-2, tail_phase=-2, breath_size=0),
+        'AttackPrep': dict(torso_shift=-2, head_tilt=-2, crouch=1, wing_phase=-1, tail_phase=3, breath_size=1),
+        'AttackStrike': dict(torso_shift=1, head_tilt=1, crouch=-1, wing_phase=3, tail_phase=4, breath_size=3),
+        'AttackRecover': dict(torso_shift=0, head_tilt=0, crouch=0, wing_phase=1, tail_phase=2, breath_size=0),
+        'Hurt': dict(torso_shift=-1, head_tilt=-4, crouch=2, wing_phase=-2, tail_phase=-2, breath_size=0),
+        'Death': dict(torso_shift=-2, head_tilt=5, crouch=5, wing_phase=0, tail_phase=0, breath_size=0),
+        'Corpse': dict(torso_shift=-2, head_tilt=5, crouch=6, wing_phase=0, tail_phase=0, breath_size=0),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_zombie_texture(animation_state='Idle'):
+    """Процедурная анимация зомби: тяжёлые шаги и замах руками."""
+    cache_key = f'zombie_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        torso_shift=0,
+        head_tilt=0,
+        crouch=0,
+        arm_swing=0,
+        shamble_phase=0,
+    ):
+        surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (24, 32, 24, 190)
+        body = (90, 125, 95)
+        body_dark = (70, 105, 80)
+        skin = (155, 195, 160)
+        skin_dark = (135, 175, 140)
+
+        base_y = crouch
+        pygame.draw.ellipse(surf, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        # Тело
+        torso = pygame.Rect(14 + torso_shift, 18 + base_y, 14, 14)
+        pygame.draw.rect(surf, body, torso)
+        pygame.draw.rect(surf, body_dark, torso, 2)
+
+        # Голова
+        head = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = 21 + torso_shift
+        head_y = 8 + base_y + head_tilt
+        pygame.draw.ellipse(head, skin, (head_x - 5, head_y, 10, 10))
+        pygame.draw.ellipse(head, skin_dark, (head_x - 3, head_y + 2, 6, 6))
+        pygame.draw.circle(head, (20, 55, 30), (head_x - 1, head_y + 4), 2)
+        pygame.draw.circle(head, (20, 55, 30), (head_x + 2, head_y + 4), 2)
+        surf.blit(head, (0, 0))
+
+        # Руки
+        arms = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.line(
+            arms,
+            skin,
+            (14 + torso_shift, 22 + base_y),
+            (10 + torso_shift - arm_swing, 30 + base_y + shamble_phase),
+            3,
+        )
+        pygame.draw.line(
+            arms,
+            skin,
+            (26 + torso_shift, 22 + base_y),
+            (30 + torso_shift + arm_swing, 30 + base_y - shamble_phase),
+            3,
+        )
+        surf.blit(arms, (0, 0))
+
+        # Ноги
+        for i, x in enumerate((16, 22)):
+            dy = shamble_phase if i == 0 else -shamble_phase
+            pygame.draw.rect(surf, body_dark, (x, 30 + base_y + dy, 4, 10))
+
+        return surf
+
+    params_map = {
+        'Idle': dict(torso_shift=0, head_tilt=0, crouch=0, arm_swing=0, shamble_phase=0),
+        'IdleBreath': dict(torso_shift=-1, head_tilt=-1, crouch=0, arm_swing=1, shamble_phase=1),
+        'Walk': dict(torso_shift=-1, head_tilt=0, crouch=0, arm_swing=2, shamble_phase=2),
+        'WalkAlt': dict(torso_shift=1, head_tilt=0, crouch=0, arm_swing=-2, shamble_phase=-2),
+        'AttackPrep': dict(torso_shift=-2, head_tilt=-2, crouch=1, arm_swing=-3, shamble_phase=2),
+        'AttackStrike': dict(torso_shift=1, head_tilt=1, crouch=-1, arm_swing=4, shamble_phase=3),
+        'AttackRecover': dict(torso_shift=0, head_tilt=0, crouch=0, arm_swing=1, shamble_phase=1),
+        'Hurt': dict(torso_shift=-1, head_tilt=-4, crouch=2, arm_swing=-2, shamble_phase=-2),
+        'Death': dict(torso_shift=-2, head_tilt=5, crouch=5, arm_swing=0, shamble_phase=0),
+        'Corpse': dict(torso_shift=-2, head_tilt=5, crouch=6, arm_swing=0, shamble_phase=0),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_ghost_texture(animation_state='Idle'):
+    """Процедурная анимация призрака: парение, дрожащий силуэт и вспышки ауры."""
+    cache_key = f'ghost_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        float_phase=0,
+        aura_pulse=0,
+        head_tilt=0,
+    ):
+        surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        base_y = -2 + float_phase
+        body_main = (220, 220, 255, 180)
+        body_inner = (200, 200, 235, 160)
+        face = (240, 240, 255, 200)
+
+        ghost = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.ellipse(ghost, body_main, (10, 8 + base_y, 20, 18))
+        pygame.draw.ellipse(ghost, body_inner, (12, 10 + base_y, 16, 14))
+        pygame.draw.ellipse(ghost, face, (14, 10 + base_y, 12, 8))
+        pygame.draw.circle(ghost, (100, 100, 200, 180), (18, 14 + base_y), 2)
+        pygame.draw.circle(ghost, (100, 100, 200, 180), (22, 14 + base_y), 2)
+        pygame.draw.arc(ghost, (120, 120, 200, 160), (18, 16 + base_y, 4, 3), 0, 3.14, 2)
+        # нижняя волнистая часть
+        pygame.draw.arc(ghost, (120, 120, 180, 120), (6, 18 + base_y, 28, 18), 3.14, 0, 3)
+
+        # Аура
+        for i in range(3):
+            pygame.draw.circle(
+                ghost,
+                (200, 200, 255, 60 - i * 15 + aura_pulse),
+                (20, 20 + base_y),
+                8 + i * 3,
+                1,
+            )
+
+        surf.blit(ghost, (0, 0))
+        return surf
+
+    params_map = {
+        'Idle': dict(float_phase=0, aura_pulse=0, head_tilt=0),
+        'IdleBreath': dict(float_phase=1, aura_pulse=10, head_tilt=-1),
+        'Walk': dict(float_phase=2, aura_pulse=15, head_tilt=0),
+        'WalkAlt': dict(float_phase=-2, aura_pulse=15, head_tilt=0),
+        'AttackPrep': dict(float_phase=1, aura_pulse=20, head_tilt=-2),
+        'AttackStrike': dict(float_phase=-1, aura_pulse=30, head_tilt=1),
+        'AttackRecover': dict(float_phase=0, aura_pulse=10, head_tilt=0),
+        'Hurt': dict(float_phase=3, aura_pulse=0, head_tilt=-4),
+        'Death': dict(float_phase=4, aura_pulse=0, head_tilt=5),
+        'Corpse': dict(float_phase=5, aura_pulse=0, head_tilt=5),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        fade = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        fade.fill((0, 0, 0, 80))
+        surface.blit(fade, (0, 0))
+    elif animation_state == 'Corpse':
+        # лёгкое прозрачное пятно вместо тела
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.ellipse(corpse_surface, (180, 180, 220, 120), (8, 20, 24, 10))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_vampire_texture(animation_state='Idle'):
+    """Процедурная анимация вампира: плащ, шаги и выпад с клыками."""
+    cache_key = f'vampire_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        leg_front_shift=0,
+        leg_back_shift=0,
+        torso_shift=0,
+        head_tilt=0,
+        crouch=0,
+        cloak_sway=0,
+        arm_reach=0,
+    ):
+        surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (30, 18, 26, 180)
+        body = (120, 40, 80)
+        body_inner = (100, 20, 60)
+        skin = (220, 220, 220)
+        skin_dark = (200, 200, 200)
+        cloak_outer = (180, 0, 0)
+        cloak_inner = (160, 0, 0)
+
+        base_y = crouch
+        pygame.draw.ellipse(surf, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        # Плащ
+        cloak = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.polygon(
+            cloak,
+            cloak_outer,
+            [(20 + torso_shift, 16 + base_y),
+             (26 + cloak_sway, 24 + base_y),
+             (14 + cloak_sway, 24 + base_y)],
+        )
+        pygame.draw.polygon(
+            cloak,
+            cloak_inner,
+            [(20 + torso_shift, 16 + base_y),
+             (24 + cloak_sway, 22 + base_y),
+             (16 + cloak_sway, 22 + base_y)],
+        )
+        surf.blit(cloak, (0, 0))
+
+        # Тело
+        torso = pygame.Rect(14 + torso_shift, 18 + base_y, 12, 14)
+        pygame.draw.ellipse(surf, body, torso)
+        pygame.draw.ellipse(surf, body_inner, torso.inflate(-4, -4))
+
+        # Голова
+        head = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = 20 + torso_shift
+        head_y = 8 + base_y + head_tilt
+        pygame.draw.ellipse(head, skin, (head_x - 4, head_y, 8, 8))
+        pygame.draw.ellipse(head, skin_dark, (head_x - 3, head_y + 1, 6, 5))
+        pygame.draw.circle(head, (200, 0, 0), (head_x - 1, head_y + 3), 2)
+        pygame.draw.circle(head, (200, 0, 0), (head_x + 1, head_y + 3), 2)
+        pygame.draw.circle(head, (255, 100, 100), (head_x - 1, head_y + 3), 1)
+        pygame.draw.circle(head, (255, 100, 100), (head_x + 1, head_y + 3), 1)
+        # клыки
+        pygame.draw.rect(head, (255, 255, 255), (head_x - 2, head_y + 5, 1, 2))
+        pygame.draw.rect(head, (255, 255, 255), (head_x + 1, head_y + 5, 1, 2))
+        surf.blit(head, (0, 0))
+
+        # Руки
+        arms = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.line(
+            arms,
+            body_inner,
+            (20 + torso_shift, 24 + base_y),
+            (12 + torso_shift - arm_reach, 34 + base_y),
+            3,
+        )
+        pygame.draw.line(
+            arms,
+            body_inner,
+            (20 + torso_shift, 24 + base_y),
+            (28 + torso_shift + arm_reach, 34 + base_y),
+            3,
+        )
+        surf.blit(arms, (0, 0))
+
+        # Ноги
+        pygame.draw.rect(surf, body_inner, (16 + leg_back_shift, 30 + base_y, 3, 10))
+        pygame.draw.rect(surf, body_inner, (21 + leg_front_shift, 30 + base_y, 3, 10))
+
+        return surf
+
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, cloak_sway=0, arm_reach=0),
+        'IdleBreath': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-1, head_tilt=-1, crouch=0, cloak_sway=1, arm_reach=0),
+        'Walk': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=0, crouch=0, cloak_sway=2, arm_reach=1),
+        'WalkAlt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=1, head_tilt=0, crouch=0, cloak_sway=-2, arm_reach=-1),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, cloak_sway=-1, arm_reach=-2),
+        'AttackStrike': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=2, head_tilt=1, crouch=-1, cloak_sway=3, arm_reach=3),
+        'AttackRecover': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, cloak_sway=1, arm_reach=1),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-4, crouch=2, cloak_sway=-2, arm_reach=-1),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-3, head_tilt=5, crouch=5, cloak_sway=0, arm_reach=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-3, head_tilt=5, crouch=6, cloak_sway=0, arm_reach=0),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_lich_texture(animation_state='Idle'):
+    """Процедурная анимация лича: парящий маг в мантии с поднятым посохом."""
+    cache_key = f'lich_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        float_phase=0,
+        staff_angle=0,
+        staff_raise=0,
+        aura_pulse=0,
+    ):
+        surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        base_y = -1 + float_phase
+        robe = (120, 80, 180)
+        robe_dark = (100, 60, 160)
+        bone = (235, 240, 245)
+        bone_dark = (185, 190, 200)
+        glow = (150, 110, 210)
+
+        # Тело
+        pygame.draw.ellipse(surf, bone, (10, 8 + base_y, 20, 18))
+        pygame.draw.ellipse(surf, bone_dark, (12, 10 + base_y, 16, 14))
+        # Лицо
+        pygame.draw.ellipse(surf, bone, (14, 10 + base_y, 12, 8))
+        pygame.draw.circle(surf, (80, 40, 120), (18, 14 + base_y), 3)
+        pygame.draw.circle(surf, (80, 40, 120), (22, 14 + base_y), 3)
+        pygame.draw.circle(surf, glow, (18, 14 + base_y), 1)
+        pygame.draw.circle(surf, glow, (22, 14 + base_y), 1)
+
+        # Мантия
+        pygame.draw.rect(surf, robe, (14, 24 + base_y, 12, 10))
+        pygame.draw.rect(surf, robe_dark, (16, 26 + base_y, 8, 6))
+
+        # Посох
+        staff = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.line(
+            staff,
+            (100, 80, 60),
+            (26, 12 + base_y + staff_raise),
+            (26, 36 + base_y + staff_raise),
+            3,
+        )
+        pygame.draw.circle(staff, glow, (26, 10 + base_y + staff_raise), 4)
+        if staff_angle:
+            rot = pygame.transform.rotate(staff, staff_angle)
+            rect = rot.get_rect(center=(CELL_SIZE // 2 + 4, CELL_SIZE // 2))
+            surf.blit(rot, rect.topleft)
+        else:
+            surf.blit(staff, (0, 0))
+
+        # Аура
+        for i in range(2):
+            pygame.draw.circle(
+                surf,
+                (200, 160, 255, 80 - i * 20 + aura_pulse),
+                (20, 22 + base_y),
+                10 + i * 3,
+                1,
+            )
+
+        return surf
+
+    params_map = {
+        'Idle': dict(float_phase=0, staff_angle=0, staff_raise=0, aura_pulse=0),
+        'IdleBreath': dict(float_phase=1, staff_angle=2, staff_raise=-1, aura_pulse=10),
+        'Walk': dict(float_phase=2, staff_angle=4, staff_raise=-1, aura_pulse=15),
+        'WalkAlt': dict(float_phase=-2, staff_angle=-4, staff_raise=-1, aura_pulse=15),
+        'AttackPrep': dict(float_phase=1, staff_angle=-15, staff_raise=-3, aura_pulse=20),
+        'AttackStrike': dict(float_phase=-1, staff_angle=10, staff_raise=-4, aura_pulse=30),
+        'AttackRecover': dict(float_phase=0, staff_angle=4, staff_raise=-1, aura_pulse=10),
+        'Hurt': dict(float_phase=3, staff_angle=8, staff_raise=1, aura_pulse=0),
+        'Death': dict(float_phase=4, staff_angle=20, staff_raise=3, aura_pulse=0),
+        'Corpse': dict(float_phase=5, staff_angle=20, staff_raise=3, aura_pulse=0),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        fade = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        fade.fill((0, 0, 0, 80))
+        surface.blit(fade, (0, 0))
+    elif animation_state == 'Corpse':
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.ellipse(corpse_surface, (180, 160, 210, 150), (8, 22, 24, 10))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
 def load_crossbowman_texture(animation_state='Idle'):
     """Новая генерация профильной текстуры арбалетчика с расширенными кадрами."""
     cache_key = f'crossbowman_v2_{animation_state}'
@@ -1429,21 +1913,21 @@ def _render_elf_hero(hero_class):
 
 
 def _render_undead_hero(hero_class):
-    """Детализированная текстура героя нежити с понятной структурой тела."""
+    """Детализированная текстура героя нежити в более холодном, контрастном стиле костей и тёмной брони."""
     surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-    armor_base = (140, 140, 160)
-    armor_mid = (120, 120, 140)
-    armor_shadow = (80, 80, 100)
-    cloth_primary = (100, 80, 140)
-    cloth_dark = (80, 60, 110)
-    gold = (180, 120, 255)
-    bone = (220, 220, 220)
-    bone_dark = (180, 180, 180)
-    dark_metal = (100, 100, 120)
-    glow = (180, 40, 220)
+    armor_base = (90, 90, 110)
+    armor_mid = (120, 120, 150)
+    armor_shadow = (50, 50, 70)
+    cloth_primary = (70, 50, 110)
+    cloth_dark = (50, 35, 90)
+    gold = (200, 150, 255)
+    bone = (215, 220, 230)
+    bone_dark = (170, 175, 185)
+    dark_metal = (90, 95, 120)
+    glow = (140, 80, 210)
 
     # Тень
-    pygame.draw.ellipse(surf, (38, 34, 48, 160), (6, CELL_SIZE - 8, CELL_SIZE - 12, 6))
+    pygame.draw.ellipse(surf, (22, 24, 40, 185), (6, CELL_SIZE - 8, CELL_SIZE - 12, 6))
 
     # Ноги - отдельно видимые
     left_leg = pygame.Rect(14, 24, 7, 12)
@@ -1639,22 +2123,22 @@ def _render_demon_hero(hero_class):
 
 
 def _render_dwarf_hero(hero_class):
-    """Детализированная текстура героя гномов с понятной структурой тела."""
+    """Детализированная текстура героя гномов в более контрастном, «тяжёлом» стиле брони."""
     surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-    armor_base = (200, 200, 220)
-    armor_mid = (170, 170, 190)
-    armor_shadow = (140, 140, 160)
-    cloth_primary = (140, 160, 180)
-    cloth_dark = (120, 140, 160)
-    gold = (255, 215, 0)
-    skin = (220, 180, 120)
-    skin_shadow = (200, 160, 100)
-    beard = (140, 100, 60)
-    beard_dark = (120, 80, 50)
-    metal = (180, 180, 200)
+    armor_base = (150, 150, 170)
+    armor_mid = (120, 120, 140)
+    armor_shadow = (80, 80, 100)
+    cloth_primary = (110, 130, 150)
+    cloth_dark = (80, 100, 130)
+    gold = (220, 190, 90)
+    skin = (210, 170, 120)
+    skin_shadow = (185, 140, 95)
+    beard = (130, 90, 55)
+    beard_dark = (100, 70, 45)
+    metal = (170, 170, 190)
 
     # Тень
-    pygame.draw.ellipse(surf, (48, 54, 64, 160), (6, CELL_SIZE - 8, CELL_SIZE - 12, 6))
+    pygame.draw.ellipse(surf, (28, 30, 38, 180), (6, CELL_SIZE - 8, CELL_SIZE - 12, 6))
 
     # Ноги - отдельно видимые (короткие у гнома)
     left_leg = pygame.Rect(14, 26, 7, 10)
@@ -2746,38 +3230,459 @@ def load_elf_scout_texture(animation_state='Idle'):
 
 
 def load_skeleton_texture(animation_state='Idle'):
-    """Процедурная текстура скелета по образцу людей."""
-    cache_key = f'skeleton_v2_{animation_state}'
+    """Процедурная анимация скелета в стиле новой нежити: несколько поз (idle, walk, attack, hurt, death)."""
+    cache_key = f'skeleton_v3_{animation_state}'
     if cache_key in _texture_cache:
         return _texture_cache[cache_key]
-    
-    # Используем простую статичную текстуру пока
-    surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
-    bone = (220, 220, 220)
-    bone_dark = (180, 180, 180)
-    shadow = (40, 40, 50, 170)
-    
-    pygame.draw.ellipse(surf, shadow, (6, CELL_SIZE - 8, CELL_SIZE - 12, 6))
-    
-    # Тело
-    pygame.draw.rect(surf, bone, (16, 14, 18, 16))
-    pygame.draw.rect(surf, bone_dark, (16, 14, 18, 16), 2)
-    
-    # Череп
-    pygame.draw.ellipse(surf, bone, (18, 4, 14, 12))
-    pygame.draw.circle(surf, (20, 20, 40), (22, 10), 2)
-    pygame.draw.circle(surf, (20, 20, 40), (28, 10), 2)
-    
-    # Кости
-    pygame.draw.rect(surf, bone, (14, 22, 8, 14))
-    pygame.draw.rect(surf, bone, (28, 22, 8, 14))
-    
-    # Меч
-    pygame.draw.rect(surf, bone_dark, (30, 16, 6, 18))
-    pygame.draw.polygon(surf, (160, 160, 180), [(30, 16), (32, 12), (34, 16)])
-    
-    _texture_cache[cache_key] = surf
-    return surf
+
+    def build_pose(
+        torso_shift=0,
+        head_tilt=0,
+        crouch=0,
+        sword_angle=0,
+        sword_raise=0,
+        sword_reach=0,
+        arm_swing=0,
+    ):
+        surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        bone = (215, 220, 230)
+        bone_dark = (170, 175, 185)
+        shadow = (26, 26, 38, 185)
+
+        base_y = crouch
+
+        # Тень
+        pygame.draw.ellipse(surf, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        # Тело
+        body = pygame.Rect(16 + torso_shift, 16 + base_y, 18, 14)
+        pygame.draw.rect(surf, bone, body)
+        pygame.draw.rect(surf, bone_dark, body, 2)
+        # Рёбра
+        for i in range(3):
+            pygame.draw.line(surf, bone_dark, (18 + torso_shift, 18 + base_y + i * 3), (32 + torso_shift, 18 + base_y + i * 3), 1)
+
+        # Череп
+        head_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = 23 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(head_surface, bone, (head_x - 7, head_y - 4, 14, 10))
+        pygame.draw.ellipse(head_surface, bone_dark, (head_x - 5, head_y - 2, 10, 6))
+        # Глазницы
+        pygame.draw.circle(head_surface, (10, 10, 30), (head_x - 3, head_y), 2)
+        pygame.draw.circle(head_surface, (10, 10, 30), (head_x + 3, head_y), 2)
+        pygame.draw.circle(head_surface, (120, 80, 200), (head_x - 3, head_y), 1)
+        pygame.draw.circle(head_surface, (120, 80, 200), (head_x + 3, head_y), 1)
+        # Челюсть
+        pygame.draw.arc(head_surface, (40, 40, 60), (head_x - 4, head_y + 2, 8, 4), 0, 3.14, 2)
+        surf.blit(head_surface, (0, 0))
+
+        # Ноги
+        left_leg = pygame.Rect(16 + torso_shift, 28 + base_y, 5, 10)
+        right_leg = pygame.Rect(27 + torso_shift, 28 + base_y, 5, 10)
+        pygame.draw.rect(surf, bone, left_leg)
+        pygame.draw.rect(surf, bone_dark, left_leg, 1)
+        pygame.draw.rect(surf, bone, right_leg)
+        pygame.draw.rect(surf, bone_dark, right_leg, 1)
+        # Ступни
+        pygame.draw.rect(surf, bone, (left_leg.x, left_leg.bottom - 2, left_leg.width, 2))
+        pygame.draw.rect(surf, bone, (right_leg.x, right_leg.bottom - 2, right_leg.width, 2))
+
+        # Руки + меч
+        arms = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        # Левая рука (щит/свободная)
+        left_arm_y = 20 + base_y + arm_swing
+        pygame.draw.line(arms, bone, (16 + torso_shift, 20 + base_y), (12 + torso_shift, left_arm_y + 6), 2)
+        # Правая рука с мечом
+        right_arm_y = 20 + base_y - arm_swing
+        pygame.draw.line(arms, bone, (30 + torso_shift, 20 + base_y), (34 + torso_shift, right_arm_y + 4), 2)
+        # Меч
+        sword_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(sword_surface, bone_dark, (30, 14 + base_y + sword_raise, 6, 18))
+        pygame.draw.polygon(sword_surface, (200, 200, 220), [(30, 14 + base_y + sword_raise),
+                                                             (33, 10 + base_y + sword_raise),
+                                                             (36, 14 + base_y + sword_raise)])
+        if sword_angle or sword_reach:
+            sword_rot = pygame.transform.rotate(sword_surface, sword_angle)
+            rect = sword_rot.get_rect(center=(CELL_SIZE // 2 + 4 + sword_reach, CELL_SIZE // 2))
+            arms.blit(sword_rot, rect.topleft)
+        else:
+            arms.blit(sword_surface, (0, 0))
+
+        surf.blit(arms, (0, 0))
+        return surf
+
+    params_map = {
+        'Idle': dict(torso_shift=0, head_tilt=0, crouch=0, sword_angle=0, sword_raise=0, sword_reach=0, arm_swing=0),
+        'IdleBreath': dict(torso_shift=-1, head_tilt=-1, crouch=0, sword_angle=2, sword_raise=-1, sword_reach=0, arm_swing=1),
+        'Walk': dict(torso_shift=-1, head_tilt=0, crouch=0, sword_angle=5, sword_raise=-1, sword_reach=0, arm_swing=2),
+        'WalkAlt': dict(torso_shift=1, head_tilt=0, crouch=0, sword_angle=-5, sword_raise=-1, sword_reach=0, arm_swing=-2),
+        'AttackPrep': dict(torso_shift=-2, head_tilt=-2, crouch=1, sword_angle=-25, sword_raise=-3, sword_reach=-2, arm_swing=-1),
+        'AttackStrike': dict(torso_shift=1, head_tilt=1, crouch=-1, sword_angle=20, sword_raise=-4, sword_reach=4, arm_swing=2),
+        'AttackRecover': dict(torso_shift=0, head_tilt=0, crouch=1, sword_angle=5, sword_raise=-1, sword_reach=0, arm_swing=0),
+        'Hurt': dict(torso_shift=-1, head_tilt=-4, crouch=3, sword_angle=12, sword_raise=1, sword_reach=-1, arm_swing=-3),
+        'Death': dict(torso_shift=-2, head_tilt=5, crouch=5, sword_angle=40, sword_raise=3, sword_reach=-3, arm_swing=-4),
+        'Corpse': dict(torso_shift=-2, head_tilt=5, crouch=6, sword_angle=45, sword_raise=3, sword_reach=-3, arm_swing=-4),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_monk_texture(animation_state='Idle'):
+    """Процедурная анимация монаха: спокойные позы, лёгкие шаги и удар посохом."""
+    cache_key = f'monk_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        leg_front_shift=0,
+        leg_back_shift=0,
+        torso_shift=0,
+        head_tilt=0,
+        crouch=0,
+        staff_angle=0,
+        staff_raise=0,
+        prayer_hands=False,
+    ):
+        surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (38, 34, 30, 170)
+        robe = (135, 110, 80)
+        robe_dark = (100, 80, 60)
+        skin = (230, 210, 180)
+        skin_dark = (200, 180, 150)
+        cord = (200, 190, 150)
+
+        base_y = crouch
+        pygame.draw.ellipse(surf, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        # Ноги под робой
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(surf, robe_dark, left_leg)
+        pygame.draw.rect(surf, robe_dark, right_leg)
+
+        # Роба
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 14)
+        pygame.draw.rect(surf, robe, torso)
+        pygame.draw.rect(surf, robe_dark, torso, 2)
+        # Пояс
+        pygame.draw.rect(surf, cord, (torso.x, torso.y + 9, torso.w, 2))
+
+        # Голова
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        head_surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.ellipse(head_surf, skin, (head_x - 6, head_y, 12, 10))
+        pygame.draw.ellipse(head_surf, skin_dark, (head_x - 4, head_y + 2, 8, 6))
+        # Глаза
+        pygame.draw.circle(head_surf, (40, 30, 20), (head_x - 2, head_y + 4), 1)
+        pygame.draw.circle(head_surf, (40, 30, 20), (head_x + 2, head_y + 4), 1)
+        # Капюшон
+        pygame.draw.ellipse(head_surf, robe_dark, (head_x - 7, head_y - 2, 14, 8), 2)
+        surf.blit(head_surf, (0, 0))
+
+        # Руки
+        arms = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        if prayer_hands:
+            # Руки сложены у груди
+            pygame.draw.ellipse(arms, skin, (18 + torso_shift, 18 + base_y, 8, 6))
+            pygame.draw.ellipse(arms, skin_dark, (19 + torso_shift, 19 + base_y, 6, 4))
+        else:
+            left_arm = pygame.Rect(12 + torso_shift, 18 + base_y, 4, 8)
+            right_arm = pygame.Rect(26 + torso_shift, 18 + base_y, 4, 8)
+            pygame.draw.rect(arms, skin, left_arm)
+            pygame.draw.rect(arms, skin_dark, left_arm, 1)
+            pygame.draw.rect(arms, skin, right_arm)
+            pygame.draw.rect(arms, skin_dark, right_arm, 1)
+
+        # Посох
+        staff_surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.line(
+            staff_surf,
+            (120, 90, 60),
+            (26, 12 + base_y + staff_raise),
+            (30, 40 + base_y),
+            3,
+        )
+        pygame.draw.circle(staff_surf, (220, 210, 150), (26, 12 + base_y + staff_raise), 3)
+        if staff_angle:
+            staff_rot = pygame.transform.rotate(staff_surf, staff_angle)
+            rect = staff_rot.get_rect(center=(CELL_SIZE // 2 + 6, CELL_SIZE // 2))
+            arms.blit(staff_rot, rect.topleft)
+        else:
+            arms.blit(staff_surf, (0, 0))
+
+        surf.blit(arms, (0, 0))
+        return surf
+
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, staff_angle=0, staff_raise=0, prayer_hands=True),
+        'IdleBreath': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-1, head_tilt=-1, crouch=0, staff_angle=2, staff_raise=-1, prayer_hands=True),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, staff_angle=4, staff_raise=-1, prayer_hands=False),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, staff_angle=-4, staff_raise=-1, prayer_hands=False),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, staff_angle=-20, staff_raise=-4, prayer_hands=False),
+        'AttackStrike': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=1, head_tilt=1, crouch=-1, staff_angle=10, staff_raise=-6, prayer_hands=False),
+        'AttackRecover': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, staff_angle=0, staff_raise=-1, prayer_hands=True),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, staff_angle=8, staff_raise=1, prayer_hands=False),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-3, head_tilt=5, crouch=5, staff_angle=20, staff_raise=3, prayer_hands=False),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-3, head_tilt=5, crouch=6, staff_angle=22, staff_raise=3, prayer_hands=False),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 88)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_angel_texture(animation_state='Idle'):
+    """Процедурная анимация ангела: парение, шаги и рубящий удар мечом."""
+    cache_key = f'angel_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        leg_front_shift=0,
+        leg_back_shift=0,
+        torso_shift=0,
+        head_tilt=0,
+        crouch=0,
+        wing_flap=0,
+        sword_angle=0,
+        sword_raise=0,
+        sword_reach=0,
+    ):
+        surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (200, 210, 230, 120)
+        armor = (205, 210, 235)
+        armor_shadow = (160, 170, 200)
+        cloth = (230, 235, 250)
+        skin = (235, 220, 200)
+        hair = (245, 215, 155)
+        gold = (230, 200, 120)
+
+        base_y = crouch
+        pygame.draw.ellipse(surf, shadow, (6, CELL_SIZE - 10 - base_y, CELL_SIZE - 12, 5))
+
+        # Ноги
+        left_leg = pygame.Rect(16 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 25 + base_y, 6, 11)
+        pygame.draw.rect(surf, armor, left_leg)
+        pygame.draw.rect(surf, armor_shadow, left_leg, 1)
+        pygame.draw.rect(surf, armor, right_leg)
+        pygame.draw.rect(surf, armor_shadow, right_leg, 1)
+
+        # Тело / доспех
+        torso = pygame.Rect(15 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(surf, armor, torso)
+        pygame.draw.rect(surf, armor_shadow, torso, 2)
+        pygame.draw.rect(surf, cloth, (torso.x + 3, torso.y + 2, torso.w - 6, torso.h - 4))
+
+        # Голова
+        head_surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        head_x = 23 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(head_surf, skin, (head_x - 6, head_y, 12, 10))
+        pygame.draw.ellipse(head_surf, (220, 205, 190), (head_x - 4, head_y + 2, 8, 6))
+        pygame.draw.circle(head_surf, (40, 30, 20), (head_x - 2, head_y + 4), 1)
+        pygame.draw.circle(head_surf, (40, 30, 20), (head_x + 2, head_y + 4), 1)
+        # Волосы
+        pygame.draw.ellipse(head_surf, hair, (head_x - 7, head_y - 2, 14, 6))
+        # Нимб
+        pygame.draw.ellipse(head_surf, (255, 245, 200), (head_x - 8, head_y - 6, 16, 4), 1)
+        surf.blit(head_surf, (0, 0))
+
+        # Крылья
+        wings = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        flap_y = int(wing_flap * 1.5)
+        pygame.draw.ellipse(wings, (250, 250, 255), (4, 14 + flap_y, 12, 18))
+        pygame.draw.ellipse(wings, (230, 235, 250), (4, 14 + flap_y, 12, 18), 2)
+        pygame.draw.ellipse(wings, (250, 250, 255), (28, 14 - flap_y, 12, 18))
+        pygame.draw.ellipse(wings, (230, 235, 250), (28, 14 - flap_y, 12, 18), 2)
+        surf.blit(wings, (0, 0))
+
+        # Руки и меч
+        arms = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        left_arm = pygame.Rect(14 + torso_shift, 18 + base_y, 4, 8)
+        right_arm = pygame.Rect(26 + torso_shift, 18 + base_y, 4, 8)
+        pygame.draw.rect(arms, skin, left_arm)
+        pygame.draw.rect(arms, (210, 195, 180), left_arm, 1)
+        pygame.draw.rect(arms, skin, right_arm)
+        pygame.draw.rect(arms, (210, 195, 180), right_arm, 1)
+
+        sword = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(sword, (230, 230, 245), (28, 16 + base_y + sword_raise, 4, 14))
+        pygame.draw.rect(sword, gold, (26, 14 + base_y + sword_raise, 8, 3))
+        pygame.draw.polygon(sword, (250, 250, 255), [(30, 14 + base_y + sword_raise),
+                                                     (28, 10 + base_y + sword_raise),
+                                                     (32, 10 + base_y + sword_raise)])
+        if sword_angle or sword_reach:
+            rot = pygame.transform.rotate(sword, sword_angle)
+            rect = rot.get_rect(center=(CELL_SIZE // 2 + 6 + sword_reach, CELL_SIZE // 2))
+            arms.blit(rot, rect.topleft)
+        else:
+            arms.blit(sword, (0, 0))
+
+        surf.blit(arms, (0, 0))
+        return surf
+
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, wing_flap=0, sword_angle=0, sword_raise=0, sword_reach=0),
+        'IdleBreath': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-1, head_tilt=-1, crouch=0, wing_flap=1, sword_angle=2, sword_raise=-1, sword_reach=0),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, wing_flap=2, sword_angle=4, sword_raise=-1, sword_reach=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, wing_flap=-2, sword_angle=-4, sword_raise=-1, sword_reach=0),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, wing_flap=-1, sword_angle=-25, sword_raise=-3, sword_reach=-2),
+        'AttackStrike': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=2, head_tilt=1, crouch=-1, wing_flap=3, sword_angle=15, sword_raise=-5, sword_reach=4),
+        'AttackRecover': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, wing_flap=1, sword_angle=4, sword_raise=-1, sword_reach=0),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-4, crouch=2, wing_flap=-2, sword_angle=8, sword_raise=1, sword_reach=-1),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-3, head_tilt=5, crouch=5, wing_flap=-3, sword_angle=25, sword_raise=3, sword_reach=-3),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-3, head_tilt=5, crouch=6, wing_flap=-3, sword_angle=28, sword_raise=3, sword_reach=-3),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 88)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_cavalryman_texture(animation_state='Idle'):
+    """Процедурная анимация кавалериста: скачка и атакующий наскок копьём."""
+    cache_key = f'cavalryman_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+
+    def build_pose(
+        torso_shift=0,
+        head_tilt=0,
+        crouch=0,
+        horse_phase=0,
+        spear_angle=0,
+        spear_raise=0,
+        spear_reach=0,
+    ):
+        surf = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+
+        shadow = (40, 32, 24, 170)
+        horse_body = (140, 100, 60)
+        horse_shadow = (110, 80, 50)
+        armor = (180, 170, 160)
+        armor_dark = (120, 110, 100)
+        metal = (190, 190, 200)
+        skin = (230, 210, 185)
+
+        base_y = crouch
+        pygame.draw.ellipse(surf, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+
+        # Тело коня
+        pygame.draw.ellipse(surf, horse_body, (6, 22 + base_y, 28, 14))
+        pygame.draw.ellipse(surf, horse_shadow, (8, 24 + base_y, 24, 10))
+        # Голова коня
+        pygame.draw.ellipse(surf, horse_body, (24, 12 + base_y, 10, 10))
+        pygame.draw.circle(surf, (0, 0, 0), (28, 16 + base_y), 2)
+
+        # Ноги коня (простая фаза шага)
+        phase = horse_phase
+        for i, x in enumerate((10, 16, 22, 28)):
+            dy = (phase if i % 2 == 0 else -phase)
+            pygame.draw.rect(surf, horse_body, (x, 30 + base_y + dy, 3, 10))
+
+        # Всадник - торс
+        torso = pygame.Rect(14 + torso_shift, 12 + base_y, 12, 12)
+        pygame.draw.rect(surf, armor, torso)
+        pygame.draw.rect(surf, armor_dark, torso, 2)
+        # Всадник - голова
+        pygame.draw.ellipse(surf, skin, (16 + torso_shift, 6 + base_y + head_tilt, 8, 8))
+        pygame.draw.circle(surf, (0, 0, 0), (18 + torso_shift, 10 + base_y + head_tilt), 1)
+        pygame.draw.circle(surf, (0, 0, 0), (22 + torso_shift, 10 + base_y + head_tilt), 1)
+        # Шлем
+        pygame.draw.ellipse(surf, metal, (16 + torso_shift, 4 + base_y + head_tilt, 8, 6))
+
+        # Копьё
+        spear = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        pygame.draw.line(
+            spear,
+            (160, 140, 120),
+            (26, 10 + base_y + spear_raise),
+            (36, 4 + base_y + spear_raise),
+            3,
+        )
+        pygame.draw.polygon(spear, metal, [(36, 2 + base_y + spear_raise),
+                                           (38, 4 + base_y + spear_raise),
+                                           (36, 6 + base_y + spear_raise)])
+        if spear_angle or spear_reach:
+            rot = pygame.transform.rotate(spear, spear_angle)
+            rect = rot.get_rect(center=(CELL_SIZE // 2 + 4 + spear_reach, CELL_SIZE // 2))
+            surf.blit(rot, rect.topleft)
+        else:
+            surf.blit(spear, (0, 0))
+
+        return surf
+
+    params_map = {
+        'Idle': dict(torso_shift=0, head_tilt=0, crouch=0, horse_phase=0, spear_angle=0, spear_raise=0, spear_reach=0),
+        'IdleBreath': dict(torso_shift=-1, head_tilt=-1, crouch=0, horse_phase=1, spear_angle=2, spear_raise=-1, spear_reach=0),
+        'Walk': dict(torso_shift=-1, head_tilt=0, crouch=0, horse_phase=2, spear_angle=4, spear_raise=-1, spear_reach=0),
+        'WalkAlt': dict(torso_shift=1, head_tilt=0, crouch=0, horse_phase=-2, spear_angle=-4, spear_raise=-1, spear_reach=0),
+        'AttackPrep': dict(torso_shift=-2, head_tilt=-2, crouch=1, horse_phase=3, spear_angle=-20, spear_raise=-3, spear_reach=-2),
+        'AttackStrike': dict(torso_shift=2, head_tilt=1, crouch=-1, horse_phase=4, spear_angle=10, spear_raise=-5, spear_reach=4),
+        'AttackRecover': dict(torso_shift=0, head_tilt=0, crouch=0, horse_phase=1, spear_angle=4, spear_raise=-1, spear_reach=0),
+        'Hurt': dict(torso_shift=-1, head_tilt=-4, crouch=2, horse_phase=-2, spear_angle=8, spear_raise=1, spear_reach=-1),
+        'Death': dict(torso_shift=-2, head_tilt=5, crouch=5, horse_phase=0, spear_angle=25, spear_raise=3, spear_reach=-3),
+        'Corpse': dict(torso_shift=-2, head_tilt=5, crouch=6, horse_phase=0, spear_angle=28, spear_raise=3, spear_reach=-3),
+    }
+
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 70)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-8, 14))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 12))
+        surface = corpse_surface
+
+    _texture_cache[cache_key] = surface
+    return surface
 
 
 def load_dryad_texture(animation_state='Idle'):
@@ -3199,7 +4104,7 @@ def load_unicorn_texture(animation_state='Idle'):
 
 
 def load_imp_texture(animation_state='Idle'):
-    """Полноценная система анимаций для беса (imp) в стиле King's Bounty Dark Side."""
+    """Полноценная система анимаций для беса (imp) в более мрачном демоническом стиле."""
     cache_key = f'imp_v2_{animation_state}'
     if cache_key in _texture_cache:
         return _texture_cache[cache_key]
@@ -3219,16 +4124,17 @@ def load_imp_texture(animation_state='Idle'):
     ):
         body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
         
-        shadow = (20, 10, 8, 180)
-        skin = (140, 80, 60)  # Тёмная кожа
-        skin_dark = (100, 50, 35)
-        skin_light = (160, 100, 75)
-        horn = (60, 40, 30)  # Тёмные рога
-        horn_dark = (40, 25, 20)
-        eye_glow = (220, 20, 20)  # Яркие красные глаза
-        eye_bright = (255, 60, 60)
-        wing = (120, 60, 50)  # Тёмные крылья
-        wing_dark = (80, 40, 30)
+        shadow = (15, 5, 4, 190)
+        # Палитра — более адская: насыщенная красная кожа и почти чёрные рога/крылья
+        skin = (150, 60, 50)       # Бордовая кожа
+        skin_dark = (100, 30, 25)
+        skin_light = (190, 90, 70)
+        horn = (40, 20, 20)        # Почти чёрные рога
+        horn_dark = (25, 10, 10)
+        eye_glow = (240, 40, 40)   # Более насыщенное свечение
+        eye_bright = (255, 120, 120)
+        wing = (60, 20, 20)        # Тёмно-кровавые крылья
+        wing_dark = (30, 10, 10)
         
         base_y = crouch
         
@@ -3384,7 +4290,7 @@ def load_imp_texture(animation_state='Idle'):
 
 
 def load_gog_texture(animation_state='Idle'):
-    """Полноценная система анимаций для гога (дальнобойный демон) в стиле King's Bounty Dark Side."""
+    """Полноценная система анимаций для гога (дальнобойный демон) с более «адской» палитрой."""
     cache_key = f'gog_v2_{animation_state}'
     if cache_key in _texture_cache:
         return _texture_cache[cache_key]
@@ -3401,16 +4307,17 @@ def load_gog_texture(animation_state='Idle'):
     ):
         body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
         
-        shadow = (20, 10, 8, 180)
-        skin = (150, 90, 70)  # Тёмная кожа
-        skin_dark = (110, 60, 45)
-        skin_light = (170, 110, 85)
-        horn = (80, 50, 40)  # Тёмные рога
-        horn_dark = (60, 35, 30)
-        eye_glow = (240, 30, 30)  # Яркие красные глаза
-        eye_bright = (255, 80, 80)
-        fire = (255, 100, 40)  # Яркий огонь
-        fire_bright = (255, 180, 80)
+        shadow = (12, 4, 3, 195)
+        # Более контрастная красно-чёрная палитра
+        skin = (160, 70, 55)
+        skin_dark = (110, 35, 30)
+        skin_light = (195, 105, 80)
+        horn = (50, 25, 25)
+        horn_dark = (30, 12, 12)
+        eye_glow = (255, 60, 60)
+        eye_bright = (255, 130, 130)
+        fire = (255, 120, 40)
+        fire_bright = (255, 210, 90)
         
         base_y = crouch
         
@@ -3561,7 +4468,7 @@ def load_gog_texture(animation_state='Idle'):
 
 
 def load_demon_texture(animation_state='Idle'):
-    """Полноценная система анимаций для демона (воин) в стиле King's Bounty Dark Side."""
+    """Полноценная система анимаций для демона-воина в более тяжёлом, мрачном стиле."""
     cache_key = f'demon_v2_{animation_state}'
     if cache_key in _texture_cache:
         return _texture_cache[cache_key]
@@ -3584,20 +4491,21 @@ def load_demon_texture(animation_state='Idle'):
         sword = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
         shield = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
         
-        shadow = (20, 10, 8, 180)
-        skin = (160, 100, 80)  # Тёмная кожа
-        skin_dark = (120, 70, 55)
-        skin_light = (180, 120, 95)
-        armor = (80, 50, 40)  # Тёмная броня
-        armor_dark = (50, 30, 25)
-        armor_metal = (120, 110, 100)  # Металлические детали
-        horn = (70, 45, 35)  # Тёмные рога
-        horn_dark = (50, 30, 25)
-        eye_glow = (240, 20, 20)  # Яркие красные глаза
-        eye_bright = (255, 70, 70)
-        metal = (140, 140, 160)  # Тёмный металл
-        wing = (100, 50, 40)  # Тёмные крылья
-        wing_dark = (70, 35, 30)
+        shadow = (10, 4, 3, 200)
+        # Палитра демона: более тёмная броня и насыщенно-красная кожа
+        skin = (150, 60, 50)
+        skin_dark = (110, 35, 30)
+        skin_light = (190, 90, 75)
+        armor = (40, 25, 30)        # Почти чёрная броня
+        armor_dark = (20, 10, 15)
+        armor_metal = (130, 120, 120)  # Холодный металл
+        horn = (50, 25, 25)
+        horn_dark = (30, 12, 12)
+        eye_glow = (255, 60, 60)
+        eye_bright = (255, 140, 140)
+        metal = (150, 150, 170)
+        wing = (45, 15, 20)         # Тёмно-кровавые крылья
+        wing_dark = (25, 8, 10)
         
         base_y = crouch
         
@@ -3782,18 +4690,24 @@ def load_demon_texture(animation_state='Idle'):
         return body
 
     params_map = {
-        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, sword_angle=90, sword_raise=0, shield_tilt=0, tail_angle=90, wing_flap=0),
-        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, sword_angle=92, sword_raise=0, shield_tilt=0, tail_angle=95, wing_flap=1),
-        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, sword_angle=92, sword_raise=0, shield_tilt=0, tail_angle=100, wing_flap=2),
-        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, sword_angle=88, sword_raise=0, shield_tilt=0, tail_angle=80, wing_flap=-2),
-        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, sword_angle=60, sword_raise=-2, shield_tilt=-10, tail_angle=70, wing_flap=-1),
-        'AttackStrike': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=1, head_tilt=1, sword_angle=30, sword_raise=-4, sword_reach=4, shield_tilt=10, tail_angle=110, wing_flap=3),
-        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, sword_angle=90, sword_raise=0, shield_tilt=0, tail_angle=90, wing_flap=0),
-        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, sword_angle=100, sword_raise=2, shield_tilt=0, tail_angle=120, wing_flap=-1),
-        'TurnLeft': dict(leg_front_shift=-1, leg_back_shift=0, torso_shift=-1, head_tilt=-1, sword_angle=95, sword_raise=0, shield_tilt=0, tail_angle=100, wing_flap=-1),
-        'TurnRight': dict(leg_front_shift=0, leg_back_shift=1, torso_shift=1, head_tilt=1, sword_angle=85, sword_raise=0, shield_tilt=0, tail_angle=80, wing_flap=1),
-        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, sword_angle=120, sword_raise=4, shield_tilt=0, tail_angle=130, wing_flap=-2),
-        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, sword_angle=125, sword_raise=4, shield_tilt=0, tail_angle=135, wing_flap=-2),
+        # Базовая стойка — более пригнутая, с акцентом на тяжёлую броню и крылья
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-1, sword_angle=88, sword_raise=-1, shield_tilt=-4, tail_angle=95, wing_flap=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-2, head_tilt=-2, sword_angle=90, sword_raise=-1, shield_tilt=-6, tail_angle=105, wing_flap=2),
+        # Ходьба — более тяжёлый шаг с активной работой хвоста и крыльев
+        'Walk': dict(leg_front_shift=3, leg_back_shift=-3, torso_shift=-2, sword_angle=92, sword_raise=-1, shield_tilt=-4, tail_angle=115, wing_flap=3),
+        'WalkAlt': dict(leg_front_shift=-3, leg_back_shift=3, torso_shift=0, sword_angle=86, sword_raise=-1, shield_tilt=-2, tail_angle=80, wing_flap=-3),
+        # Атака — широкий замах и мощный удар
+        'AttackPrep': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=-3, head_tilt=-3, sword_angle=45, sword_raise=-4, shield_tilt=-14, tail_angle=65, wing_flap=-2),
+        'AttackStrike': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=2, head_tilt=1, sword_angle=20, sword_raise=-6, sword_reach=6, shield_tilt=14, tail_angle=125, wing_flap=4),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, sword_angle=92, sword_raise=-1, shield_tilt=-2, tail_angle=100, wing_flap=1),
+        # Получение урона — сильное проседание корпуса
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-3, head_tilt=-4, crouch=3, sword_angle=110, sword_raise=1, shield_tilt=-4, tail_angle=135, wing_flap=-2),
+        # Повороты — лёгкие смещения с работой крыльев
+        'TurnLeft': dict(leg_front_shift=-1, leg_back_shift=0, torso_shift=-2, head_tilt=-2, sword_angle=96, sword_raise=-1, shield_tilt=-4, tail_angle=105, wing_flap=-2),
+        'TurnRight': dict(leg_front_shift=0, leg_back_shift=1, torso_shift=0, head_tilt=2, sword_angle=84, sword_raise=-1, shield_tilt=-2, tail_angle=85, wing_flap=2),
+        # Смерть / труп — более «развалившаяся» поза
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-3, head_tilt=5, crouch=5, sword_angle=125, sword_raise=5, shield_tilt=-6, tail_angle=145, wing_flap=-3),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-3, head_tilt=5, crouch=6, sword_angle=130, sword_raise=5, shield_tilt=-6, tail_angle=150, wing_flap=-3),
     }
     
     surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
@@ -3814,7 +4728,7 @@ def load_demon_texture(animation_state='Idle'):
 
 
 def load_cerberus_texture(animation_state='Idle'):
-    """Полноценная система анимаций для цербера (трёхголовая собака) в стиле King's Bounty Dark Side."""
+    """Полноценная система анимаций для цербера (трёхголовая адская гончая) с более тёмной палитрой."""
     cache_key = f'cerberus_v2_{animation_state}'
     if cache_key in _texture_cache:
         return _texture_cache[cache_key]
@@ -3831,12 +4745,12 @@ def load_cerberus_texture(animation_state='Idle'):
     ):
         body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
         
-        shadow = (20, 10, 8, 180)
-        skin = (100, 50, 40)  # Тёмная кожа
-        skin_dark = (70, 35, 28)
-        skin_light = (120, 70, 55)
-        eye_glow = (240, 40, 40)  # Яркие красные глаза
-        eye_bright = (255, 100, 100)
+        shadow = (10, 4, 3, 200)
+        skin = (90, 35, 30)        # Более тёмная кожа
+        skin_dark = (60, 20, 18)
+        skin_light = (130, 60, 50)
+        eye_glow = (255, 60, 60)
+        eye_bright = (255, 130, 130)
         
         base_y = crouch
         
@@ -3972,7 +4886,7 @@ def load_cerberus_texture(animation_state='Idle'):
 
 
 def load_succubus_texture(animation_state='Idle'):
-    """Полноценная система анимаций для суккуба (дальнобойный демон-маг) в стиле King's Bounty Dark Side."""
+    """Полноценная система анимаций для суккуба (дальнобойный демон-маг) с более контрастной демонической палитрой."""
     cache_key = f'succubus_v2_{animation_state}'
     if cache_key in _texture_cache:
         return _texture_cache[cache_key]
@@ -3990,21 +4904,22 @@ def load_succubus_texture(animation_state='Idle'):
     ):
         body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
         
-        shadow = (20, 10, 8, 180)
-        skin = (200, 150, 140)  # Тёмная кожа
-        skin_dark = (170, 120, 110)
-        skin_light = (220, 170, 160)
-        dress = (100, 40, 60)  # Тёмное платье
-        dress_dark = (70, 25, 40)
-        dress_detail = (140, 60, 80)
-        horn = (90, 50, 60)  # Тёмные рога
-        horn_dark = (70, 35, 45)
-        eye_glow = (240, 40, 120)  # Яркие розовые глаза
-        eye_bright = (255, 120, 180)
-        wing = (130, 70, 90)  # Тёмные крылья
-        wing_dark = (90, 50, 65)
-        magic = (255, 100, 200)  # Яркая магия
-        magic_bright = (255, 150, 220)
+        shadow = (10, 4, 5, 200)
+        # Более «адская» суккуба: бледная кожа, почти чёрные крылья и яркие акценты
+        skin = (220, 170, 160)
+        skin_dark = (185, 120, 115)
+        skin_light = (240, 195, 185)
+        dress = (150, 30, 80)
+        dress_dark = (90, 20, 55)
+        dress_detail = (190, 60, 110)
+        horn = (160, 120, 120)
+        horn_dark = (120, 80, 80)
+        eye_glow = (255, 90, 170)
+        eye_bright = (255, 160, 215)
+        wing = (45, 15, 35)
+        wing_dark = (25, 8, 20)
+        magic = (255, 110, 210)
+        magic_bright = (255, 170, 235)
         
         base_y = crouch
         
@@ -4146,6 +5061,1799 @@ def load_succubus_texture(animation_state='Idle'):
         fallen = pygame.transform.rotate(surface, 90)
         corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
         corpse_surface.blit(fallen, (-10, 12))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+# Texture loaders for creatures that need migration
+def load_miner_texture(animation_state='Idle'):
+    """Процедурная анимация шахтёра."""
+    cache_key = f'miner_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, 
+                  pickaxe_angle=0, pickaxe_raise=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (40, 35, 30, 170)
+        clothes = (80, 70, 60)
+        clothes_dark = (60, 50, 40)
+        skin = (220, 190, 160)
+        helmet = (100, 100, 100)
+        pickaxe_wood = (120, 80, 50)
+        pickaxe_metal = (150, 150, 150)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        # Ноги
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, clothes, left_leg)
+        pygame.draw.rect(body, clothes_dark, left_leg, 1)
+        pygame.draw.rect(body, clothes, right_leg)
+        pygame.draw.rect(body, clothes_dark, right_leg, 1)
+        
+        # Тело
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, clothes, torso)
+        pygame.draw.rect(body, clothes_dark, torso, 2)
+        
+        # Голова
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 5, head_y, 10, 8))
+        pygame.draw.ellipse(body, helmet, (head_x - 6, head_y - 2, 12, 6))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 2, head_y + 3), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 2, head_y + 3), 1)
+        
+        # Кирка
+        if pickaxe_raise != 0 or pickaxe_angle != 0:
+            pickaxe = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(pickaxe_angle)
+            base_x = 28 + torso_shift
+            base_y_pick = 18 + base_y + pickaxe_raise
+            end_x = base_x + int(12 * math.cos(angle_rad))
+            end_y = base_y_pick - int(12 * math.sin(angle_rad))
+            pygame.draw.line(pickaxe, pickaxe_wood, (base_x, base_y_pick), (end_x, end_y), 2)
+            pygame.draw.circle(pickaxe, pickaxe_metal, (end_x, end_y), 3)
+            body.blit(pickaxe, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, pickaxe_angle=0, pickaxe_raise=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, pickaxe_angle=0, pickaxe_raise=0),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, pickaxe_angle=0, pickaxe_raise=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, pickaxe_angle=0, pickaxe_raise=0),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, pickaxe_angle=-45, pickaxe_raise=-2),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, pickaxe_angle=45, pickaxe_raise=-4),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, pickaxe_angle=0, pickaxe_raise=0),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, pickaxe_angle=0, pickaxe_raise=0),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, pickaxe_angle=0, pickaxe_raise=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, pickaxe_angle=0, pickaxe_raise=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_spearthrower_texture(animation_state='Idle'):
+    """Процедурная анимация метателя копий."""
+    cache_key = f'spearthrower_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  spear_angle=0, spear_raise=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (40, 35, 30, 170)
+        clothes = (100, 80, 60)
+        clothes_dark = (70, 55, 40)
+        skin = (220, 190, 160)
+        spear_wood = (120, 80, 50)
+        spear_metal = (180, 180, 200)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, clothes, left_leg)
+        pygame.draw.rect(body, clothes_dark, left_leg, 1)
+        pygame.draw.rect(body, clothes, right_leg)
+        pygame.draw.rect(body, clothes_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, clothes, torso)
+        pygame.draw.rect(body, clothes_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 5, head_y, 10, 8))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 2, head_y + 3), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 2, head_y + 3), 1)
+        
+        if spear_raise != 0 or spear_angle != 0:
+            spear = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(spear_angle)
+            base_x = 28 + torso_shift
+            base_y_spear = 18 + base_y + spear_raise
+            end_x = base_x + int(15 * math.cos(angle_rad))
+            end_y = base_y_spear - int(15 * math.sin(angle_rad))
+            pygame.draw.line(spear, spear_wood, (base_x, base_y_spear), (end_x, end_y), 2)
+            pygame.draw.circle(spear, spear_metal, (end_x, end_y), 2)
+            body.blit(spear, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, spear_angle=0, spear_raise=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, spear_angle=0, spear_raise=0),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, spear_angle=0, spear_raise=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, spear_angle=0, spear_raise=0),
+        'CastStart': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, spear_angle=-30, spear_raise=-2),
+        'CastRelease': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, spear_angle=30, spear_raise=-4),
+        'CastRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, spear_angle=0, spear_raise=0),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, spear_angle=0, spear_raise=0),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, spear_angle=0, spear_raise=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, spear_angle=0, spear_raise=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_bearrider_texture(animation_state='Idle'):
+    """Процедурная анимация медвежьего всадника."""
+    cache_key = f'bearrider_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  bear_head_tilt=0, weapon_angle=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (40, 35, 30, 170)
+        bear_fur = (100, 60, 40)
+        bear_fur_dark = (70, 40, 25)
+        rider_clothes = (80, 70, 60)
+        rider_clothes_dark = (60, 50, 40)
+        skin = (220, 190, 160)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        # Медведь тело
+        bear_body = pygame.Rect(10 + torso_shift, 20 + base_y, 24, 16)
+        pygame.draw.ellipse(body, bear_fur, bear_body)
+        pygame.draw.ellipse(body, bear_fur_dark, bear_body, 2)
+        
+        # Медведь ноги
+        bear_legs = [
+            pygame.Rect(12 + leg_back_shift, 34 + base_y, 5, 6),
+            pygame.Rect(27 + leg_front_shift, 34 + base_y, 5, 6),
+        ]
+        for leg in bear_legs:
+            pygame.draw.rect(body, bear_fur, leg)
+            pygame.draw.rect(body, bear_fur_dark, leg, 1)
+        
+        # Всадник
+        rider_torso = pygame.Rect(16 + torso_shift, 12 + base_y, 12, 10)
+        pygame.draw.rect(body, rider_clothes, rider_torso)
+        pygame.draw.rect(body, rider_clothes_dark, rider_torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 4 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 4, head_y, 8, 6))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 1, head_y + 2), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 1, head_y + 2), 1)
+        
+        # Голова медведя
+        bear_head_x = 18 + torso_shift
+        bear_head_y = 18 + base_y + bear_head_tilt
+        pygame.draw.ellipse(body, bear_fur, (bear_head_x - 6, bear_head_y, 12, 10))
+        pygame.draw.ellipse(body, bear_fur_dark, (bear_head_x - 4, bear_head_y + 2, 8, 6))
+        pygame.draw.circle(body, (40, 20, 20), (bear_head_x - 2, bear_head_y + 4), 2)
+        pygame.draw.circle(body, (40, 20, 20), (bear_head_x + 2, bear_head_y + 4), 2)
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, bear_head_tilt=0, weapon_angle=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, bear_head_tilt=1, weapon_angle=0),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, bear_head_tilt=0, weapon_angle=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, bear_head_tilt=0, weapon_angle=0),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, bear_head_tilt=-2, weapon_angle=-30),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, bear_head_tilt=2, weapon_angle=30),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, bear_head_tilt=0, weapon_angle=0),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, bear_head_tilt=-2, weapon_angle=0),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, bear_head_tilt=3, weapon_angle=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, bear_head_tilt=3, weapon_angle=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_runemage_texture(animation_state='Idle'):
+    """Процедурная анимация рунного мага."""
+    cache_key = f'runemage_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  staff_angle=0, staff_raise=0, rune_glow=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (40, 35, 30, 170)
+        robe = (60, 50, 80)
+        robe_dark = (40, 30, 50)
+        skin = (220, 190, 160)
+        staff_wood = (100, 70, 50)
+        rune_color = (150 + rune_glow, 150 + rune_glow, 200 + rune_glow)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, robe, left_leg)
+        pygame.draw.rect(body, robe_dark, left_leg, 1)
+        pygame.draw.rect(body, robe, right_leg)
+        pygame.draw.rect(body, robe_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, robe, torso)
+        pygame.draw.rect(body, robe_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 5, head_y, 10, 8))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 2, head_y + 3), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 2, head_y + 3), 1)
+        
+        if staff_raise != 0 or staff_angle != 0:
+            staff = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(staff_angle)
+            base_x = 28 + torso_shift
+            base_y_staff = 18 + base_y + staff_raise
+            end_x = base_x + int(14 * math.cos(angle_rad))
+            end_y = base_y_staff - int(14 * math.sin(angle_rad))
+            pygame.draw.line(staff, staff_wood, (base_x, base_y_staff), (end_x, end_y), 2)
+            if rune_glow > 0:
+                pygame.draw.circle(staff, rune_color, (end_x, end_y), 4)
+            body.blit(staff, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, staff_angle=0, staff_raise=0, rune_glow=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, staff_angle=2, staff_raise=-1, rune_glow=10),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, staff_angle=4, staff_raise=-1, rune_glow=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, staff_angle=-4, staff_raise=-1, rune_glow=0),
+        'CastStart': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, staff_angle=-15, staff_raise=-3, rune_glow=20),
+        'CastRelease': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, staff_angle=10, staff_raise=-4, rune_glow=40),
+        'CastRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, staff_angle=4, staff_raise=-1, rune_glow=10),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, staff_angle=8, staff_raise=1, rune_glow=0),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, staff_angle=20, staff_raise=3, rune_glow=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, staff_angle=20, staff_raise=3, rune_glow=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_jarl_texture(animation_state='Idle'):
+    """Процедурная анимация ярла."""
+    cache_key = f'jarl_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  weapon_angle=0, weapon_raise=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (40, 35, 30, 170)
+        armor = (120, 100, 80)
+        armor_dark = (80, 60, 50)
+        skin = (220, 190, 160)
+        weapon_metal = (180, 180, 200)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, armor, left_leg)
+        pygame.draw.rect(body, armor_dark, left_leg, 1)
+        pygame.draw.rect(body, armor, right_leg)
+        pygame.draw.rect(body, armor_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, armor, torso)
+        pygame.draw.rect(body, armor_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 5, head_y, 10, 8))
+        pygame.draw.ellipse(body, armor, (head_x - 6, head_y - 2, 12, 6))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 2, head_y + 3), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 2, head_y + 3), 1)
+        
+        if weapon_raise != 0 or weapon_angle != 0:
+            weapon = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(weapon_angle)
+            base_x = 28 + torso_shift
+            base_y_weapon = 18 + base_y + weapon_raise
+            end_x = base_x + int(12 * math.cos(angle_rad))
+            end_y = base_y_weapon - int(12 * math.sin(angle_rad))
+            pygame.draw.line(weapon, weapon_metal, (base_x, base_y_weapon), (end_x, end_y), 3)
+            body.blit(weapon, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, weapon_angle=0, weapon_raise=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, weapon_angle=2, weapon_raise=-1),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, weapon_angle=5, weapon_raise=-1),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, weapon_angle=-5, weapon_raise=-1),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, weapon_angle=-25, weapon_raise=-3),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, weapon_angle=20, weapon_raise=-4),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, weapon_angle=5, weapon_raise=-1),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, weapon_angle=12, weapon_raise=1),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, weapon_angle=40, weapon_raise=3),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, weapon_angle=45, weapon_raise=3),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+# Additional texture loaders for remaining creatures
+def load_scout_texture(animation_state='Idle'):
+    """Процедурная анимация разведчика."""
+    cache_key = f'scout_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  dagger_angle=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (30, 25, 20, 170)
+        clothes = (50, 50, 50)
+        clothes_dark = (30, 30, 30)
+        skin = (200, 180, 150)
+        dagger_metal = (150, 150, 170)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, clothes, left_leg)
+        pygame.draw.rect(body, clothes_dark, left_leg, 1)
+        pygame.draw.rect(body, clothes, right_leg)
+        pygame.draw.rect(body, clothes_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, clothes, torso)
+        pygame.draw.rect(body, clothes_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 5, head_y, 10, 8))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 2, head_y + 3), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 2, head_y + 3), 1)
+        
+        if dagger_angle != 0:
+            dagger = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(dagger_angle)
+            base_x = 28 + torso_shift
+            base_y_dagger = 18 + base_y
+            end_x = base_x + int(8 * math.cos(angle_rad))
+            end_y = base_y_dagger - int(8 * math.sin(angle_rad))
+            pygame.draw.line(dagger, dagger_metal, (base_x, base_y_dagger), (end_x, end_y), 2)
+            body.blit(dagger, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, dagger_angle=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, dagger_angle=0),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, dagger_angle=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, dagger_angle=0),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, dagger_angle=-25),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, dagger_angle=20),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, dagger_angle=5),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, dagger_angle=12),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, dagger_angle=40),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, dagger_angle=45),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_beast_texture(animation_state='Idle'):
+    """Процедурная анимация зверя."""
+    cache_key = f'beast_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  tail_angle=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (30, 25, 20, 170)
+        fur = (80, 60, 40)
+        fur_dark = (50, 35, 25)
+        eye_glow = (200, 100, 50)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        torso = pygame.Rect(12 + torso_shift, 18 + base_y, 20, 14)
+        pygame.draw.ellipse(body, fur, torso)
+        pygame.draw.ellipse(body, fur_dark, torso, 2)
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 32 + base_y, 5, 6)
+        right_leg = pygame.Rect(25 + leg_front_shift, 32 + base_y, 5, 6)
+        pygame.draw.rect(body, fur, left_leg)
+        pygame.draw.rect(body, fur_dark, left_leg, 1)
+        pygame.draw.rect(body, fur, right_leg)
+        pygame.draw.rect(body, fur_dark, right_leg, 1)
+        
+        head_x = 20 + torso_shift
+        head_y = 14 + base_y + head_tilt
+        pygame.draw.ellipse(body, fur, (head_x - 6, head_y, 12, 10))
+        pygame.draw.ellipse(body, fur_dark, (head_x - 4, head_y + 2, 8, 6))
+        pygame.draw.circle(body, eye_glow, (head_x - 2, head_y + 4), 2)
+        pygame.draw.circle(body, eye_glow, (head_x + 2, head_y + 4), 2)
+        
+        if tail_angle != 0:
+            tail = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(tail_angle)
+            base_x = 30 + torso_shift
+            base_y_tail = 24 + base_y
+            end_x = base_x + int(8 * math.cos(angle_rad))
+            end_y = base_y_tail - int(8 * math.sin(angle_rad))
+            pygame.draw.line(tail, fur, (base_x, base_y_tail), (end_x, end_y), 3)
+            body.blit(tail, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, tail_angle=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, tail_angle=5),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, tail_angle=10),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, tail_angle=-10),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, tail_angle=-15),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, tail_angle=15),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, tail_angle=0),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, tail_angle=-10),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, tail_angle=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, tail_angle=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_minotaur_texture(animation_state='Idle'):
+    """Процедурная анимация минотавра."""
+    cache_key = f'minotaur_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  weapon_angle=0, horn_tilt=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (40, 35, 30, 170)
+        fur = (120, 80, 60)
+        fur_dark = (80, 50, 35)
+        skin = (200, 180, 150)
+        weapon_metal = (180, 180, 200)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 28 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 28 + base_y, 6, 10)
+        pygame.draw.rect(body, fur, left_leg)
+        pygame.draw.rect(body, fur_dark, left_leg, 1)
+        pygame.draw.rect(body, fur, right_leg)
+        pygame.draw.rect(body, fur_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 16 + base_y, 16, 14)
+        pygame.draw.rect(body, fur, torso)
+        pygame.draw.rect(body, fur_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 8 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 6, head_y, 12, 10))
+        pygame.draw.ellipse(body, fur_dark, (head_x - 4, head_y + 2, 8, 6))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 2, head_y + 4), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 2, head_y + 4), 1)
+        
+        # Рога
+        horn_angle = math.radians(horn_tilt)
+        horn1_x = head_x - 3 + int(4 * math.cos(horn_angle))
+        horn1_y = head_y - 2 - int(4 * math.sin(horn_angle))
+        horn2_x = head_x + 3 + int(4 * math.cos(horn_angle))
+        horn2_y = head_y - 2 - int(4 * math.sin(horn_angle))
+        pygame.draw.line(body, fur_dark, (head_x - 3, head_y), (horn1_x, horn1_y), 2)
+        pygame.draw.line(body, fur_dark, (head_x + 3, head_y), (horn2_x, horn2_y), 2)
+        
+        if weapon_angle != 0:
+            weapon = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(weapon_angle)
+            base_x = 28 + torso_shift
+            base_y_weapon = 20 + base_y
+            end_x = base_x + int(12 * math.cos(angle_rad))
+            end_y = base_y_weapon - int(12 * math.sin(angle_rad))
+            pygame.draw.line(weapon, weapon_metal, (base_x, base_y_weapon), (end_x, end_y), 3)
+            body.blit(weapon, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, weapon_angle=0, horn_tilt=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, weapon_angle=2, horn_tilt=0),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, weapon_angle=5, horn_tilt=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, weapon_angle=-5, horn_tilt=0),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, weapon_angle=-25, horn_tilt=-5),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, weapon_angle=20, horn_tilt=5),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, weapon_angle=5, horn_tilt=0),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, weapon_angle=12, horn_tilt=-3),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, weapon_angle=40, horn_tilt=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, weapon_angle=45, horn_tilt=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_witch_texture(animation_state='Idle'):
+    """Процедурная анимация ведьмы."""
+    cache_key = f'witch_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  staff_angle=0, staff_raise=0, magic_glow=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (30, 25, 20, 170)
+        robe = (40, 30, 50)
+        robe_dark = (25, 20, 30)
+        skin = (200, 180, 150)
+        staff_wood = (80, 60, 40)
+        magic_color = (150 + magic_glow, 100 + magic_glow, 200 + magic_glow)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, robe, left_leg)
+        pygame.draw.rect(body, robe_dark, left_leg, 1)
+        pygame.draw.rect(body, robe, right_leg)
+        pygame.draw.rect(body, robe_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, robe, torso)
+        pygame.draw.rect(body, robe_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 5, head_y, 10, 8))
+        pygame.draw.ellipse(body, robe, (head_x - 6, head_y - 2, 12, 6))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 2, head_y + 3), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 2, head_y + 3), 1)
+        
+        if staff_raise != 0 or staff_angle != 0:
+            staff = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(staff_angle)
+            base_x = 28 + torso_shift
+            base_y_staff = 18 + base_y + staff_raise
+            end_x = base_x + int(14 * math.cos(angle_rad))
+            end_y = base_y_staff - int(14 * math.sin(angle_rad))
+            pygame.draw.line(staff, staff_wood, (base_x, base_y_staff), (end_x, end_y), 2)
+            if magic_glow > 0:
+                pygame.draw.circle(staff, magic_color, (end_x, end_y), 4)
+            body.blit(staff, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, staff_angle=0, staff_raise=0, magic_glow=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, staff_angle=2, staff_raise=-1, magic_glow=10),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, staff_angle=4, staff_raise=-1, magic_glow=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, staff_angle=-4, staff_raise=-1, magic_glow=0),
+        'CastStart': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, staff_angle=-15, staff_raise=-3, magic_glow=20),
+        'CastRelease': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, staff_angle=10, staff_raise=-4, magic_glow=40),
+        'CastRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, staff_angle=4, staff_raise=-1, magic_glow=10),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, staff_angle=8, staff_raise=1, magic_glow=0),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, staff_angle=20, staff_raise=3, magic_glow=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, staff_angle=20, staff_raise=3, magic_glow=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_lizardrider_texture(animation_state='Idle'):
+    """Процедурная анимация всадника на ящерице."""
+    cache_key = f'lizardrider_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  lizard_head_tilt=0, weapon_angle=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (40, 35, 30, 170)
+        lizard_scale = (80, 120, 80)
+        lizard_scale_dark = (50, 80, 50)
+        rider_clothes = (100, 80, 60)
+        rider_clothes_dark = (70, 55, 40)
+        skin = (220, 190, 160)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        # Ящерица тело
+        lizard_body = pygame.Rect(10 + torso_shift, 20 + base_y, 24, 16)
+        pygame.draw.ellipse(body, lizard_scale, lizard_body)
+        pygame.draw.ellipse(body, lizard_scale_dark, lizard_body, 2)
+        
+        # Ящерица ноги
+        lizard_legs = [
+            pygame.Rect(12 + leg_back_shift, 34 + base_y, 5, 6),
+            pygame.Rect(27 + leg_front_shift, 34 + base_y, 5, 6),
+        ]
+        for leg in lizard_legs:
+            pygame.draw.rect(body, lizard_scale, leg)
+            pygame.draw.rect(body, lizard_scale_dark, leg, 1)
+        
+        # Всадник
+        rider_torso = pygame.Rect(16 + torso_shift, 12 + base_y, 12, 10)
+        pygame.draw.rect(body, rider_clothes, rider_torso)
+        pygame.draw.rect(body, rider_clothes_dark, rider_torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 4 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 4, head_y, 8, 6))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 1, head_y + 2), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 1, head_y + 2), 1)
+        
+        # Голова ящерицы
+        lizard_head_x = 18 + torso_shift
+        lizard_head_y = 18 + base_y + lizard_head_tilt
+        pygame.draw.ellipse(body, lizard_scale, (lizard_head_x - 6, lizard_head_y, 12, 10))
+        pygame.draw.ellipse(body, lizard_scale_dark, (lizard_head_x - 4, lizard_head_y + 2, 8, 6))
+        pygame.draw.circle(body, (100, 150, 100), (lizard_head_x - 2, lizard_head_y + 4), 2)
+        pygame.draw.circle(body, (100, 150, 100), (lizard_head_x + 2, lizard_head_y + 4), 2)
+        
+        if weapon_angle != 0:
+            weapon = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(weapon_angle)
+            base_x = 28 + torso_shift
+            base_y_weapon = 18 + base_y
+            end_x = base_x + int(12 * math.cos(angle_rad))
+            end_y = base_y_weapon - int(12 * math.sin(angle_rad))
+            pygame.draw.line(weapon, (180, 180, 200), (base_x, base_y_weapon), (end_x, end_y), 3)
+            body.blit(weapon, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, lizard_head_tilt=0, weapon_angle=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, lizard_head_tilt=1, weapon_angle=0),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, lizard_head_tilt=0, weapon_angle=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, lizard_head_tilt=0, weapon_angle=0),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, lizard_head_tilt=-2, weapon_angle=-30),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, lizard_head_tilt=2, weapon_angle=30),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, lizard_head_tilt=0, weapon_angle=0),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, lizard_head_tilt=-2, weapon_angle=0),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, lizard_head_tilt=3, weapon_angle=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, lizard_head_tilt=3, weapon_angle=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+# Texture loaders for undead, demon, dwarf, and shadow creatures
+def load_deathknight_texture(animation_state='Idle'):
+    """Процедурная анимация рыцаря смерти."""
+    cache_key = f'deathknight_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  weapon_angle=0, weapon_raise=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (20, 20, 20, 200)
+        armor = (60, 60, 70)
+        armor_dark = (40, 40, 50)
+        weapon_metal = (150, 150, 170)
+        eye_glow = (150, 200, 255)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, armor, left_leg)
+        pygame.draw.rect(body, armor_dark, left_leg, 1)
+        pygame.draw.rect(body, armor, right_leg)
+        pygame.draw.rect(body, armor_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, armor, torso)
+        pygame.draw.rect(body, armor_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, armor, (head_x - 6, head_y, 12, 8))
+        pygame.draw.rect(body, armor_dark, (head_x - 4, head_y + 2, 8, 4))
+        pygame.draw.circle(body, eye_glow, (head_x - 2, head_y + 4), 2)
+        pygame.draw.circle(body, eye_glow, (head_x + 2, head_y + 4), 2)
+        
+        if weapon_raise != 0 or weapon_angle != 0:
+            weapon = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(weapon_angle)
+            base_x = 28 + torso_shift
+            base_y_weapon = 18 + base_y + weapon_raise
+            end_x = base_x + int(12 * math.cos(angle_rad))
+            end_y = base_y_weapon - int(12 * math.sin(angle_rad))
+            pygame.draw.line(weapon, weapon_metal, (base_x, base_y_weapon), (end_x, end_y), 3)
+            body.blit(weapon, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, weapon_angle=0, weapon_raise=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, weapon_angle=2, weapon_raise=-1),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, weapon_angle=5, weapon_raise=-1),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, weapon_angle=-5, weapon_raise=-1),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, weapon_angle=-25, weapon_raise=-3),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, weapon_angle=20, weapon_raise=-4),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, weapon_angle=5, weapon_raise=-1),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, weapon_angle=12, weapon_raise=1),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, weapon_angle=40, weapon_raise=3),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, weapon_angle=45, weapon_raise=3),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_bonedragon_texture(animation_state='Idle'):
+    """Процедурная анимация костяного дракона."""
+    cache_key = f'bonedragon_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  wing_flap=0, tail_angle=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (20, 20, 20, 200)
+        bone = (200, 200, 190)
+        bone_dark = (150, 150, 140)
+        eye_glow = (150, 200, 255)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        torso = pygame.Rect(10 + torso_shift, 18 + base_y, 24, 18)
+        pygame.draw.ellipse(body, bone, torso)
+        pygame.draw.ellipse(body, bone_dark, torso, 2)
+        
+        left_leg = pygame.Rect(12 + leg_back_shift, 34 + base_y, 6, 6)
+        right_leg = pygame.Rect(28 + leg_front_shift, 34 + base_y, 6, 6)
+        pygame.draw.rect(body, bone, left_leg)
+        pygame.draw.rect(body, bone_dark, left_leg, 1)
+        pygame.draw.rect(body, bone, right_leg)
+        pygame.draw.rect(body, bone_dark, right_leg, 1)
+        
+        head_x = 18 + torso_shift
+        head_y = 16 + base_y + head_tilt
+        pygame.draw.ellipse(body, bone, (head_x - 8, head_y, 16, 12))
+        pygame.draw.ellipse(body, bone_dark, (head_x - 6, head_y + 2, 12, 8))
+        pygame.draw.circle(body, eye_glow, (head_x - 2, head_y + 5), 3)
+        pygame.draw.circle(body, eye_glow, (head_x + 2, head_y + 5), 3)
+        
+        if wing_flap != 0:
+            wings = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            wing_offset = int(wing_flap * 1.5)
+            wing_points = [
+                (14 + torso_shift, 20 + base_y),
+                (8 + torso_shift, 28 + base_y + wing_offset),
+                (22 + torso_shift, 22 + base_y),
+            ]
+            pygame.draw.polygon(wings, bone, wing_points)
+            pygame.draw.polygon(wings, bone_dark, wing_points, 1)
+            body.blit(wings, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, wing_flap=0, tail_angle=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, wing_flap=1, tail_angle=5),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, wing_flap=2, tail_angle=10),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, wing_flap=-2, tail_angle=-10),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, wing_flap=-1, tail_angle=-15),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, wing_flap=3, tail_angle=15),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, wing_flap=0, tail_angle=0),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, wing_flap=-1, tail_angle=-10),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, wing_flap=-2, tail_angle=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, wing_flap=-2, tail_angle=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_reaper_texture(animation_state='Idle'):
+    """Процедурная анимация жнеца."""
+    cache_key = f'reaper_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  scythe_angle=0, scythe_raise=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (20, 20, 20, 200)
+        robe = (30, 30, 40)
+        robe_dark = (20, 20, 25)
+        scythe_wood = (80, 60, 40)
+        scythe_metal = (150, 150, 170)
+        eye_glow = (200, 100, 100)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, robe, left_leg)
+        pygame.draw.rect(body, robe_dark, left_leg, 1)
+        pygame.draw.rect(body, robe, right_leg)
+        pygame.draw.rect(body, robe_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, robe, torso)
+        pygame.draw.rect(body, robe_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, (60, 60, 70), (head_x - 5, head_y, 10, 8))
+        pygame.draw.circle(body, eye_glow, (head_x - 2, head_y + 3), 2)
+        pygame.draw.circle(body, eye_glow, (head_x + 2, head_y + 3), 2)
+        
+        if scythe_raise != 0 or scythe_angle != 0:
+            scythe = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(scythe_angle)
+            base_x = 28 + torso_shift
+            base_y_scythe = 18 + base_y + scythe_raise
+            end_x = base_x + int(14 * math.cos(angle_rad))
+            end_y = base_y_scythe - int(14 * math.sin(angle_rad))
+            pygame.draw.line(scythe, scythe_wood, (base_x, base_y_scythe), (end_x, end_y), 2)
+            pygame.draw.circle(scythe, scythe_metal, (end_x, end_y), 3)
+            body.blit(scythe, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, scythe_angle=0, scythe_raise=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, scythe_angle=2, scythe_raise=-1),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, scythe_angle=4, scythe_raise=-1),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, scythe_angle=-4, scythe_raise=-1),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, scythe_angle=-30, scythe_raise=-3),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, scythe_angle=30, scythe_raise=-4),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, scythe_angle=4, scythe_raise=-1),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, scythe_angle=12, scythe_raise=1),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, scythe_angle=40, scythe_raise=3),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, scythe_angle=45, scythe_raise=3),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_bloodpriestess_texture(animation_state='Idle'):
+    """Процедурная анимация жрицы крови."""
+    cache_key = f'bloodpriestess_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  staff_angle=0, staff_raise=0, blood_glow=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (30, 20, 20, 200)
+        robe = (120, 30, 40)
+        robe_dark = (80, 20, 25)
+        skin = (200, 150, 150)
+        staff_wood = (100, 70, 50)
+        blood_color = (200 + blood_glow, 50 + blood_glow, 50 + blood_glow)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, robe, left_leg)
+        pygame.draw.rect(body, robe_dark, left_leg, 1)
+        pygame.draw.rect(body, robe, right_leg)
+        pygame.draw.rect(body, robe_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, robe, torso)
+        pygame.draw.rect(body, robe_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 5, head_y, 10, 8))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 2, head_y + 3), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 2, head_y + 3), 1)
+        
+        if staff_raise != 0 or staff_angle != 0:
+            staff = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(staff_angle)
+            base_x = 28 + torso_shift
+            base_y_staff = 18 + base_y + staff_raise
+            end_x = base_x + int(14 * math.cos(angle_rad))
+            end_y = base_y_staff - int(14 * math.sin(angle_rad))
+            pygame.draw.line(staff, staff_wood, (base_x, base_y_staff), (end_x, end_y), 2)
+            if blood_glow > 0:
+                pygame.draw.circle(staff, blood_color, (end_x, end_y), 4)
+            body.blit(staff, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, staff_angle=0, staff_raise=0, blood_glow=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, staff_angle=2, staff_raise=-1, blood_glow=10),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, staff_angle=4, staff_raise=-1, blood_glow=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, staff_angle=-4, staff_raise=-1, blood_glow=0),
+        'CastStart': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, staff_angle=-15, staff_raise=-3, blood_glow=20),
+        'CastRelease': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, staff_angle=10, staff_raise=-4, blood_glow=40),
+        'CastRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, staff_angle=4, staff_raise=-1, blood_glow=10),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, staff_angle=8, staff_raise=1, blood_glow=0),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, staff_angle=20, staff_raise=3, blood_glow=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, staff_angle=20, staff_raise=3, blood_glow=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_devil_texture(animation_state='Idle'):
+    """Процедурная анимация дьявола."""
+    cache_key = f'devil_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  weapon_angle=0, weapon_raise=0, wing_flap=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (20, 10, 10, 200)
+        skin = (150, 50, 50)
+        skin_dark = (100, 30, 30)
+        weapon_metal = (180, 180, 200)
+        eye_glow = (255, 100, 100)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 28 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 28 + base_y, 6, 10)
+        pygame.draw.rect(body, skin, left_leg)
+        pygame.draw.rect(body, skin_dark, left_leg, 1)
+        pygame.draw.rect(body, skin, right_leg)
+        pygame.draw.rect(body, skin_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 16 + base_y, 16, 14)
+        pygame.draw.rect(body, skin, torso)
+        pygame.draw.rect(body, skin_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 8 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 6, head_y, 12, 10))
+        pygame.draw.ellipse(body, skin_dark, (head_x - 4, head_y + 2, 8, 6))
+        pygame.draw.circle(body, eye_glow, (head_x - 2, head_y + 4), 2)
+        pygame.draw.circle(body, eye_glow, (head_x + 2, head_y + 4), 2)
+        
+        if wing_flap != 0:
+            wings = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            wing_offset = int(wing_flap * 1.5)
+            wing_points = [
+                (14 + torso_shift, 20 + base_y),
+                (8 + torso_shift, 28 + base_y + wing_offset),
+                (22 + torso_shift, 22 + base_y),
+            ]
+            pygame.draw.polygon(wings, skin_dark, wing_points)
+            pygame.draw.polygon(wings, (80, 20, 20), wing_points, 1)
+            body.blit(wings, (0, 0))
+        
+        if weapon_raise != 0 or weapon_angle != 0:
+            weapon = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(weapon_angle)
+            base_x = 28 + torso_shift
+            base_y_weapon = 20 + base_y + weapon_raise
+            end_x = base_x + int(12 * math.cos(angle_rad))
+            end_y = base_y_weapon - int(12 * math.sin(angle_rad))
+            pygame.draw.line(weapon, weapon_metal, (base_x, base_y_weapon), (end_x, end_y), 3)
+            body.blit(weapon, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, weapon_angle=0, weapon_raise=0, wing_flap=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, weapon_angle=2, weapon_raise=-1, wing_flap=1),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, weapon_angle=5, weapon_raise=-1, wing_flap=2),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, weapon_angle=-5, weapon_raise=-1, wing_flap=-2),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, weapon_angle=-25, weapon_raise=-3, wing_flap=-1),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, weapon_angle=20, weapon_raise=-4, wing_flap=3),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, weapon_angle=5, weapon_raise=-1, wing_flap=0),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, weapon_angle=12, weapon_raise=1, wing_flap=-1),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, weapon_angle=40, weapon_raise=3, wing_flap=-2),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, weapon_angle=45, weapon_raise=3, wing_flap=-2),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_hellhorse_texture(animation_state='Idle'):
+    """Процедурная анимация адского коня."""
+    cache_key = f'hellhorse_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  mane_flame=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (20, 10, 10, 200)
+        fur = (80, 30, 30)
+        fur_dark = (50, 15, 15)
+        eye_glow = (255, 100, 100)
+        flame_color = (255, 150 + mane_flame, 50 + mane_flame)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        torso = pygame.Rect(12 + torso_shift, 20 + base_y, 20, 16)
+        pygame.draw.ellipse(body, fur, torso)
+        pygame.draw.ellipse(body, fur_dark, torso, 2)
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 34 + base_y, 5, 6)
+        right_leg = pygame.Rect(25 + leg_front_shift, 34 + base_y, 5, 6)
+        pygame.draw.rect(body, fur, left_leg)
+        pygame.draw.rect(body, fur_dark, left_leg, 1)
+        pygame.draw.rect(body, fur, right_leg)
+        pygame.draw.rect(body, fur_dark, right_leg, 1)
+        
+        head_x = 20 + torso_shift
+        head_y = 16 + base_y + head_tilt
+        pygame.draw.ellipse(body, fur, (head_x - 6, head_y, 12, 10))
+        pygame.draw.ellipse(body, fur_dark, (head_x - 4, head_y + 2, 8, 6))
+        pygame.draw.circle(body, eye_glow, (head_x - 2, head_y + 4), 2)
+        pygame.draw.circle(body, eye_glow, (head_x + 2, head_y + 4), 2)
+        
+        if mane_flame > 0:
+            flame = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            flame_points = [
+                (head_x - 4, head_y - 2),
+                (head_x - 2, head_y - 4 - mane_flame),
+                (head_x, head_y - 2),
+                (head_x + 2, head_y - 4 - mane_flame),
+                (head_x + 4, head_y - 2),
+            ]
+            pygame.draw.polygon(flame, flame_color, flame_points)
+            body.blit(flame, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, mane_flame=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, mane_flame=2),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, mane_flame=3),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, mane_flame=3),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, mane_flame=5),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, mane_flame=8),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, mane_flame=2),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, mane_flame=1),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, mane_flame=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, mane_flame=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_forgedragon_texture(animation_state='Idle'):
+    """Процедурная анимация кузнечного дракона."""
+    cache_key = f'forgedragon_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  wing_flap=0, fire_glow=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (40, 30, 20, 200)
+        metal = (120, 100, 80)
+        metal_dark = (80, 60, 50)
+        fire_color = (255, 150 + fire_glow, 50 + fire_glow)
+        eye_glow = (255, 200, 100)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        torso = pygame.Rect(10 + torso_shift, 18 + base_y, 24, 18)
+        pygame.draw.ellipse(body, metal, torso)
+        pygame.draw.ellipse(body, metal_dark, torso, 2)
+        
+        left_leg = pygame.Rect(12 + leg_back_shift, 34 + base_y, 6, 6)
+        right_leg = pygame.Rect(28 + leg_front_shift, 34 + base_y, 6, 6)
+        pygame.draw.rect(body, metal, left_leg)
+        pygame.draw.rect(body, metal_dark, left_leg, 1)
+        pygame.draw.rect(body, metal, right_leg)
+        pygame.draw.rect(body, metal_dark, right_leg, 1)
+        
+        head_x = 18 + torso_shift
+        head_y = 16 + base_y + head_tilt
+        pygame.draw.ellipse(body, metal, (head_x - 8, head_y, 16, 12))
+        pygame.draw.ellipse(body, metal_dark, (head_x - 6, head_y + 2, 12, 8))
+        pygame.draw.circle(body, eye_glow, (head_x - 2, head_y + 5), 3)
+        pygame.draw.circle(body, eye_glow, (head_x + 2, head_y + 5), 3)
+        
+        if fire_glow > 0:
+            fire = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            fire_points = [
+                (head_x, head_y + 8),
+                (head_x - 2, head_y + 12 + fire_glow),
+                (head_x, head_y + 10),
+                (head_x + 2, head_y + 12 + fire_glow),
+            ]
+            pygame.draw.polygon(fire, fire_color, fire_points)
+            body.blit(fire, (0, 0))
+        
+        if wing_flap != 0:
+            wings = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            wing_offset = int(wing_flap * 1.5)
+            wing_points = [
+                (14 + torso_shift, 20 + base_y),
+                (8 + torso_shift, 28 + base_y + wing_offset),
+                (22 + torso_shift, 22 + base_y),
+            ]
+            pygame.draw.polygon(wings, metal, wing_points)
+            pygame.draw.polygon(wings, metal_dark, wing_points, 1)
+            body.blit(wings, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, wing_flap=0, fire_glow=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, wing_flap=1, fire_glow=5),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, wing_flap=2, fire_glow=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, wing_flap=-2, fire_glow=0),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, wing_flap=-1, fire_glow=10),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, wing_flap=3, fire_glow=20),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, wing_flap=0, fire_glow=5),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, wing_flap=-1, fire_glow=0),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, wing_flap=-2, fire_glow=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, wing_flap=-2, fire_glow=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_mountainruler_texture(animation_state='Idle'):
+    """Процедурная анимация правителя гор."""
+    cache_key = f'mountainruler_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  weapon_angle=0, weapon_raise=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (40, 35, 30, 170)
+        armor = (140, 120, 100)
+        armor_dark = (100, 80, 70)
+        skin = (220, 190, 160)
+        weapon_metal = (180, 180, 200)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, armor, left_leg)
+        pygame.draw.rect(body, armor_dark, left_leg, 1)
+        pygame.draw.rect(body, armor, right_leg)
+        pygame.draw.rect(body, armor_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, armor, torso)
+        pygame.draw.rect(body, armor_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 5, head_y, 10, 8))
+        pygame.draw.ellipse(body, armor, (head_x - 6, head_y - 2, 12, 6))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 2, head_y + 3), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 2, head_y + 3), 1)
+        
+        if weapon_raise != 0 or weapon_angle != 0:
+            weapon = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(weapon_angle)
+            base_x = 28 + torso_shift
+            base_y_weapon = 18 + base_y + weapon_raise
+            end_x = base_x + int(12 * math.cos(angle_rad))
+            end_y = base_y_weapon - int(12 * math.sin(angle_rad))
+            pygame.draw.line(weapon, weapon_metal, (base_x, base_y_weapon), (end_x, end_y), 3)
+            body.blit(weapon, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, weapon_angle=0, weapon_raise=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, weapon_angle=2, weapon_raise=-1),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, weapon_angle=5, weapon_raise=-1),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, weapon_angle=-5, weapon_raise=-1),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, weapon_angle=-25, weapon_raise=-3),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, weapon_angle=20, weapon_raise=-4),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, weapon_angle=5, weapon_raise=-1),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, weapon_angle=12, weapon_raise=1),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, weapon_angle=40, weapon_raise=3),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, weapon_angle=45, weapon_raise=3),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_volkhv_texture(animation_state='Idle'):
+    """Процедурная анимация волхва."""
+    cache_key = f'volkhv_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  staff_angle=0, staff_raise=0, magic_glow=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (40, 35, 30, 170)
+        robe = (100, 80, 60)
+        robe_dark = (70, 55, 40)
+        skin = (220, 190, 160)
+        staff_wood = (100, 70, 50)
+        magic_color = (150 + magic_glow, 150 + magic_glow, 200 + magic_glow)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 26 + base_y, 6, 10)
+        right_leg = pygame.Rect(24 + leg_front_shift, 26 + base_y, 6, 10)
+        pygame.draw.rect(body, robe, left_leg)
+        pygame.draw.rect(body, robe_dark, left_leg, 1)
+        pygame.draw.rect(body, robe, right_leg)
+        pygame.draw.rect(body, robe_dark, right_leg, 1)
+        
+        torso = pygame.Rect(14 + torso_shift, 14 + base_y, 16, 12)
+        pygame.draw.rect(body, robe, torso)
+        pygame.draw.rect(body, robe_dark, torso, 2)
+        
+        head_x = 22 + torso_shift
+        head_y = 6 + base_y + head_tilt
+        pygame.draw.ellipse(body, skin, (head_x - 5, head_y, 10, 8))
+        pygame.draw.circle(body, (40, 30, 20), (head_x - 2, head_y + 3), 1)
+        pygame.draw.circle(body, (40, 30, 20), (head_x + 2, head_y + 3), 1)
+        
+        if staff_raise != 0 or staff_angle != 0:
+            staff = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(staff_angle)
+            base_x = 28 + torso_shift
+            base_y_staff = 18 + base_y + staff_raise
+            end_x = base_x + int(14 * math.cos(angle_rad))
+            end_y = base_y_staff - int(14 * math.sin(angle_rad))
+            pygame.draw.line(staff, staff_wood, (base_x, base_y_staff), (end_x, end_y), 2)
+            if magic_glow > 0:
+                pygame.draw.circle(staff, magic_color, (end_x, end_y), 4)
+            body.blit(staff, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, staff_angle=0, staff_raise=0, magic_glow=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, staff_angle=2, staff_raise=-1, magic_glow=10),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, staff_angle=4, staff_raise=-1, magic_glow=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, staff_angle=-4, staff_raise=-1, magic_glow=0),
+        'CastStart': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, staff_angle=-15, staff_raise=-3, magic_glow=20),
+        'CastRelease': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, staff_angle=10, staff_raise=-4, magic_glow=40),
+        'CastRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, staff_angle=4, staff_raise=-1, magic_glow=10),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, staff_angle=8, staff_raise=1, magic_glow=0),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, staff_angle=20, staff_raise=3, magic_glow=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, staff_angle=20, staff_raise=3, magic_glow=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_manticore_texture(animation_state='Idle'):
+    """Процедурная анимация мантикоры."""
+    cache_key = f'manticore_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  tail_angle=0, wing_flap=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (30, 25, 20, 170)
+        fur = (120, 100, 80)
+        fur_dark = (80, 60, 50)
+        eye_glow = (200, 150, 100)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        torso = pygame.Rect(12 + torso_shift, 20 + base_y, 20, 16)
+        pygame.draw.ellipse(body, fur, torso)
+        pygame.draw.ellipse(body, fur_dark, torso, 2)
+        
+        left_leg = pygame.Rect(14 + leg_back_shift, 34 + base_y, 5, 6)
+        right_leg = pygame.Rect(25 + leg_front_shift, 34 + base_y, 5, 6)
+        pygame.draw.rect(body, fur, left_leg)
+        pygame.draw.rect(body, fur_dark, left_leg, 1)
+        pygame.draw.rect(body, fur, right_leg)
+        pygame.draw.rect(body, fur_dark, right_leg, 1)
+        
+        head_x = 20 + torso_shift
+        head_y = 16 + base_y + head_tilt
+        pygame.draw.ellipse(body, fur, (head_x - 6, head_y, 12, 10))
+        pygame.draw.ellipse(body, fur_dark, (head_x - 4, head_y + 2, 8, 6))
+        pygame.draw.circle(body, eye_glow, (head_x - 2, head_y + 4), 2)
+        pygame.draw.circle(body, eye_glow, (head_x + 2, head_y + 4), 2)
+        
+        if wing_flap != 0:
+            wings = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            wing_offset = int(wing_flap * 1.5)
+            wing_points = [
+                (14 + torso_shift, 22 + base_y),
+                (8 + torso_shift, 30 + base_y + wing_offset),
+                (20 + torso_shift, 24 + base_y),
+            ]
+            pygame.draw.polygon(wings, fur, wing_points)
+            pygame.draw.polygon(wings, fur_dark, wing_points, 1)
+            body.blit(wings, (0, 0))
+        
+        if tail_angle != 0:
+            tail = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(tail_angle)
+            base_x = 30 + torso_shift
+            base_y_tail = 26 + base_y
+            end_x = base_x + int(10 * math.cos(angle_rad))
+            end_y = base_y_tail - int(10 * math.sin(angle_rad))
+            pygame.draw.line(tail, fur, (base_x, base_y_tail), (end_x, end_y), 3)
+            pygame.draw.circle(tail, (200, 50, 50), (end_x, end_y), 2)
+            body.blit(tail, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, tail_angle=0, wing_flap=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, tail_angle=5, wing_flap=1),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, tail_angle=10, wing_flap=2),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, tail_angle=-10, wing_flap=-2),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, tail_angle=-15, wing_flap=-1),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, tail_angle=15, wing_flap=3),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, tail_angle=0, wing_flap=0),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, tail_angle=-10, wing_flap=-1),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, tail_angle=0, wing_flap=-2),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, tail_angle=0, wing_flap=-2),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_reddragon_texture(animation_state='Idle'):
+    """Процедурная анимация красного дракона."""
+    cache_key = f'reddragon_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0,
+                  wing_flap=0, fire_glow=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (30, 20, 10, 200)
+        scale = (180, 60, 40)
+        scale_dark = (120, 40, 25)
+        fire_color = (255, 150 + fire_glow, 50 + fire_glow)
+        eye_glow = (255, 200, 100)
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        torso = pygame.Rect(10 + torso_shift, 18 + base_y, 24, 18)
+        pygame.draw.ellipse(body, scale, torso)
+        pygame.draw.ellipse(body, scale_dark, torso, 2)
+        
+        left_leg = pygame.Rect(12 + leg_back_shift, 34 + base_y, 6, 6)
+        right_leg = pygame.Rect(28 + leg_front_shift, 34 + base_y, 6, 6)
+        pygame.draw.rect(body, scale, left_leg)
+        pygame.draw.rect(body, scale_dark, left_leg, 1)
+        pygame.draw.rect(body, scale, right_leg)
+        pygame.draw.rect(body, scale_dark, right_leg, 1)
+        
+        head_x = 18 + torso_shift
+        head_y = 16 + base_y + head_tilt
+        pygame.draw.ellipse(body, scale, (head_x - 8, head_y, 16, 12))
+        pygame.draw.ellipse(body, scale_dark, (head_x - 6, head_y + 2, 12, 8))
+        pygame.draw.circle(body, eye_glow, (head_x - 2, head_y + 5), 3)
+        pygame.draw.circle(body, eye_glow, (head_x + 2, head_y + 5), 3)
+        
+        if fire_glow > 0:
+            fire = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            fire_points = [
+                (head_x, head_y + 8),
+                (head_x - 2, head_y + 12 + fire_glow),
+                (head_x, head_y + 10),
+                (head_x + 2, head_y + 12 + fire_glow),
+            ]
+            pygame.draw.polygon(fire, fire_color, fire_points)
+            body.blit(fire, (0, 0))
+        
+        if wing_flap != 0:
+            wings = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            wing_offset = int(wing_flap * 1.5)
+            wing_points = [
+                (14 + torso_shift, 20 + base_y),
+                (8 + torso_shift, 28 + base_y + wing_offset),
+                (22 + torso_shift, 22 + base_y),
+            ]
+            pygame.draw.polygon(wings, scale, wing_points)
+            pygame.draw.polygon(wings, scale_dark, wing_points, 1)
+            body.blit(wings, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=0, head_tilt=0, crouch=0, wing_flap=0, fire_glow=0),
+        'IdleBreath': dict(leg_front_shift=1, leg_back_shift=-1, torso_shift=-1, head_tilt=-1, crouch=0, wing_flap=1, fire_glow=5),
+        'Walk': dict(leg_front_shift=2, leg_back_shift=-2, torso_shift=-1, head_tilt=0, crouch=0, wing_flap=2, fire_glow=0),
+        'WalkAlt': dict(leg_front_shift=-2, leg_back_shift=2, torso_shift=1, head_tilt=0, crouch=0, wing_flap=-2, fire_glow=0),
+        'AttackPrep': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-2, crouch=1, wing_flap=-1, fire_glow=10),
+        'AttackStrike': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=1, head_tilt=1, crouch=-1, wing_flap=3, fire_glow=20),
+        'AttackRecover': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-1, head_tilt=-1, crouch=0, wing_flap=0, fire_glow=5),
+        'Hurt': dict(leg_front_shift=-1, leg_back_shift=1, torso_shift=-2, head_tilt=-3, crouch=2, wing_flap=-1, fire_glow=0),
+        'Death': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=4, wing_flap=-2, fire_glow=0),
+        'Corpse': dict(leg_front_shift=0, leg_back_shift=0, torso_shift=-2, head_tilt=4, crouch=5, wing_flap=-2, fire_glow=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
+        surface = corpse_surface
+    
+    _texture_cache[cache_key] = surface
+    return surface
+
+
+def load_beholder_texture(animation_state='Idle'):
+    """Процедурная анимация наблюдателя."""
+    cache_key = f'beholder_v1_{animation_state}'
+    if cache_key in _texture_cache:
+        return _texture_cache[cache_key]
+    
+    def build_pose(torso_shift=0, head_tilt=0, crouch=0, eye_glow=0, tentacle_angle=0):
+        body = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        shadow = (20, 20, 30, 200)
+        skin = (100, 80, 120)
+        skin_dark = (70, 50, 90)
+        eye_color = (min(255, 200 + eye_glow), min(255, 150 + eye_glow), min(255, 255 + eye_glow))
+        
+        base_y = crouch
+        pygame.draw.ellipse(body, shadow, (6, CELL_SIZE - 8 - base_y, CELL_SIZE - 12, 6))
+        
+        # Тело (большой глаз)
+        torso = pygame.Rect(12 + torso_shift, 18 + base_y, 20, 18)
+        pygame.draw.ellipse(body, skin, torso)
+        pygame.draw.ellipse(body, skin_dark, torso, 2)
+        
+        # Главный глаз
+        eye_x = 22 + torso_shift
+        eye_y = 26 + base_y + head_tilt
+        pygame.draw.circle(body, eye_color, (eye_x, eye_y), 8)
+        pygame.draw.circle(body, (40, 30, 50), (eye_x, eye_y), 4)
+        pygame.draw.circle(body, (255, 255, 255), (eye_x - 1, eye_y - 1), 2)
+        
+        # Щупальца
+        if tentacle_angle != 0:
+            tentacles = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+            angle_rad = math.radians(tentacle_angle)
+            for i in range(4):
+                base_angle = i * 90 + tentacle_angle
+                base_rad = math.radians(base_angle)
+                start_x = eye_x + int(10 * math.cos(base_rad))
+                start_y = eye_y + int(10 * math.sin(base_rad))
+                end_x = start_x + int(8 * math.cos(base_rad))
+                end_y = start_y + int(8 * math.sin(base_rad))
+                pygame.draw.line(tentacles, skin, (start_x, start_y), (end_x, end_y), 2)
+            body.blit(tentacles, (0, 0))
+        
+        return body
+    
+    params_map = {
+        'Idle': dict(torso_shift=0, head_tilt=0, crouch=0, eye_glow=0, tentacle_angle=0),
+        'IdleBreath': dict(torso_shift=-1, head_tilt=-1, crouch=0, eye_glow=20, tentacle_angle=5),
+        'Walk': dict(torso_shift=-1, head_tilt=0, crouch=0, eye_glow=0, tentacle_angle=10),
+        'WalkAlt': dict(torso_shift=1, head_tilt=0, crouch=0, eye_glow=0, tentacle_angle=-10),
+        'AttackPrep': dict(torso_shift=-2, head_tilt=-2, crouch=1, eye_glow=40, tentacle_angle=-15),
+        'AttackStrike': dict(torso_shift=1, head_tilt=1, crouch=-1, eye_glow=60, tentacle_angle=15),
+        'AttackRecover': dict(torso_shift=-1, head_tilt=-1, crouch=0, eye_glow=20, tentacle_angle=0),
+        'Hurt': dict(torso_shift=-2, head_tilt=-3, crouch=2, eye_glow=0, tentacle_angle=-10),
+        'Death': dict(torso_shift=-2, head_tilt=4, crouch=4, eye_glow=0, tentacle_angle=0),
+        'Corpse': dict(torso_shift=-2, head_tilt=4, crouch=5, eye_glow=0, tentacle_angle=0),
+    }
+    
+    surface = build_pose(**params_map.get(animation_state, params_map['Idle']))
+    if animation_state == 'Death':
+        topple = pygame.transform.rotate(surface, 80)
+        result = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        result.blit(topple, (-10, 12))
+        surface = result
+    elif animation_state == 'Corpse':
+        fallen = pygame.transform.rotate(surface, 90)
+        corpse_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
+        corpse_surface.blit(fallen, (-12, 10))
         surface = corpse_surface
     
     _texture_cache[cache_key] = surface
@@ -4402,57 +7110,54 @@ def load_image(name, scale=1):
         pygame.draw.circle(image, (160,140,100), (24, 36), 3)
     # --- Нежить ---
     elif unit == 'skeleton':
-        # Основа
-        image.fill((80, 60, 100))
-        # Детализированный скелет
-        pygame.draw.circle(image, (240,240,240), (20, 16), 10)  # череп
-        pygame.draw.circle(image, (220,220,220), (20, 16), 8)  # внутренний череп
-        # Глазницы
-        pygame.draw.circle(image, (40,20,60), (16, 14), 3)
-        pygame.draw.circle(image, (40,20,60), (24, 14), 3)
-        pygame.draw.circle(image, (80,40,120), (16, 14), 1)  # свечение
-        pygame.draw.circle(image, (80,40,120), (24, 14), 1)  # свечение
+        # Основа в холодных фиолетово-серых тонах
+        image.fill((40, 40, 70))
+        # Череп
+        pygame.draw.circle(image, (225, 230, 235), (20, 14), 9)
+        pygame.draw.circle(image, (190, 195, 205), (20, 14), 7)
+        # Глазницы с холодным свечением
+        pygame.draw.circle(image, (10, 10, 30), (17, 12), 2)
+        pygame.draw.circle(image, (10, 10, 30), (23, 12), 2)
+        pygame.draw.circle(image, (130, 90, 210), (17, 12), 1)
+        pygame.draw.circle(image, (130, 90, 210), (23, 12), 1)
         # Челюсть
-        pygame.draw.arc(image, (200,200,200), (16, 18, 8, 6), 0, 3.14, 2)
+        pygame.draw.arc(image, (60, 60, 90), (16, 16, 8, 4), 0, 3.14, 2)
         # Позвоночник
-        pygame.draw.rect(image, (240,240,240), (18, 26, 4, 12))
-        pygame.draw.rect(image, (220,220,220), (19, 27, 2, 10))
-        # Ребра
+        pygame.draw.rect(image, (215, 220, 230), (18, 22, 4, 12))
+        # Рёбра
         for i in range(3):
-            pygame.draw.line(image, (240,240,240), (14+i*2, 28), (26-i*2, 28), 2)
+            pygame.draw.line(image, (215, 220, 230), (14 + i * 2, 24 + i * 2), (26 - i * 2, 24 + i * 2), 2)
         # Руки
-        pygame.draw.line(image, (240,240,240), (12, 30), (8, 36), 2)
-        pygame.draw.line(image, (240,240,240), (28, 30), (32, 36), 2)
+        pygame.draw.line(image, (215, 220, 230), (14, 26), (8, 34), 2)
+        pygame.draw.line(image, (215, 220, 230), (26, 26), (32, 34), 2)
         # Ноги
-        pygame.draw.line(image, (240,240,240), (18, 38), (16, 44), 2)
-        pygame.draw.line(image, (240,240,240), (22, 38), (24, 44), 2)
-        # Таз
-        pygame.draw.arc(image, (240,240,240), (16, 36, 8, 6), 0, 3.14, 2)
+        pygame.draw.line(image, (215, 220, 230), (18, 34), (16, 44), 2)
+        pygame.draw.line(image, (215, 220, 230), (22, 34), (24, 44), 2)
     elif unit == 'zombie':
-        # Основа
-        image.fill((60, 80, 60))
-        # Детализированный зомби
-        pygame.draw.rect(image, (120,160,120), (12, 18, 16, 18))  # тело
-        pygame.draw.rect(image, (100,140,100), (14, 20, 12, 14))  # внутреннее тело
+        # Зомби в более тусклой, гнилой палитре
+        image.fill((30, 45, 35))
+        # Тело
+        pygame.draw.rect(image, (90,125,95), (12, 18, 16, 18))
+        pygame.draw.rect(image, (70,105,80), (14, 20, 12, 14))
         # Лицо
-        pygame.draw.ellipse(image, (180,220,180), (14, 8, 12, 12))
-        pygame.draw.ellipse(image, (160,200,160), (16, 10, 8, 8))  # тень лица
-        # Глаза
-        pygame.draw.circle(image, (40,80,40), (18, 14), 2)
-        pygame.draw.circle(image, (40,80,40), (22, 14), 2)
-        pygame.draw.circle(image, (80,120,80), (18, 14), 1)  # свечение
-        pygame.draw.circle(image, (80,120,80), (22, 14), 1)  # свечение
+        pygame.draw.ellipse(image, (155,195,160), (14, 8, 12, 12))
+        pygame.draw.ellipse(image, (135,175,140), (16, 10, 8, 8))  # тень лица
+        # Глаза с бледным свечением
+        pygame.draw.circle(image, (20,55,30), (18, 14), 2)
+        pygame.draw.circle(image, (20,55,30), (22, 14), 2)
+        pygame.draw.circle(image, (140,190,140), (18, 14), 1)
+        pygame.draw.circle(image, (140,190,140), (22, 14), 1)
         # Рот
-        pygame.draw.arc(image, (100,140,100), (18, 18, 4, 3), 0, 3.14, 2)
+        pygame.draw.arc(image, (80,115,85), (18, 18, 4, 3), 0, 3.14, 2)
         # Раны
-        pygame.draw.line(image, (100,60,60), (16, 24), (20, 28), 2)
-        pygame.draw.line(image, (100,60,60), (24, 26), (28, 30), 2)
+        pygame.draw.line(image, (110,70,70), (16, 24), (20, 28), 2)
+        pygame.draw.line(image, (110,70,70), (24, 26), (28, 30), 2)
         # Руки
-        pygame.draw.line(image, (100,140,100), (20, 36), (10, 44), 4)
-        pygame.draw.line(image, (100,140,100), (20, 36), (30, 44), 4)
+        pygame.draw.line(image, (90,130,95), (20, 36), (10, 44), 4)
+        pygame.draw.line(image, (90,130,95), (20, 36), (30, 44), 4)
         # Когти
-        pygame.draw.polygon(image, (80,120,80), [(10,44),(8,48),(12,48)])
-        pygame.draw.polygon(image, (80,120,80), [(30,44),(28,48),(32,48)])
+        pygame.draw.polygon(image, (95,145,100), [(10,44),(8,48),(12,48)])
+        pygame.draw.polygon(image, (95,145,100), [(30,44),(28,48),(32,48)])
     elif unit == 'ghost':
         # Основа
         image.fill((40, 40, 80))
@@ -4477,58 +7182,58 @@ def load_image(name, scale=1):
         # Применяем к основному изображению
         image.blit(ghost_surface, (0, 0))
     elif unit == 'vampire':
-        # Основа
-        image.fill((80, 40, 60))
-        # Детализированный вампир
-        pygame.draw.ellipse(image, (120,40,80), (12, 16, 16, 18))  # тело
-        pygame.draw.ellipse(image, (100,20,60), (14, 18, 12, 14))  # внутреннее тело
+        # Вампир в холодно-кровавой палитре
+        image.fill((40, 20, 40))
+        # Тело
+        pygame.draw.ellipse(image, (110,30,80), (12, 16, 16, 18))
+        pygame.draw.ellipse(image, (90,20,60), (14, 18, 12, 14))
         # Лицо
-        pygame.draw.ellipse(image, (220,220,220), (16, 8, 8, 8))
-        pygame.draw.ellipse(image, (200,200,200), (17, 9, 6, 6))  # тень лица
+        pygame.draw.ellipse(image, (225,225,235), (16, 8, 8, 8))
+        pygame.draw.ellipse(image, (195,195,205), (17, 9, 6, 6))
         # Глаза
-        pygame.draw.circle(image, (200,0,0), (18, 12), 2)
-        pygame.draw.circle(image, (200,0,0), (22, 12), 2)
-        pygame.draw.circle(image, (255,100,100), (18, 12), 1)  # свечение
-        pygame.draw.circle(image, (255,100,100), (22, 12), 1)  # свечение
+        pygame.draw.circle(image, (200,20,40), (18, 12), 2)
+        pygame.draw.circle(image, (200,20,40), (22, 12), 2)
+        pygame.draw.circle(image, (255,110,130), (18, 12), 1)
+        pygame.draw.circle(image, (255,110,130), (22, 12), 1)
         # Плащ
-        pygame.draw.polygon(image, (180,0,0), [(20,16),(24,20),(16,20)])
-        pygame.draw.polygon(image, (160,0,0), [(20,16),(22,18),(18,18)])
+        pygame.draw.polygon(image, (150,0,20), [(20,16),(24,20),(16,20)])
+        pygame.draw.polygon(image, (120,0,15), [(20,16),(22,18),(18,18)])
         # Клыки
         pygame.draw.rect(image, (255,255,255), (18, 16, 2, 4))
         pygame.draw.rect(image, (255,255,255), (20, 16, 2, 4))
         # Руки
-        pygame.draw.line(image, (100,20,60), (20, 34), (12, 44), 3)
-        pygame.draw.line(image, (100,20,60), (20, 34), (28, 44), 3)
+        pygame.draw.line(image, (90,20,55), (20, 34), (12, 44), 3)
+        pygame.draw.line(image, (90,20,55), (20, 34), (28, 44), 3)
         # Когти
-        pygame.draw.polygon(image, (80,0,0), [(12,44),(10,48),(14,48)])
-        pygame.draw.polygon(image, (80,0,0), [(28,44),(26,48),(30,48)])
+        pygame.draw.polygon(image, (70,0,15), [(12,44),(10,48),(14,48)])
+        pygame.draw.polygon(image, (70,0,15), [(28,44),(26,48),(30,48)])
     elif unit == 'lich':
-        # Основа
-        image.fill((60, 40, 80))
-        # Детализированный лич
-        pygame.draw.ellipse(image, (220,220,220), (10, 8, 20, 18))  # тело
-        pygame.draw.ellipse(image, (200,200,200), (12, 10, 16, 14))  # внутреннее тело
+        # Лич — более холодная палитра костей и тёмной мантии
+        image.fill((26, 22, 40))
+        # Тело
+        pygame.draw.ellipse(image, (215,220,230), (10, 8, 20, 18))
+        pygame.draw.ellipse(image, (185,190,200), (12, 10, 16, 14))
         # Лицо
-        pygame.draw.ellipse(image, (240,240,240), (14, 10, 12, 8))
+        pygame.draw.ellipse(image, (235,240,245), (14, 10, 12, 8))
         # Глаза
-        pygame.draw.circle(image, (80,40,120), (18, 14), 3)
-        pygame.draw.circle(image, (80,40,120), (22, 14), 3)
-        pygame.draw.circle(image, (120,80,160), (18, 14), 1)  # свечение
-        pygame.draw.circle(image, (120,80,160), (22, 14), 1)  # свечение
+        pygame.draw.circle(image, (70,40,130), (18, 14), 3)
+        pygame.draw.circle(image, (70,40,130), (22, 14), 3)
+        pygame.draw.circle(image, (150,110,210), (18, 14), 1)
+        pygame.draw.circle(image, (150,110,210), (22, 14), 1)
         # Рот
-        pygame.draw.arc(image, (160,160,180), (18, 16, 4, 3), 0, 3.14, 2)
+        pygame.draw.arc(image, (150,155,180), (18, 16, 4, 3), 0, 3.14, 2)
         # Мантия
-        pygame.draw.rect(image, (120,80,180), (14, 26, 12, 10))
-        pygame.draw.rect(image, (100,60,160), (16, 28, 8, 6))
+        pygame.draw.rect(image, (105,80,165), (14, 26, 12, 10))
+        pygame.draw.rect(image, (80,55,140), (16, 28, 8, 6))
         # Корона
-        pygame.draw.polygon(image, (180,120,255), [(20, 8), (18, 2), (22, 2)])
-        pygame.draw.polygon(image, (160,100,235), [(20, 8), (19, 4), (21, 4)])
+        pygame.draw.polygon(image, (180,135,255), [(20, 8), (18, 2), (22, 2)])
+        pygame.draw.polygon(image, (150,100,225), [(20, 8), (19, 4), (21, 4)])
         # Мистические руны
-        pygame.draw.circle(image, (200,160,255), (16, 30), 1)
-        pygame.draw.circle(image, (200,160,255), (24, 30), 1)
-        pygame.draw.circle(image, (200,160,255), (20, 34), 1)
+        pygame.draw.circle(image, (195,160,250), (16, 30), 1)
+        pygame.draw.circle(image, (195,160,250), (24, 30), 1)
+        pygame.draw.circle(image, (195,160,250), (20, 34), 1)
         # Плащ
-        pygame.draw.arc(image, (80,40,120), (6, 18, 28, 18), 3.14, 0, 3)
+        pygame.draw.arc(image, (60,35,110), (6, 18, 28, 18), 3.14, 0, 3)
     # --- Эльфы ---
     elif unit == 'pixie':
         # Основа
@@ -4886,50 +7591,50 @@ def load_image(name, scale=1):
             pygame.draw.rect(image, (100,80,60), (8, 28, 24, 10))
             pygame.draw.rect(image, (255,215,0), (18, 30, 4, 6))  # золотая пряжка
         elif unit == 'miner':
-            # Основа
-            image.fill((110,130,160))
+            # Гном-шахтёр в более «каменной» и тёмной палитре
+            image.fill((60, 70, 90))
             # Детализированная одежда
-            pygame.draw.rect(image, (180,160,140), (14, 20, 12, 18))  # рубаха
-            pygame.draw.rect(image, (140,120,100), (16, 22, 8, 14))  # внутренняя рубаха
+            pygame.draw.rect(image, (150,130,110), (14, 20, 12, 18))  # рубаха
+            pygame.draw.rect(image, (110,90,75), (16, 22, 8, 14))    # внутренняя рубаха
             # Лицо
-            pygame.draw.ellipse(image, (240,220,160), (14, 8, 12, 12))
-            pygame.draw.circle(image, (60,40,20), (18, 14), 1)  # глаз
-            pygame.draw.circle(image, (60,40,20), (22, 14), 1)  # глаз
+            pygame.draw.ellipse(image, (225,200,150), (14, 8, 12, 12))
+            pygame.draw.circle(image, (50,35,18), (18, 14), 1)  # глаз
+            pygame.draw.circle(image, (50,35,18), (22, 14), 1)  # глаз
             # Шахтерская каска
-            pygame.draw.ellipse(image, (120,100,80), (12, 6, 16, 10))
-            pygame.draw.rect(image, (100,80,60), (14, 8, 12, 6))  # внутренняя каска
+            pygame.draw.ellipse(image, (110,95,80), (12, 6, 16, 10))
+            pygame.draw.rect(image, (85,70,55), (14, 8, 12, 6))  # внутренняя каска
             # Фонарь на каске
-            pygame.draw.circle(image, (255,200,100), (20, 10), 3)
+            pygame.draw.circle(image, (255,210,130), (20, 10), 3)
             pygame.draw.circle(image, (255,255,255), (20, 9), 1)  # свет
             # Кирка
-            pygame.draw.line(image, (100,80,60), (20, 38), (8, 44), 4)  # рукоять
-            pygame.draw.line(image, (100,80,60), (20, 38), (32, 44), 4)  # рукоять
-            pygame.draw.polygon(image, (160,160,180), [(8,44),(4,48),(12,48)])  # наконечник
-            pygame.draw.polygon(image, (160,160,180), [(32,44),(28,48),(36,48)])  # наконечник
+            pygame.draw.line(image, (90,70,55), (20, 38), (8, 44), 4)   # рукоять
+            pygame.draw.line(image, (90,70,55), (20, 38), (32, 44), 4)  # рукоять
+            pygame.draw.polygon(image, metal, [(8,44),(4,48),(12,48)])   # наконечник
+            pygame.draw.polygon(image, metal, [(32,44),(28,48),(36,48)]) # наконечник
             # Борода
-            pygame.draw.circle(image, (100,80,60), (20, 26), 4)
+            pygame.draw.circle(image, (95,75,55), (20, 26), 4)
         elif unit == 'spearthrower':
-            # Основа
-            image.fill((100,140,180))
+            # Гном-копьemetатель — более тёмная стальная броня
+            image.fill((55, 75, 100))
             # Детализированная броня
-            pygame.draw.rect(image, (180,160,140), (14, 18, 12, 18))
-            pygame.draw.rect(image, (140,120,100), (16, 20, 8, 14))
+            pygame.draw.rect(image, (150,140,130), (14, 18, 12, 18))
+            pygame.draw.rect(image, (115,100,85), (16, 20, 8, 14))
             # Лицо
-            pygame.draw.ellipse(image, (240,220,160), (14, 8, 12, 12))
-            pygame.draw.circle(image, (60,40,20), (18, 14), 1)
-            pygame.draw.circle(image, (60,40,20), (22, 14), 1)
+            pygame.draw.ellipse(image, (225,200,150), (14, 8, 12, 12))
+            pygame.draw.circle(image, (50,35,18), (18, 14), 1)
+            pygame.draw.circle(image, (50,35,18), (22, 14), 1)
             # Шлем с пером
-            pygame.draw.ellipse(image, (120,100,80), (12, 6, 16, 10))
-            pygame.draw.polygon(image, (255,100,100), [(18,8),(20,2),(22,8)])  # красное перо
+            pygame.draw.ellipse(image, (115,100,85), (12, 6, 16, 10))
+            pygame.draw.polygon(image, (200,120,80), [(18,8),(20,2),(22,8)])  # перо
             # Копье
-            pygame.draw.line(image, (200,180,160), (20, 20), (20, 44), 3)
-            pygame.draw.polygon(image, (160,160,180), [(20,20),(18,16),(22,16)])  # наконечник
-            pygame.draw.polygon(image, (100,80,60), [(20,44),(18,48),(22,48)])  # оперение
+            pygame.draw.line(image, (180,170,160), (20, 20), (20, 44), 3)
+            pygame.draw.polygon(image, (210,210,220), [(20,20),(18,16),(22,16)])  # наконечник
+            pygame.draw.polygon(image, (90,70,55), [(20,44),(18,48),(22,48)])    # оперение
             # Борода
-            pygame.draw.circle(image, (100,80,60), (20, 24), 4)
+            pygame.draw.circle(image, (95,75,55), (20, 24), 4)
         elif unit == 'bearrider':
-            # Основа
-            image.fill((80,100,140))
+            # Гном-наездник на медведе — более мрачный лесной фон
+            image.fill((45,60,90))
             # Медведь - тело
             pygame.draw.ellipse(image, (140,100,60), (8, 20, 24, 16))
             pygame.draw.ellipse(image, (120,80,40), (10, 22, 20, 12))  # тень тела
@@ -4945,53 +7650,53 @@ def load_image(name, scale=1):
             # Нос медведя
             pygame.draw.circle(image, (80,60,40), (26, 16), 1)
             # Гном-всадник
-            pygame.draw.ellipse(image, (240,220,160), (20, 6, 8, 8))  # лицо гнома
-            pygame.draw.circle(image, (60,40,20), (22, 8), 1)  # глаз
-            pygame.draw.circle(image, (60,40,20), (26, 8), 1)  # глаз
+            pygame.draw.ellipse(image, (225,200,150), (20, 6, 8, 8))  # лицо гнома
+            pygame.draw.circle(image, (50,35,18), (22, 8), 1)  # глаз
+            pygame.draw.circle(image, (50,35,18), (26, 8), 1)  # глаз
             # Шлем гнома
             pygame.draw.ellipse(image, (120,100,80), (18, 4, 12, 8))
             # Борода гнома
-            pygame.draw.circle(image, (100,80,60), (24, 12), 3)
+            pygame.draw.circle(image, (95,75,55), (24, 12), 3)
             # Седельные сумки
             pygame.draw.rect(image, (100,80,60), (14, 28, 12, 10))
             pygame.draw.rect(image, (80,60,40), (16, 30, 8, 6))
         elif unit == 'runemage':
-            # Основа
-            image.fill((60,120,200))
+            # Рунический маг — более глубокие сине-стальные оттенки
+            image.fill((40,80,140))
             # Магическая мантия
-            pygame.draw.rect(image, (180,160,200), (14, 20, 12, 18))
-            pygame.draw.rect(image, (140,120,180), (16, 22, 8, 14))
+            pygame.draw.rect(image, (150,140,190), (14, 20, 12, 18))
+            pygame.draw.rect(image, (115,105,165), (16, 22, 8, 14))
             # Лицо
-            pygame.draw.ellipse(image, (240,220,160), (14, 8, 12, 12))
-            pygame.draw.circle(image, (60,40,20), (18, 14), 1)
-            pygame.draw.circle(image, (60,40,20), (22, 14), 1)
+            pygame.draw.ellipse(image, (225,200,150), (14, 8, 12, 12))
+            pygame.draw.circle(image, (50,35,18), (18, 14), 1)
+            pygame.draw.circle(image, (50,35,18), (22, 14), 1)
             # Магический колпак
             pygame.draw.polygon(image, (100,80,160), [(14,8),(20,2),(26,8)])
             pygame.draw.polygon(image, (80,60,140), [(16,8),(20,4),(24,8)])
             # Рунический посох
-            pygame.draw.line(image, (160,140,120), (20, 32), (20, 44), 3)
-            pygame.draw.circle(image, (200,180,255), (20, 32), 6)  # рунический кристалл
+            pygame.draw.line(image, (130,115,95), (20, 32), (20, 44), 3)
+            pygame.draw.circle(image, (190,175,245), (20, 32), 6)  # рунический кристалл
             pygame.draw.circle(image, (255,255,255), (20, 30), 2)  # свет кристалла
             # Руны на мантии
             pygame.draw.circle(image, (255,255,255), (16, 26), 1)
             pygame.draw.circle(image, (255,255,255), (24, 26), 1)
             pygame.draw.circle(image, (255,255,255), (20, 30), 1)
             # Борода
-            pygame.draw.circle(image, (100,80,60), (20, 24), 4)
+            pygame.draw.circle(image, (95,75,55), (20, 24), 4)
         elif unit == 'jarl':
-            # Основа
-            image.fill((80,120,180))
+            # Ярл — более тяжёлая, затемнённая королевская броня
+            image.fill((50,80,120))
             # Королевская броня
-            pygame.draw.rect(image, (200,180,160), (12, 16, 16, 18))
-            pygame.draw.rect(image, (160,140,120), (14, 18, 12, 14))
+            pygame.draw.rect(image, (170,155,135), (12, 16, 16, 18))
+            pygame.draw.rect(image, (135,120,100), (14, 18, 12, 14))
             # Детали брони
             pygame.draw.line(image, (120,100,80), (14, 16), (26, 16), 2)
             pygame.draw.line(image, (120,100,80), (14, 20), (26, 20), 2)
             pygame.draw.line(image, (120,100,80), (14, 24), (26, 24), 2)
             pygame.draw.line(image, (120,100,80), (14, 28), (26, 28), 2)
             # Лицо
-            pygame.draw.ellipse(image, (240,220,160), (12, 6, 16, 14))
-            pygame.draw.ellipse(image, (200,180,140), (14, 8, 12, 10))
+            pygame.draw.ellipse(image, (225,200,150), (12, 6, 16, 14))
+            pygame.draw.ellipse(image, (195,170,135), (14, 8, 12, 10))
             # Глаза
             pygame.draw.circle(image, (60,40,20), (16, 12), 2)
             pygame.draw.circle(image, (60,40,20), (24, 12), 2)
@@ -5011,21 +7716,22 @@ def load_image(name, scale=1):
             pygame.draw.circle(image, (255,215,0), (20, 28), 2)
         # --- Новые юниты гномов ---
         elif unit == 'forgedragon':
-            image.fill((140, 80, 40))
-            # Каменно-металлическое тело (дракон без крыльев)
-            pygame.draw.ellipse(image, (160, 100, 60), (8, 20, 24, 14))
-            # Металлические пластины
+            # Кузнечный дракон гномов — более глубокая каменно-металлическая палитра
+            image.fill((70, 45, 35))
+            # Каменное тело
+            pygame.draw.ellipse(image, (110, 75, 55), (8, 20, 24, 14))
+            # Металлические пластины/доспех
             for i in range(3):
-                pygame.draw.rect(image, metal, (10+i*6, 22, 5, 10))
+                pygame.draw.rect(image, metal, (10 + i * 6, 22, 5, 10))
             # Голова
-            pygame.draw.ellipse(image, (160, 100, 60), (22, 8, 14, 12))
-            pygame.draw.circle(image, (255, 100, 0), (26, 12), 2)  # Огненный глаз
-            pygame.draw.circle(image, (255, 100, 0), (32, 12), 2)
-            # Рога из металла
+            pygame.draw.ellipse(image, (110, 75, 55), (22, 8, 14, 12))
+            pygame.draw.circle(image, (255, 140, 60), (26, 12), 2)  # раскалённые глаза
+            pygame.draw.circle(image, (255, 140, 60), (32, 12), 2)
+            # Металлические рога
             pygame.draw.polygon(image, metal, [(24, 8), (22, 2), (26, 8)])
             pygame.draw.polygon(image, metal, [(34, 8), (36, 2), (32, 8)])
             # Хвост с молотом
-            pygame.draw.line(image, (140, 80, 40), (10, 28), (4, 34), 3)
+            pygame.draw.line(image, (90, 55, 40), (10, 28), (4, 34), 3)
             pygame.draw.rect(image, metal, (2, 32, 4, 6))
         elif unit == 'mountainruler':
             image.fill((120, 100, 80))
@@ -5231,45 +7937,44 @@ def load_image(name, scale=1):
                 pygame.draw.circle(image, (80,0,120), (16 + i*4, 30), 1)
         # --- Новые юниты теней ---
         elif unit == 'manticore':
-            image.fill((60, 40, 80))
+            # Мантакора Лиги теней — более глубокий фиолетово-каменный тон
+            image.fill((32, 20, 46))
             # Тело льва
-            pygame.draw.ellipse(image, (100, 80, 60), (8, 20, 24, 14))
+            pygame.draw.ellipse(image, (105, 80, 65), (8, 20, 24, 14))
             # Лапы
             for i in range(4):
-                pygame.draw.rect(image, (100, 80, 60), (10+i*6, 32, 4, 8))
+                pygame.draw.rect(image, (105, 80, 65), (10+i*6, 32, 4, 8))
             # Голова со злым лицом
-            pygame.draw.ellipse(image, (100, 80, 60), (24, 10, 12, 10))
-            pygame.draw.circle(image, (200, 0, 0), (28, 14), 2)
-            pygame.draw.circle(image, (200, 0, 0), (32, 14), 2)
+            pygame.draw.ellipse(image, (105, 80, 65), (24, 10, 12, 10))
+            pygame.draw.circle(image, (220, 40, 80), (28, 14), 2)
+            pygame.draw.circle(image, (220, 40, 80), (32, 14), 2)
             # Крылья летучей мыши
-            pygame.draw.polygon(image, (60, 40, 80), [(16, 18), (4, 12), (10, 22)])
-            pygame.draw.polygon(image, (60, 40, 80), [(24, 18), (36, 12), (30, 22)])
+            pygame.draw.polygon(image, (70, 50, 100), [(16, 18), (4, 12), (10, 22)])
+            pygame.draw.polygon(image, (70, 50, 100), [(24, 18), (36, 12), (30, 22)])
             # Хвост скорпиона
             for i in range(3):
-                pygame.draw.circle(image, (80, 60, 100), (6-i, 28+i*2), 2)
-            pygame.draw.polygon(image, (120, 0, 120), [(4, 34), (2, 36), (6, 36)])  # Жало
+                pygame.draw.circle(image, (90, 70, 115), (6-i, 28+i*2), 2)
+            pygame.draw.polygon(image, (150, 40, 150), [(4, 34), (2, 36), (6, 36)])  # Жало
         elif unit == 'reddragon':
-            image.fill((120, 0, 0))
-            # Красное тело дракона
-            pygame.draw.ellipse(image, (180, 0, 0), (8, 20, 24, 14))
+            # Красный дракон Лиги теней — более тёмный, с магическим свечением глаз
+            image.fill((60, 0, 0))
+            # Тело дракона
+            pygame.draw.ellipse(image, (170, 40, 40), (8, 20, 24, 14))
             # Чешуя
             for i in range(3):
                 for j in range(2):
-                    pygame.draw.circle(image, (140, 0, 0), (12+i*6, 24+j*4), 2)
+                    pygame.draw.circle(image, (135, 20, 25), (12+i*6, 24+j*4), 2)
             # Голова
-            pygame.draw.ellipse(image, (180, 0, 0), (22, 8, 14, 12))
-            pygame.draw.circle(image, (255, 150, 0), (26, 12), 2)  # Огненный глаз
-            pygame.draw.circle(image, (255, 150, 0), (32, 12), 2)
+            pygame.draw.ellipse(image, (170, 40, 40), (22, 8, 14, 12))
+            pygame.draw.circle(image, (255, 220, 120), (26, 12), 2)
+            pygame.draw.circle(image, (255, 220, 120), (32, 12), 2)
             # Рога
-            pygame.draw.polygon(image, (80, 0, 0), [(24, 8), (22, 2), (26, 8)])
-            pygame.draw.polygon(image, (80, 0, 0), [(34, 8), (36, 2), (32, 8)])
-            # Большие крылья
+            pygame.draw.polygon(image, (220, 120, 40), [(24, 8), (22, 4), (26, 8)])
+            pygame.draw.polygon(image, (220, 120, 40), [(34, 8), (36, 4), (32, 8)])
+            # Крылья
             for i in range(3):
-                pygame.draw.ellipse(image, (140, 0, 0), (2+i, 10+i*4, 12, 16))
-                pygame.draw.ellipse(image, (140, 0, 0), (26+i, 10+i*4, 12, 16))
-            # Огонь изо рта
-            for i in range(2):
-                pygame.draw.circle(image, (255, 200, 0), (36+i*2, 14+i), 2)
+                pygame.draw.ellipse(image, (150, 50, 50), (2+i, 10+i*4, 12, 16))
+                pygame.draw.ellipse(image, (150, 50, 50), (26+i, 10+i*4, 12, 16))
         elif unit == 'beholder':
             image.fill((60, 20, 80))
             # Центральный большой глаз
@@ -5290,14 +7995,15 @@ def load_image(name, scale=1):
     # ==================== НОВЫЕ ЮНИТЫ ====================
     # --- Новые юниты людей ---
     elif unit == 'monk':
-        image.fill((200, 180, 140))
+        # Монах — более спокойная, приглушённая палитра, чтобы не выбиваться из новых людей
+        image.fill((170, 150, 120))
         # Роба
-        pygame.draw.rect(image, (150, 120, 80), (10, 18, 20, 22))
-        pygame.draw.ellipse(image, (150, 120, 80), (10, 10, 20, 12))  # Капюшон
+        pygame.draw.rect(image, (135, 110, 80), (10, 18, 20, 22))
+        pygame.draw.ellipse(image, (135, 110, 80), (10, 10, 20, 12))  # Капюшон
         # Лицо
         pygame.draw.ellipse(image, skin, (14, 14, 12, 10))
-        pygame.draw.circle(image, (0,0,0), (18, 18), 1)
-        pygame.draw.circle(image, (0,0,0), (22, 18), 1)
+        pygame.draw.circle(image, (40,30,20), (18, 18), 1)
+        pygame.draw.circle(image, (40,30,20), (22, 18), 1)
         # Крест
         pygame.draw.rect(image, gold, (19, 24, 2, 8))
         pygame.draw.rect(image, gold, (16, 26, 8, 2))
@@ -5305,41 +8011,22 @@ def load_image(name, scale=1):
         pygame.draw.ellipse(image, skin, (16, 28, 8, 6))
     
     elif unit == 'angel':
-        image.fill((240, 240, 255))
-        # Тело в доспехах
-        pygame.draw.rect(image, (220, 220, 240), (12, 18, 16, 18))
-        # Голова
+        # Ангел — более мягкая холодная палитра, чтобы не выбиваться на фоне новых людей и нежити
+        # Упрощённый спрайт ангела для иконок (боевые кадры берутся из load_angel_texture)
+        image.fill((220, 230, 250))
+        pygame.draw.rect(image, (205, 210, 235), (12, 18, 16, 18))
         pygame.draw.ellipse(image, skin, (14, 10, 12, 10))
-        pygame.draw.circle(image, (0,0,0), (18, 14), 1)
-        pygame.draw.circle(image, (0,0,0), (22, 14), 1)
-        # Волосы
-        pygame.draw.ellipse(image, (255, 220, 150), (12, 8, 16, 8))
-        # Крылья
-        for i in range(3):
-            pygame.draw.ellipse(image, (255, 255, 255), (2+i*2, 16+i*4, 8, 12))
-            pygame.draw.ellipse(image, (255, 255, 255), (30-i*2, 16+i*4, 8, 12))
-        # Меч света
-        pygame.draw.rect(image, (255, 255, 200), (28, 20, 4, 14))
-        pygame.draw.rect(image, gold, (26, 18, 8, 4))
+        pygame.draw.ellipse(image, (245, 215, 155), (12, 8, 16, 8))
+        for i in range(2):
+            pygame.draw.ellipse(image, (250, 250, 255), (4+i*2, 18+i*4, 8, 12))
+            pygame.draw.ellipse(image, (250, 250, 255), (28-i*2, 18+i*4, 8, 12))
     
     elif unit == 'cavalryman':
-        image.fill((180, 140, 100))
-        # Конь - тело
+        # Упрощённый спрайт кавалериста для иконок (боевые кадры берутся из load_cavalryman_texture)
+        image.fill((150, 125, 95))
         pygame.draw.ellipse(image, (140, 100, 60), (6, 22, 28, 14))
-        # Конь - голова
         pygame.draw.ellipse(image, (140, 100, 60), (26, 12, 10, 10))
-        pygame.draw.circle(image, (0,0,0), (30, 16), 2)
-        # Всадник - торс
         pygame.draw.rect(image, metal, (14, 12, 12, 12))
-        # Всадник - голова
-        pygame.draw.ellipse(image, skin, (16, 6, 8, 8))
-        pygame.draw.circle(image, (0,0,0), (18, 9), 1)
-        pygame.draw.circle(image, (0,0,0), (22, 9), 1)
-        # Шлем
-        pygame.draw.ellipse(image, metal, (16, 4, 8, 6))
-        # Копьё
-        pygame.draw.line(image, (160, 140, 120), (26, 10), (36, 4), 3)
-        pygame.draw.polygon(image, metal, [(36,2), (38,4), (36,6)])
     
     # --- Новые юниты нежити ---
     elif unit == 'deathknight':
@@ -5359,23 +8046,24 @@ def load_image(name, scale=1):
         pygame.draw.circle(image, (200, 200, 200), (8, 28), 3)
     
     elif unit == 'bonedragon':
-        image.fill((60, 60, 80))
-        # Костяное тело дракона
-        pygame.draw.ellipse(image, (200, 200, 200), (8, 20, 24, 14))
+        # Костяной дракон — более мрачный, с холодной палитрой костей
+        image.fill((30, 30, 50))
+        # Тело
+        pygame.draw.ellipse(image, (210, 215, 225), (8, 20, 24, 14))
         # Рёбра
         for i in range(4):
-            pygame.draw.arc(image, (180, 180, 180), (10+i*4, 22, 8, 8), 0, 3.14, 2)
-        # Костяная голова
-        pygame.draw.ellipse(image, (200, 200, 200), (22, 8, 14, 12))
-        pygame.draw.circle(image, (255, 0, 0), (26, 12), 2)  # Красный глаз
-        pygame.draw.circle(image, (255, 0, 0), (32, 12), 2)
+            pygame.draw.arc(image, (175, 180, 190), (10 + i * 4, 22, 8, 8), 0, 3.14, 2)
+        # Голова
+        pygame.draw.ellipse(image, (210, 215, 225), (22, 8, 14, 12))
+        pygame.draw.circle(image, (255, 60, 80), (26, 12), 2)  # красно-розовое свечение глаз
+        pygame.draw.circle(image, (255, 60, 80), (32, 12), 2)
         # Зубы
         for i in range(3):
-            pygame.draw.polygon(image, (240, 240, 240), [(24+i*3, 18), (25+i*3, 20), (26+i*3, 18)])
+            pygame.draw.polygon(image, (235, 235, 240), [(24 + i * 3, 18), (25 + i * 3, 20), (26 + i * 3, 18)])
         # Костяные крылья
         for i in range(2):
-            pygame.draw.line(image, (180, 180, 180), (16, 16), (4+i*4, 8+i*6), 2)
-            pygame.draw.line(image, (180, 180, 180), (24, 16), (32+i*4, 8+i*6), 2)
+            pygame.draw.line(image, (180, 185, 195), (16, 16), (4 + i * 4, 8 + i * 6), 2)
+            pygame.draw.line(image, (180, 185, 195), (24, 16), (32 + i * 4, 8 + i * 6), 2)
     
     elif unit == 'reaper':
         image.fill((20, 20, 40))
@@ -5394,24 +8082,10 @@ def load_image(name, scale=1):
     
     # --- Новые юниты эльфов ---
     elif unit == 'greendragon':
-        image.fill((60, 140, 60))
-        # Тело дракона
-        pygame.draw.ellipse(image, (80, 180, 80), (8, 20, 24, 14))
-        # Чешуя
-        for i in range(3):
-            for j in range(2):
-                pygame.draw.circle(image, (60, 160, 60), (12+i*6, 24+j*4), 2)
-        # Голова
-        pygame.draw.ellipse(image, (80, 180, 80), (22, 8, 14, 12))
-        pygame.draw.circle(image, (255, 255, 0), (26, 12), 2)  # Золотой глаз
-        pygame.draw.circle(image, (255, 255, 0), (32, 12), 2)
-        # Рога
-        pygame.draw.polygon(image, (100, 200, 100), [(24, 8), (22, 4), (26, 8)])
-        pygame.draw.polygon(image, (100, 200, 100), [(34, 8), (36, 4), (32, 8)])
-        # Крылья
-        for i in range(3):
-            pygame.draw.ellipse(image, (100, 200, 100), (2+i, 12+i*4, 10, 14))
-            pygame.draw.ellipse(image, (100, 200, 100), (28+i, 12+i*4, 10, 14))
+        # Упрощённый спрайт зелёного дракона (боевые кадры берутся из load_greendragon_texture)
+        image.fill((24, 80, 40))
+        pygame.draw.ellipse(image, (60, 150, 80), (8, 20, 24, 14))
+        pygame.draw.ellipse(image, (60, 150, 80), (22, 8, 14, 12))
     
     elif unit == 'druid':
         image.fill((80, 120, 60))
@@ -5903,7 +8577,7 @@ def animate_ice_arrow(screen, start, end, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
 def animate_magic_projectile(screen, start, end, color=(120,40,180)):
     # Фиксированная скорость полета независимо от расстояния (пикселей за кадр)
@@ -5999,7 +8673,7 @@ def animate_stone_skin(screen, target_px, redraw_callback=None):
             pygame.draw.aaline(overlay, (80, 80, 80, alpha), (cx, cy), (x2, y2))
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
 def animate_curse_voodoo(screen, target_px, redraw_callback=None):
     """Улучшенная анимация проклятия с темной магией и вороньими перьями"""
@@ -6209,7 +8883,7 @@ def animate_rune_shield_spell(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
 def animate_meteor_rain(screen, meteors, redraw_callback=None, explosion_sound_callback=None, flight_sound_callback=None):
     """Анимация метеоритного дождя - все метеориты падают одновременно с маленьким промежутком"""
@@ -6399,7 +9073,7 @@ def animate_meteor_rain(screen, meteors, redraw_callback=None, explosion_sound_c
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(18)
+        pygame.time.delay(9)  # Ускорено для быстрых заклинаний
 
 def animate_chain_lightning(screen, caster, targets, redraw_callback=None):
     """Анимация цепной молнии - молния бьёт первую цель, затем отскакивает к остальным"""
@@ -6506,14 +9180,14 @@ def animate_chain_lightning(screen, caster, targets, redraw_callback=None):
             
             screen.blit(s, (0, 0))
             pygame.display.flip()
-            pygame.time.delay(12)  # Уменьшена задержка для плавности  # Ускорено с 50 до 30
+            pygame.time.delay(6)  # Ускорено для быстрых заклинаний
             
             if strike < 1:
                 pygame.event.pump()
                 if redraw_callback:
                     redraw_callback()
                 pygame.display.flip()
-                pygame.time.delay(15)  # Ускорено с 30 до 15
+                pygame.time.delay(7)  # Ускорено для быстрых заклинаний
         
         # Небольшая задержка перед следующим отскоком
         if target_idx < len(targets) - 1:
@@ -6521,7 +9195,7 @@ def animate_chain_lightning(screen, caster, targets, redraw_callback=None):
             if redraw_callback:
                 redraw_callback()
             pygame.display.flip()
-            pygame.time.delay(20)  # Ускорено с 40 до 20
+            pygame.time.delay(10)  # Ускорено для быстрых заклинаний
 
 def animate_accuracy(screen, target_px, redraw_callback=None):
     """Анимация точности - появляется линза и монетка крутится два раза по вертикальной оси"""
@@ -6581,7 +9255,7 @@ def animate_accuracy(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
 def animate_rune_haste_spell(screen, target_px, redraw_callback=None):
     # Руна скорости: камень с белым руническим знаком (молния) и жёлтыми частицами
@@ -6718,7 +9392,7 @@ def animate_fireball(screen, start_px, end_px, redraw_callback=None, explosion_s
                     pygame.draw.circle(overlay, (255, 220, 120, int(tail_alpha*0.6)), (spark_x, spark_y), 2)
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
     
     # Этап 2: взрыв после приземления
     explode_frames = 80  # Увеличено до 80 кадров для максимальной плавности
@@ -6761,7 +9435,7 @@ def animate_fireball(screen, start_px, end_px, redraw_callback=None, explosion_s
             pygame.draw.circle(overlay, (70, 55, 55, int(150*(1-ex_t*0.8))), (smoke_x, smoke_y), smoke_size)
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(12)  # Уменьшена задержка для плавности
+        pygame.time.delay(6)  # Ускорено для быстрых заклинаний
 
 def animate_raise_dead(screen, center_px, redraw_callback=None):
     # Рука вылазит из земли в центре клетки
@@ -6783,7 +9457,7 @@ def animate_raise_dead(screen, center_px, redraw_callback=None):
             pygame.draw.rect(overlay, (200,200,200,240), (cx+dx-1, cy+8-finger_h, 2, finger_h))
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
 def animate_fire_explosion(screen, x, y):
     """Улучшенный взрыв с детальными огненными эффектами"""
@@ -6865,7 +9539,7 @@ def animate_fire_explosion(screen, x, y):
         
         screen.blit(overlay, (0,0))
         pygame.display.flip()
-        pygame.time.delay(22)
+        pygame.time.delay(11)  # Ускорено для быстрых заклинаний
 
 def animate_forget_spell(screen, start, end, redraw_callback=None):
     """Максимально насыщенная анимация заклинания Забвение с темно-фиолетовыми эффектами"""
@@ -7018,7 +9692,7 @@ def animate_forget_spell(screen, start, end, redraw_callback=None):
         screen.blit(forget_surface, (x - CELL_SIZE*2, y - CELL_SIZE*2))
         
         pygame.display.flip()
-        pygame.time.delay(35)
+        pygame.time.delay(17)  # Ускорено для быстрых заклинаний
 
 def animate_frost_ring(screen, center, radius_cells=1, redraw_callback=None):
     """Улучшенное Кольцо холода: детальная заморозка с ледяными кристаллами и туманом"""
@@ -7127,7 +9801,7 @@ def animate_frost_ring(screen, center, radius_cells=1, redraw_callback=None):
         # Применяем поверх
         screen.blit(ring_px, (cx - CELL_SIZE*2, cy - CELL_SIZE*2))
         pygame.display.flip()
-        pygame.time.delay(26)
+        pygame.time.delay(13)  # Ускорено для быстрых заклинаний
 
 def animate_frost_impact(screen, center, redraw_callback=None):
     """Анимация морозного удара: ледяные шипы растут из земли и разбиваются"""
@@ -7172,7 +9846,7 @@ def animate_frost_impact(screen, center, redraw_callback=None):
                     pygame.draw.circle(splash, (200, 240, 255, alpha), (px, py), max(1, 3 - int(2*break_t)))
         screen.blit(splash, (cx - CELL_SIZE*1.5, cy - CELL_SIZE*1.5))
         pygame.display.flip()
-        pygame.time.delay(20)
+        pygame.time.delay(10)  # Ускорено для быстрых заклинаний
 
 def animate_forget_spell_fly(screen, start, end, redraw_callback=None):
     """Детализированная анимация полета заклинания Забвение"""
@@ -7370,7 +10044,7 @@ def animate_slow_spell(screen, start, end, redraw_callback=None):
         screen.blit(slow_surface, (x - CELL_SIZE*1.5, y - CELL_SIZE*1.5))
         
         pygame.display.flip()
-        pygame.time.delay(12)  # Уменьшена задержка для плавности
+        pygame.time.delay(6)  # Ускорено для быстрых заклинаний
 
 def animate_slow_spell_fly(screen, start, end, redraw_callback=None):
     """Анимация полета заклинания Замедление"""
@@ -7506,7 +10180,7 @@ def animate_bless_spell(screen, start, end, redraw_callback=None):
         # Рендер на экран
         screen.blit(surf, (x - CELL_SIZE*1.5, y - CELL_SIZE*1.5))
         pygame.display.flip()
-        pygame.time.delay(26)
+        pygame.time.delay(13)  # Ускорено для быстрых заклинаний
 
 def animate_bless_spell_fly(screen, start, end, redraw_callback=None):
     """Анимация полета заклинания Благословение"""
@@ -7657,7 +10331,7 @@ def animate_dispel_spell(screen, start, end, redraw_callback=None):
         screen.blit(dispel_surface, (x - CELL_SIZE*2, y - CELL_SIZE*2))
         
         pygame.display.flip()
-        pygame.time.delay(12)  # Уменьшена задержка для плавности
+        pygame.time.delay(6)  # Ускорено для быстрых заклинаний
 
 def animate_stone_skin(screen, target_pos, redraw_callback=None):
     """Плитки-кирпичики поднимаются снизу, собираются вокруг юнита и потом рассыпаются."""
@@ -7714,7 +10388,7 @@ def animate_stone_skin(screen, target_pos, redraw_callback=None):
                 pygame.draw.rect(layer, (140, 130, 120, alpha), (px, py, w, w))
         screen.blit(layer, (cx - CELL_SIZE//2, cy - CELL_SIZE//2))
         pygame.display.flip()
-        pygame.time.delay(22)
+        pygame.time.delay(11)  # Ускорено для быстрых заклинаний
 
 def animate_dispel_spell_fly(screen, start, end, redraw_callback=None):
     """Анимация полета заклинания Снятие чар"""
@@ -7866,7 +10540,7 @@ def animate_air_haste_spell(screen, start, end, redraw_callback=None):
         
         screen.blit(layer, (tx - CELL_SIZE*1.5, ty - CELL_SIZE*1.5))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
 def animate_rune_shield_spell(screen, start, end, redraw_callback=None):
     """Анимация руны защиты: насыщенный глиф над целью с мерцанием и исчезновением"""
@@ -8011,7 +10685,7 @@ def animate_rune_shield_spell(screen, start, end, redraw_callback=None):
         screen.blit(rune_surface, (x - CELL_SIZE*1.5, y - CELL_SIZE*1.5))
         
         pygame.display.flip()
-        pygame.time.delay(12)  # Уменьшена задержка для плавности
+        pygame.time.delay(6)  # Ускорено для быстрых заклинаний
 
 def animate_rune_haste_spell(screen, start, end, redraw_callback=None):
     """Анимация руны скорости: насыщенный глиф над целью с мерцанием и исчезновением"""
@@ -8156,7 +10830,7 @@ def animate_rune_haste_spell(screen, start, end, redraw_callback=None):
         screen.blit(rune_surface, (x - CELL_SIZE*1.5, y - CELL_SIZE*1.5))
         
         pygame.display.flip()
-        pygame.time.delay(12)  # Уменьшена задержка для плавности 
+        pygame.time.delay(6)  # Ускорено для быстрых заклинаний
 
 def animate_rune_magic_spell(screen, start, end, redraw_callback=None):
     """Анимация руны магии: фиолетовый магический глиф над целью"""
@@ -8291,7 +10965,7 @@ def animate_rune_magic_spell(screen, start, end, redraw_callback=None):
         screen.blit(rune_surface, (x - CELL_SIZE*1.5, y - CELL_SIZE*1.5))
         
         pygame.display.flip()
-        pygame.time.delay(12)  # Уменьшена задержка для плавности
+        pygame.time.delay(6)  # Ускорено для быстрых заклинаний
 
 def animate_rune_berserker_spell(screen, start, end, redraw_callback=None):
     """Простая анимация руны берсерка: красное свечение прямо на юните (без полета снаряда)"""
@@ -8341,7 +11015,7 @@ def animate_rune_berserker_spell(screen, start, end, redraw_callback=None):
         # Применяем эффект к экрану
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
 def animate_luck_horseshoe(screen, unit_pos, redraw_callback=None):
     """Анимация подковы при срабатывании удачи - подкова крутится по вертикальной оси над юнитом"""
@@ -8432,7 +11106,7 @@ def animate_luck_horseshoe(screen, unit_pos, redraw_callback=None):
         # Применяем эффект к экрану
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(20)
+        pygame.time.delay(10)  # Ускорено для быстрых заклинаний
 
 def animate_combat_spirit_bird(screen, unit_pos, redraw_callback=None):
     """Анимация золотой птицы при срабатывании боевого духа - птица поднимает крылья"""
@@ -8557,7 +11231,7 @@ def animate_combat_spirit_bird(screen, unit_pos, redraw_callback=None):
         # Применяем эффект к экрану
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
 def animate_spell_reflection(screen, target_px, caster_px, redraw_callback=None):
     """Анимация предотвращения заклинания - поток маны прилетает к щиту рядом с юнитом и отталкивается"""
@@ -8676,7 +11350,7 @@ def animate_spell_reflection(screen, target_px, caster_px, redraw_callback=None)
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(20)
+        pygame.time.delay(10)  # Ускорено для быстрых заклинаний
 
 def animate_quicksand_cast(screen, center_px, redraw_callback=None):
     """Анимация каста зыбучих песков - земля трясётся, появляются трещины"""
@@ -8729,7 +11403,7 @@ def animate_quicksand_cast(screen, center_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
 def animate_quicksand_creation(screen, quicksand_positions, redraw_callback=None):
     """Анимация создания зыбучих песков - появляются бурлящие лужи грязи"""
@@ -8783,7 +11457,7 @@ def animate_quicksand_creation(screen, quicksand_positions, redraw_callback=None
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(12)  # Уменьшена задержка для плавности
+        pygame.time.delay(6)  # Ускорено для быстрых заклинаний
 
 def animate_quicksand_trigger(screen, target_px, redraw_callback=None):
     """Анимация срабатывания зыбучих песков - улучшенная бурлящая лужа грязи"""
@@ -8858,7 +11532,7 @@ def animate_quicksand_trigger(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(10)  # Уменьшена задержка для плавности
+        pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
 def animate_earth_shock(screen, target_px, redraw_callback=None):
     """Анимация шока земли - фиолетовый гравитационный купол, собираются частицы, купол крутится, схлопывается в чёрную дыру и взрывается"""
@@ -8900,7 +11574,7 @@ def animate_earth_shock(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(20)  # Ускорено с 30 до 20
+        pygame.time.delay(10)  # Ускорено для быстрых заклинаний
     
     # Этап 2: Купол крутится (12 кадров) - ускорено
     phase2_frames = 12
@@ -8935,7 +11609,7 @@ def animate_earth_shock(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(20)  # Ускорено с 35 до 20
+        pygame.time.delay(10)  # Ускорено для быстрых заклинаний
     
     # Этап 3: Схлопывание в чёрную дыру (15 кадров) - ускорено
     phase3_frames = 15
@@ -8972,7 +11646,7 @@ def animate_earth_shock(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(20)  # Ускорено с 30 до 20
+        pygame.time.delay(10)  # Ускорено для быстрых заклинаний
     
     # Этап 4: Эпичный фиолетовый взрыв (15 кадров) - ускорено
     phase4_frames = 15
@@ -9198,7 +11872,7 @@ def animate_prayer(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(12)  # Уменьшена задержка для плавности
+        pygame.time.delay(6)  # Ускорено для быстрых заклинаний
 
 
 def animate_blindness(screen, target_px, redraw_callback=None):
@@ -9293,4 +11967,4 @@ def animate_blindness(screen, target_px, redraw_callback=None):
         
         screen.blit(overlay, (0, 0))
         pygame.display.flip()
-        pygame.time.delay(20)  # Уменьшена задержка для более плавного длинного раунда
+        pygame.time.delay(10)  # Ускорено для быстрых заклинаний

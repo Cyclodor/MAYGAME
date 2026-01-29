@@ -2,7 +2,7 @@
   "music_volume": 0.1,
   "sfx_volume": 0.2,
   "muted": false,
-  "screen_width": 800,
-  "screen_height": 600,
+  "screen_width": 1920,
+  "screen_height": 1080,
   "fullscreen": false
 }

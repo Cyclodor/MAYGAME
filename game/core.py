@@ -1,10 +1,15 @@
 import pygame
 import os
 import sys
-# Добавляем путь к модулю логирования анимаций
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(project_root, 'debug', 'animation'))
-from animation_logger import get_logger
+# Импорт модуля логирования анимаций
+# Пробуем импортировать через пакет debug.animation (для PyInstaller)
+try:
+    from debug.animation.animation_logger import get_logger
+except ImportError:
+    # Fallback для случаев, когда debug не установлен как пакет
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(project_root, 'debug', 'animation'))
+    from animation_logger import get_logger
 from .config import *
 from .units import Hero, Peasant, Spearman, Crossbowman, Swordsman, Gryphon, Skeleton, Zombie, Ghost, Vampire, Lich, Pixie, ElfScout, ElfArcher, Dryad, Ent, Imp, Gog, Demon, Cerberus, Succubus, Miner, Spearthrower, BearRider, RuneMage, Jarl, Scout, Beast, Minotaur, Witch, LizardRider, Monk, Angel, Cavalryman, DeathKnight, BoneDragon, Reaper, GreenDragon, Druid, Unicorn, BloodPriestess, Devil, HellHorse, Manticore, RedDragon, Beholder, ForgeDragon, MountainRuler, Volkhv
 from .graphics import (
@@ -210,7 +215,7 @@ class Game:
         self.current_team = 'player1'  # По умолчанию первая команда
         self.game_over = False
         self.menu_open = False
-        self.state = 'menu'  # 'menu', 'battle_setup', 'game'
+        self.state = 'menu'  # 'menu', 'battle_setup', 'game', 'multiplayer_lobby', 'multiplayer_host', 'multiplayer_client'
         self.background = self.generate_battlefield()
         self.font = pygame.font.Font(None, 36)
         self.highlight_surface = pygame.Surface((CELL_SIZE, CELL_SIZE), pygame.SRCALPHA)
@@ -256,6 +261,21 @@ class Game:
         self.player2_type = 'ai'  # 'human' или 'ai' (бот)
         self.player1_side = 'right'
         self.player2_side = 'left'
+        # Мультиплеер
+        self.multiplayer_server = None  # NetworkServer для хоста
+        self.multiplayer_client = None  # NetworkClient для клиента
+        self.is_multiplayer_host = False
+        self.is_multiplayer_client = False
+        self.lobby_code = None
+        self.multiplayer_p1_race = None
+        self.multiplayer_p1_class = None
+        self.multiplayer_p2_race = None
+        self.multiplayer_p2_class = None
+        self.multiplayer_p1_ready = False
+        self.multiplayer_p2_ready = False
+        self.multiplayer_lobby_code_input = ''
+        self.multiplayer_lobby_code_input_active = False
+        self.multiplayer_mode_selection = None  # 'host' или 'client' - выбор режима при нажатии кнопки мультиплеер
         # ИИ для ботов
         self.ai_controller_p1 = None  # ИИ для игрока 1
         self.ai_controller_p2 = None  # ИИ для игрока 2
@@ -506,6 +526,207 @@ class Game:
         
         unit.set_squad_count(count)
     
+    def start_multiplayer_host(self):
+        """Запускает сервер и переходит в лобби"""
+        try:
+            from .network import NetworkServer
+            # Сначала очищаем все данные мультиплеера
+            self.clear_multiplayer_data()
+            # Запускаем сервер
+            self.multiplayer_server = NetworkServer(port=12345)
+            self.lobby_code = self.multiplayer_server.generate_lobby_code()
+            if self.multiplayer_server.start():
+                self.is_multiplayer_host = True
+                self.state = 'multiplayer_lobby'
+                # Устанавливаем обработчик сообщений
+                self.multiplayer_server.on_message = self.handle_multiplayer_message
+                print(f"Сервер запущен. Код лобби: {self.lobby_code}")
+            else:
+                print("Ошибка запуска сервера")
+                self.state = 'menu'
+        except Exception as e:
+            print(f"Ошибка запуска мультиплеера: {e}")
+            import traceback
+            traceback.print_exc()
+            self.state = 'menu'
+    
+    def start_multiplayer_client(self, lobby_code: str):
+        """Подключается к серверу по коду лобби"""
+        try:
+            from .network import NetworkClient
+            print(f"Попытка подключения с кодом: {lobby_code}")
+            # Сначала очищаем все данные мультиплеера
+            self.clear_multiplayer_data()
+            # Для простоты используем localhost, в реальности нужно будет получать IP хоста
+            self.multiplayer_client = NetworkClient(host='localhost', port=12345)
+            # Устанавливаем обработчик сообщений ДО подключения
+            self.multiplayer_client.on_message = self.handle_multiplayer_message
+            
+            print("Попытка подключения к серверу...")
+            if self.multiplayer_client.connect():
+                print("Соединение установлено, отправляю код лобби...")
+                self.is_multiplayer_client = True
+                self.state = 'multiplayer_lobby'
+                # Отправляем код лобби для проверки
+                success = self.multiplayer_client.send({'type': 'join', 'code': lobby_code})
+                if success:
+                    print(f"Код лобби отправлен: {lobby_code}")
+                else:
+                    print("ОШИБКА: Не удалось отправить код лобби!")
+                self.multiplayer_lobby_code_input_active = False
+            else:
+                print("Ошибка подключения к серверу - сервер недоступен")
+                # Возвращаемся в состояние ввода кода
+                self.is_multiplayer_client = True
+                self.multiplayer_lobby_code_input_active = True
+        except Exception as e:
+            print(f"Ошибка подключения: {e}")
+            import traceback
+            traceback.print_exc()
+            # Возвращаемся в состояние ввода кода
+            self.is_multiplayer_client = True
+            self.multiplayer_lobby_code_input_active = True
+    
+    def handle_multiplayer_message(self, message: dict):
+        """Обрабатывает сетевые сообщения"""
+        msg_type = message.get('type')
+        
+        if msg_type == 'join':
+            # Клиент подключился (для хоста)
+            print(f"Получено сообщение 'join' от клиента")
+            # Проверяем код лобби
+            client_code = message.get('code')
+            server_code = self.lobby_code
+            if not server_code and self.multiplayer_server:
+                server_code = getattr(self.multiplayer_server, 'lobby_code', None)
+            
+            print(f"Проверка кода: Клиент={client_code}, Сервер={server_code}")
+            
+            if self.is_multiplayer_host and self.multiplayer_server:
+                # Проверяем код лобби (сравниваем как строки)
+                if client_code and server_code and str(client_code) == str(server_code):
+                    print(f"✓ Код совпадает! Клиент успешно подключился: {client_code}")
+                    # Отправляем подтверждение подключения
+                    success = self.multiplayer_server.send({
+                        'type': 'join_accepted',
+                        'code': str(server_code)
+                    })
+                    if success:
+                        print("Отправлено подтверждение подключения")
+                    else:
+                        print("ОШИБКА: Не удалось отправить подтверждение!")
+                    
+                    # Отправляем текущее состояние хоста клиенту
+                    if self.multiplayer_p1_race:
+                        self.multiplayer_server.send({
+                            'type': 'player1_choice',
+                            'race': self.multiplayer_p1_race
+                        })
+                    if self.multiplayer_p1_class:
+                        self.multiplayer_server.send({
+                            'type': 'player1_choice',
+                            'class': self.multiplayer_p1_class
+                        })
+                    if self.multiplayer_p1_ready:
+                        self.multiplayer_server.send({
+                            'type': 'player1_choice',
+                            'ready': self.multiplayer_p1_ready
+                        })
+                else:
+                    print(f"✗ Неверный код лобби! Клиент: '{client_code}', Сервер: '{server_code}'")
+                    # Отправляем отказ
+                    self.multiplayer_server.send({
+                        'type': 'join_rejected',
+                        'reason': 'Неверный код лобби'
+                    })
+                    # Отключаем клиента
+                    if self.multiplayer_server.client_socket:
+                        try:
+                            self.multiplayer_server.client_socket.close()
+                        except:
+                            pass
+                        self.multiplayer_server.client_socket = None
+            else:
+                print(f"ОШИБКА: Хост не активен или сервер не запущен! is_host={self.is_multiplayer_host}, server={self.multiplayer_server}")
+        
+        elif msg_type == 'player2_choice':
+            # Клиент выбрал расу/класс (для хоста)
+            if self.is_multiplayer_host:
+                print(f"[Хост] Получен выбор клиента: {message}")
+                if 'race' in message:
+                    self.multiplayer_p2_race = message['race']
+                    print(f"[Хост] Клиент выбрал расу: {message['race']}")
+                if 'class' in message:
+                    self.multiplayer_p2_class = message['class']
+                    print(f"[Хост] Клиент выбрал класс: {message['class']}")
+                if 'ready' in message:
+                    old_ready = self.multiplayer_p2_ready
+                    self.multiplayer_p2_ready = bool(message['ready'])  # Явно преобразуем в bool
+                    print(f"[Хост] Клиент готовность: {old_ready} -> {self.multiplayer_p2_ready} (тип: {type(self.multiplayer_p2_ready)})")
+        
+        elif msg_type == 'join_accepted':
+            # Сервер принял подключение клиента
+            if self.is_multiplayer_client:
+                print("✓ Подключение к серверу успешно!")
+                code = message.get('code')
+                if code:
+                    print(f"Код лобби подтвержден: {code}")
+                # Клиент теперь полностью подключен
+                self.multiplayer_lobby_code_input_active = False
+        
+        elif msg_type == 'join_rejected':
+            # Сервер отклонил подключение клиента
+            if self.is_multiplayer_client:
+                reason = message.get('reason', 'Неизвестная причина')
+                print(f"✗ Подключение отклонено: {reason}")
+                # Отключаемся и возвращаемся к вводу кода
+                if self.multiplayer_client:
+                    self.multiplayer_client.disconnect()
+                    self.multiplayer_client = None
+                self.multiplayer_lobby_code_input = ''
+                self.multiplayer_lobby_code_input_active = True
+                self.is_multiplayer_client = False
+        
+        elif msg_type == 'player1_choice':
+            # Хост выбрал расу/класс (для клиента)
+            if self.is_multiplayer_client:
+                print(f"[Клиент] Получен выбор хоста: {message}")
+                if 'race' in message:
+                    self.multiplayer_p1_race = message['race']
+                    print(f"[Клиент] Хост выбрал расу: {message['race']}")
+                if 'class' in message:
+                    self.multiplayer_p1_class = message['class']
+                    print(f"[Клиент] Хост выбрал класс: {message['class']}")
+                if 'ready' in message:
+                    old_ready = self.multiplayer_p1_ready
+                    self.multiplayer_p1_ready = bool(message['ready'])  # Явно преобразуем в bool
+                    print(f"[Клиент] Хост готовность: {old_ready} -> {self.multiplayer_p1_ready} (тип: {type(self.multiplayer_p1_ready)})")
+        
+        elif msg_type == 'start_game':
+            # Начинаем игру
+            self.player1_race = message.get('p1_race')
+            self.player2_race = message.get('p2_race')
+            self.player1_hero_class = message.get('p1_class')
+            self.player2_hero_class = message.get('p2_class')
+            self.player1_type = 'human'
+            self.player2_type = 'human'
+            # НЕ останавливаем сеть - она нужна для синхронизации во время игры!
+            # Инициализируем игру (как в обычном режиме)
+            self.initialize_units(self.player1_race, self.player2_race)
+            # Генерируем поле боя
+            self.background = self.generate_battlefield()
+            # Инициализируем очередь ходов
+            self.prepare_initiative_queue()
+            # Сбрасываем состояние боя
+            self.round_number = 1
+            self.game_over = False
+            self.victory_state = None
+            self.battle_intro_playing = False
+            # Убеждаемся, что клиент НЕ в режиме наблюдения
+            self.spectator_mode = False
+            # Устанавливаем состояние игры
+            self.state = 'game'
+    
     def initialize_units(self, p1_race=None, p2_race=None):
         self.units = []
         self.corpses = []  # Очищаем трупы при создании новой игры
@@ -593,6 +814,14 @@ class Game:
                     unit.unit_hp = unit.max_health
                     unit.current_unit_hp = unit.health
                     unit.base_squad_count = getattr(unit, 'squad_count', 1)
+                # Перерисовываем изображение юнита с учётом реальной расы (для корректных текстур)
+                try:
+                    from .graphics import load_image
+                    image_name = f'{unit.unit_type}_{unit.unit_race}'
+                    unit.image = load_image(image_name)
+                except Exception:
+                    # Если что-то пошло не так, оставляем старое изображение
+                    pass
                 try:
                     self._apply_unit_overrides_to_instance(unit)
                 except Exception:
@@ -657,6 +886,14 @@ class Game:
                     unit.unit_hp = unit.max_health
                     unit.current_unit_hp = unit.health
                     unit.base_squad_count = getattr(unit, 'squad_count', 1)
+                # Перерисовываем изображение юнита с учётом реальной расы (для корректных текстур)
+                try:
+                    from .graphics import load_image
+                    image_name = f'{unit.unit_type}_{unit.unit_race}'
+                    unit.image = load_image(image_name)
+                except Exception:
+                    # Если что-то пошло не так, оставляем старое изображение
+                    pass
                 try:
                     self._apply_unit_overrides_to_instance(unit)
                 except Exception:
@@ -2319,8 +2556,30 @@ class Game:
         self.screen.blit(text_shadow, (btn_panel_x + (btn_w - text_shadow.get_width())//2 + 2, start_btn_y + 20 + 2))
         self.screen.blit(start_text, (btn_panel_x + (btn_w - start_text.get_width())//2, start_btn_y + 20))
         
+        # Кнопка "Мультиплеер" с красивой текстурой
+        mp_btn_y = start_btn_y + btn_h + btn_gap
+        mp_btn_w, mp_btn_h = 220, 55
+        mp_btn_x = btn_panel_x + (btn_w - mp_btn_w) // 2
+        self.multiplayer_button_rect = pygame.Rect(mp_btn_x, mp_btn_y, mp_btn_w, mp_btn_h)
+        for y_offset in range(mp_btn_h):
+            mp_gradient = (
+                int(140 - y_offset * 0.3),
+                int(160 - y_offset * 0.25),
+                int(180 - y_offset * 0.2)
+            )
+            pygame.draw.line(self.screen, mp_gradient,
+                           (mp_btn_x, mp_btn_y + y_offset),
+                           (mp_btn_x + mp_btn_w, mp_btn_y + y_offset))
+        pygame.draw.rect(self.screen, (70, 50, 35), self.multiplayer_button_rect, 5, border_radius=12)
+        inner_mp = pygame.Rect(mp_btn_x + 3, mp_btn_y + 3, mp_btn_w - 6, mp_btn_h - 6)
+        pygame.draw.rect(self.screen, (200, 220, 240), inner_mp, 2, border_radius=10)
+        mp_text = self.font.render('МУЛЬТИПЛЕЕР', True, (255, 245, 220))
+        mp_shadow = self.font.render('МУЛЬТИПЛЕЕР', True, (60, 50, 40))
+        self.screen.blit(mp_shadow, (mp_btn_x + (mp_btn_w - mp_shadow.get_width())//2 + 2, mp_btn_y + 15 + 2))
+        self.screen.blit(mp_text, (mp_btn_x + (mp_btn_w - mp_text.get_width())//2, mp_btn_y + 15))
+        
         # Кнопка "Выход" с красивой текстурой
-        exit_btn_y = start_btn_y + btn_h + btn_gap
+        exit_btn_y = mp_btn_y + mp_btn_h + btn_gap
         exit_btn_w, exit_btn_h = 200, 55
         exit_btn_x = btn_panel_x + (btn_w - exit_btn_w) // 2
         self.exit_button_rect = pygame.Rect(exit_btn_x, exit_btn_y, exit_btn_w, exit_btn_h)
@@ -2754,6 +3013,464 @@ class Game:
                      human_btn_p1.collidepoint(mouse_pos) or ai_btn_p1.collidepoint(mouse_pos) or \
                      human_btn_p2.collidepoint(mouse_pos) or ai_btn_p2.collidepoint(mouse_pos)
         self.set_cursor(pygame.SYSTEM_CURSOR_HAND if over_button else pygame.SYSTEM_CURSOR_ARROW)
+
+    def draw_multiplayer_mode_selection(self):
+        """Экран выбора режима мультиплеера (хост или клиент)"""
+        self.screen.fill((30, 30, 60))
+        
+        font_title = pygame.font.Font(None, 48)
+        font_normal = pygame.font.Font(None, 32)
+        
+        # Заголовок
+        title = font_title.render("Мультиплеер", True, (255, 255, 255))
+        self.screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 100))
+        
+        # Кнопка "Создать лобби" (хост)
+        host_btn = pygame.Rect(SCREEN_WIDTH//2 - 150, SCREEN_HEIGHT//2 - 80, 300, 60)
+        hover_host = host_btn.collidepoint(get_scaled_mouse_pos())
+        host_color = (100, 180, 100) if hover_host else (80, 140, 80)
+        pygame.draw.rect(self.screen, host_color, host_btn, border_radius=12)
+        pygame.draw.rect(self.screen, (150, 220, 150), host_btn, 3, border_radius=12)
+        host_text = font_normal.render("Создать лобби (Хост)", True, (255, 255, 255))
+        self.screen.blit(host_text, (host_btn.x + host_btn.w//2 - host_text.get_width()//2, host_btn.y + host_btn.h//2 - host_text.get_height()//2))
+        self.multiplayer_host_btn_rect = host_btn
+        
+        # Кнопка "Подключиться к лобби" (клиент)
+        client_btn = pygame.Rect(SCREEN_WIDTH//2 - 150, SCREEN_HEIGHT//2 + 20, 300, 60)
+        hover_client = client_btn.collidepoint(get_scaled_mouse_pos())
+        client_color = (100, 140, 180) if hover_client else (80, 110, 140)
+        pygame.draw.rect(self.screen, client_color, client_btn, border_radius=12)
+        pygame.draw.rect(self.screen, (150, 180, 220), client_btn, 3, border_radius=12)
+        client_text = font_normal.render("Подключиться к лобби", True, (255, 255, 255))
+        self.screen.blit(client_text, (client_btn.x + client_btn.w//2 - client_text.get_width()//2, client_btn.y + client_btn.h//2 - client_text.get_height()//2))
+        self.multiplayer_client_btn_rect = client_btn
+        
+        # Кнопка "Назад"
+        back_btn = pygame.Rect(20, SCREEN_HEIGHT - 60, 150, 40)
+        pygame.draw.rect(self.screen, (150, 80, 80), back_btn, border_radius=8)
+        back_text = font_normal.render("Назад", True, (255, 255, 255))
+        self.screen.blit(back_text, (back_btn.x + back_btn.w//2 - back_text.get_width()//2, back_btn.y + 10))
+        self.multiplayer_mode_selection_back_btn_rect = back_btn
+
+    def draw_multiplayer_lobby(self):
+        """Отрисовка лобби мультиплеера"""
+        self.screen.fill((30, 30, 60))
+        
+        font_title = pygame.font.Font(None, 48)
+        font_normal = pygame.font.Font(None, 28)
+        font_small = pygame.font.Font(None, 24)
+        
+        # Заголовок
+        title = font_title.render("Мультиплеер", True, (255, 255, 255))
+        self.screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 30))
+        
+        # Список рас
+        races = [
+            ('human', 'Люди', (200, 220, 255)),
+            ('elf', 'Эльфы', (180, 255, 200)),
+            ('undead', 'Нежить', (220, 200, 255)),
+            ('demon', 'Демоны', (255, 200, 200)),
+            ('dwarf', 'Гномы', (220, 220, 180)),
+            ('shadow', 'Тени', (200, 200, 220)),
+        ]
+        
+        # Классы героев
+        class_options = [
+            ('warrior', 'Воин'),
+            ('archer', 'Лучник'),
+            ('mage', 'Маг'),
+        ]
+        
+        panel_w, panel_h = 350, 450
+        # Для хоста: P1 слева, P2 справа
+        # Для клиента: P1 (хост) слева, P2 (клиент) справа - то же самое
+        panel_x1 = 100  # Игрок 1 (Хост) слева
+        panel_x2 = SCREEN_WIDTH - panel_w - 100  # Игрок 2 (Клиент) справа
+        panel_y = 150  # Смещаем панели ниже, чтобы освободить место для кода
+        
+        # === ИГРОК 1 (ХОСТ) ===
+        # Показываем панель хоста если текущий игрок - хост ИЛИ клиент (чтобы клиент видел выбор хоста)
+        show_p1_panel = self.is_multiplayer_host or (self.is_multiplayer_client and self.multiplayer_client and self.multiplayer_client.is_connected)
+        
+        if show_p1_panel:
+            p1_bg = pygame.Rect(panel_x1, panel_y, panel_w, panel_h)
+            pygame.draw.rect(self.screen, (50, 50, 80), p1_bg, border_radius=12)
+            pygame.draw.rect(self.screen, (120, 140, 180), p1_bg, 3, border_radius=12)
+            
+            p1_title = font_normal.render("Игрок 1 (Хост)", True, (255, 255, 255))
+            self.screen.blit(p1_title, (panel_x1 + panel_w//2 - p1_title.get_width()//2, panel_y + 15))
+            
+            # Хост может выбирать расу и класс
+            y_offset = 60
+            race_label = font_small.render("Раса:", True, (200, 200, 200))
+            self.screen.blit(race_label, (panel_x1 + 20, panel_y + y_offset))
+            
+            # Показываем выбранную расу хоста
+            if self.multiplayer_p1_race:
+                race_info = next((r for r in races if r[0] == self.multiplayer_p1_race), None)
+                if race_info:
+                    race_display = font_normal.render(race_info[1], True, race_info[2])
+                    self.screen.blit(race_display, (panel_x1 + 100, panel_y + y_offset - 5))
+            else:
+                not_selected = font_small.render("Не выбрано", True, (150, 150, 150))
+                self.screen.blit(not_selected, (panel_x1 + 100, panel_y + y_offset))
+            
+            y_offset += 50
+            class_label = font_small.render("Класс:", True, (200, 200, 200))
+            self.screen.blit(class_label, (panel_x1 + 20, panel_y + y_offset))
+            
+            if self.multiplayer_p1_class:
+                class_info = next((c for c in class_options if c[0] == self.multiplayer_p1_class), None)
+                if class_info:
+                    class_display = font_normal.render(class_info[1], True, (255, 255, 255))
+                    self.screen.blit(class_display, (panel_x1 + 100, panel_y + y_offset - 5))
+            else:
+                not_selected = font_small.render("Не выбрано", True, (150, 150, 150))
+                self.screen.blit(not_selected, (panel_x1 + 100, panel_y + y_offset))
+            
+            # Кнопки выбора расы для хоста (если еще не выбрано) - только для хоста
+            if self.is_multiplayer_host and not self.multiplayer_p1_race:
+                y_offset += 60
+                self.multiplayer_p1_race_rects = []
+                for idx, (race_key, race_name, race_color) in enumerate(races):
+                    btn_y = panel_y + y_offset + idx * 40
+                    btn_rect = pygame.Rect(panel_x1 + 20, btn_y, panel_w - 40, 35)
+                    hovered = btn_rect.collidepoint(get_scaled_mouse_pos())
+                    btn_color = (80, 100, 120) if hovered else (60, 70, 90)
+                    pygame.draw.rect(self.screen, btn_color, btn_rect, border_radius=6)
+                    pygame.draw.rect(self.screen, race_color, btn_rect, 2, border_radius=6)
+                    btn_text = font_small.render(race_name, True, (255, 255, 255))
+                    self.screen.blit(btn_text, (btn_rect.x + 10, btn_rect.y + 8))
+                    self.multiplayer_p1_race_rects.append((btn_rect, race_key))
+            else:
+                self.multiplayer_p1_race_rects = []
+            
+            # Кнопки выбора класса для хоста (если раса выбрана, но класс нет) - только для хоста
+            if self.is_multiplayer_host and self.multiplayer_p1_race and not self.multiplayer_p1_class:
+                y_offset = 170
+                self.multiplayer_p1_class_rects = []
+                for idx, (class_key, class_name) in enumerate(class_options):
+                    btn_y = panel_y + y_offset + idx * 40
+                    btn_rect = pygame.Rect(panel_x1 + 20, btn_y, panel_w - 40, 35)
+                    hovered = btn_rect.collidepoint(get_scaled_mouse_pos())
+                    btn_color = (80, 100, 120) if hovered else (60, 70, 90)
+                    pygame.draw.rect(self.screen, btn_color, btn_rect, border_radius=6)
+                    pygame.draw.rect(self.screen, (150, 150, 170), btn_rect, 2, border_radius=6)
+                    btn_text = font_small.render(class_name, True, (255, 255, 255))
+                    self.screen.blit(btn_text, (btn_rect.x + 10, btn_rect.y + 8))
+                    self.multiplayer_p1_class_rects.append((btn_rect, class_key))
+            else:
+                self.multiplayer_p1_class_rects = []
+            
+            # Готовность игрока 1 (кнопка только для хоста, для клиента просто показываем статус)
+            y_offset = panel_y + panel_h - 80
+            if self.is_multiplayer_host:
+                ready_btn_p1 = pygame.Rect(panel_x1 + 20, y_offset, panel_w - 40, 40)
+                ready_color = (100, 200, 100) if self.multiplayer_p1_ready else (80, 80, 100)
+                pygame.draw.rect(self.screen, ready_color, ready_btn_p1, border_radius=8)
+                ready_text = font_normal.render("Готов" if self.multiplayer_p1_ready else "Не готов", True, (255, 255, 255))
+                self.screen.blit(ready_text, (ready_btn_p1.x + ready_btn_p1.w//2 - ready_text.get_width()//2, ready_btn_p1.y + 10))
+                self.multiplayer_p1_ready_rect = ready_btn_p1
+            else:
+                # Для клиента просто показываем статус готовности хоста
+                ready_status = font_normal.render("Готов" if self.multiplayer_p1_ready else "Не готов", True, (255, 255, 255))
+                self.screen.blit(ready_status, (panel_x1 + 20, y_offset + 10))
+                self.multiplayer_p1_ready_rect = None
+        else:
+            # Если клиент и не подключен - скрываем все элементы панели хоста
+            # Но если подключен - панель хоста уже показана выше через show_p1_panel
+            if not (self.is_multiplayer_client and self.multiplayer_client and self.multiplayer_client.is_connected):
+                self.multiplayer_p1_race_rects = []
+                self.multiplayer_p1_class_rects = []
+                self.multiplayer_p1_ready_rect = None
+        
+        # === ИГРОК 2 (КЛИЕНТ) ===
+        # Показываем панель клиента только если:
+        # 1. Это хост (чтобы видеть информацию о клиенте)
+        # 2. Или это клиент, который уже подключился
+        show_p2_panel = (self.is_multiplayer_host or 
+                        (self.is_multiplayer_client and hasattr(self, 'multiplayer_client') and 
+                         self.multiplayer_client and self.multiplayer_client.is_connected))
+        
+        if show_p2_panel:
+            p2_bg = pygame.Rect(panel_x2, panel_y, panel_w, panel_h)
+            pygame.draw.rect(self.screen, (50, 50, 80), p2_bg, border_radius=12)
+            pygame.draw.rect(self.screen, (120, 140, 180), p2_bg, 3, border_radius=12)
+            
+            p2_title = font_normal.render("Игрок 2 (Клиент)", True, (255, 255, 255))
+            self.screen.blit(p2_title, (panel_x2 + panel_w//2 - p2_title.get_width()//2, panel_y + 15))
+        
+            # Показываем выбор клиента (игрок 2)
+            y_offset = 60
+            race_label = font_small.render("Раса:", True, (200, 200, 200))
+            self.screen.blit(race_label, (panel_x2 + 20, panel_y + y_offset))
+            
+            # Показываем выбор клиента (p2) - для хоста это данные из multiplayer_p2_race
+            # Для клиента это его собственный выбор
+            if self.is_multiplayer_client and self.multiplayer_client and self.multiplayer_client.is_connected:
+                # Клиент видит свой выбор
+                if self.multiplayer_p2_race:
+                    race_info = next((r for r in races if r[0] == self.multiplayer_p2_race), None)
+                    if race_info:
+                        race_display = font_normal.render(race_info[1], True, race_info[2])
+                        self.screen.blit(race_display, (panel_x2 + 100, panel_y + y_offset - 5))
+                else:
+                    waiting = font_small.render("Выберите расу", True, (200, 200, 100))
+                    self.screen.blit(waiting, (panel_x2 + 100, panel_y + y_offset))
+            elif self.is_multiplayer_host:
+                # Хост видит выбор клиента
+                if self.multiplayer_p2_race:
+                    race_info = next((r for r in races if r[0] == self.multiplayer_p2_race), None)
+                    if race_info:
+                        race_display = font_normal.render(race_info[1], True, race_info[2])
+                        self.screen.blit(race_display, (panel_x2 + 100, panel_y + y_offset - 5))
+                else:
+                    waiting = font_small.render("Ожидание...", True, (150, 150, 150))
+                    self.screen.blit(waiting, (panel_x2 + 100, panel_y + y_offset))
+            else:
+                waiting = font_small.render("Ожидание...", True, (150, 150, 150))
+                self.screen.blit(waiting, (panel_x2 + 100, panel_y + y_offset))
+            
+            y_offset += 50
+            class_label = font_small.render("Класс:", True, (200, 200, 200))
+            self.screen.blit(class_label, (panel_x2 + 20, panel_y + y_offset))
+            
+            # Показываем класс клиента (p2)
+            if self.is_multiplayer_client and self.multiplayer_client and self.multiplayer_client.is_connected:
+                # Клиент видит свой выбор
+                if self.multiplayer_p2_class:
+                    class_info = next((c for c in class_options if c[0] == self.multiplayer_p2_class), None)
+                    if class_info:
+                        class_display = font_normal.render(class_info[1], True, (255, 255, 255))
+                        self.screen.blit(class_display, (panel_x2 + 100, panel_y + y_offset - 5))
+                else:
+                    if self.multiplayer_p2_race:
+                        waiting = font_small.render("Выберите класс", True, (200, 200, 100))
+                        self.screen.blit(waiting, (panel_x2 + 100, panel_y + y_offset))
+                    else:
+                        waiting = font_small.render("Сначала выберите расу", True, (150, 150, 150))
+                        self.screen.blit(waiting, (panel_x2 + 100, panel_y + y_offset))
+            elif self.is_multiplayer_host:
+                # Хост видит выбор клиента
+                if self.multiplayer_p2_class:
+                    class_info = next((c for c in class_options if c[0] == self.multiplayer_p2_class), None)
+                    if class_info:
+                        class_display = font_normal.render(class_info[1], True, (255, 255, 255))
+                        self.screen.blit(class_display, (panel_x2 + 100, panel_y + y_offset - 5))
+                else:
+                    if self.multiplayer_p2_race:
+                        waiting = font_small.render("Ожидание выбора класса...", True, (150, 150, 150))
+                        self.screen.blit(waiting, (panel_x2 + 100, panel_y + y_offset))
+                    else:
+                        waiting = font_small.render("Ожидание...", True, (150, 150, 150))
+                        self.screen.blit(waiting, (panel_x2 + 100, panel_y + y_offset))
+            else:
+                waiting = font_small.render("Ожидание...", True, (150, 150, 150))
+                self.screen.blit(waiting, (panel_x2 + 100, panel_y + y_offset))
+        
+            # Готовность игрока 2
+            y_offset = panel_y + panel_h - 80
+            ready_btn_p2 = pygame.Rect(panel_x2 + 20, y_offset, panel_w - 40, 40)
+            ready_color = (100, 200, 100) if self.multiplayer_p2_ready else (80, 80, 100)
+            pygame.draw.rect(self.screen, ready_color, ready_btn_p2, border_radius=8)
+            ready_text = font_normal.render("Готов" if self.multiplayer_p2_ready else "Не готов", True, (255, 255, 255))
+            self.screen.blit(ready_text, (ready_btn_p2.x + ready_btn_p2.w//2 - ready_text.get_width()//2, ready_btn_p2.y + 10))
+            self.multiplayer_p2_ready_rect = ready_btn_p2
+        else:
+            # Если панель клиента не показывается, скрываем элементы
+            self.multiplayer_p2_ready_rect = None
+        
+        # === КОД ЛОББИ (только для хоста) ===
+        if self.is_multiplayer_host:
+            # Размещаем код выше панелей, чтобы он был хорошо виден
+            code_y = 80
+            code_label = font_normal.render("Код лобби:", True, (255, 255, 255))
+            self.screen.blit(code_label, (SCREEN_WIDTH//2 - 150, code_y))
+            # Показываем код или "Ожидание..." если код еще не сгенерирован
+            # Проверяем и lobby_code в self, и в сервере
+            display_code = self.lobby_code
+            if not display_code and hasattr(self, 'multiplayer_server') and self.multiplayer_server:
+                display_code = getattr(self.multiplayer_server, 'lobby_code', None)
+                if display_code:
+                    self.lobby_code = display_code  # Синхронизируем
+            
+            if display_code:
+                code_display = font_title.render(str(display_code), True, (255, 255, 0))
+                # Добавляем фон для лучшей видимости
+                code_bg = pygame.Rect(SCREEN_WIDTH//2 - 100, code_y + 40, 200, 60)
+                pygame.draw.rect(self.screen, (40, 40, 60), code_bg, border_radius=8)
+                pygame.draw.rect(self.screen, (255, 255, 0), code_bg, 3, border_radius=8)
+                self.screen.blit(code_display, (SCREEN_WIDTH//2 - code_display.get_width()//2, code_y + 55))
+            else:
+                waiting_code = font_normal.render("Генерация кода...", True, (200, 200, 200))
+                self.screen.blit(waiting_code, (SCREEN_WIDTH//2 - waiting_code.get_width()//2, code_y + 40))
+        
+        # === ПОДКЛЮЧЕНИЕ (только для клиента, который еще не подключился) ===
+        # Показываем поле ввода кода только если клиент еще не подключен
+        if (self.is_multiplayer_client and not self.is_multiplayer_host and
+            (not hasattr(self, 'multiplayer_client') or not self.multiplayer_client or not self.multiplayer_client.is_connected)):
+            # Размещаем поле ввода кода в центре экрана, выше панелей
+            code_y = 100
+            code_label = font_normal.render("Введите код лобби:", True, (255, 255, 255))
+            self.screen.blit(code_label, (SCREEN_WIDTH//2 - code_label.get_width()//2, code_y))
+            
+            # Поле ввода кода
+            input_rect = pygame.Rect(SCREEN_WIDTH//2 - 100, code_y + 40, 200, 50)
+            input_color = (100, 100, 120) if self.multiplayer_lobby_code_input_active else (60, 60, 80)
+            pygame.draw.rect(self.screen, input_color, input_rect, border_radius=8)
+            pygame.draw.rect(self.screen, (150, 150, 170), input_rect, 2, border_radius=8)
+            
+            # Показываем курсор если активно
+            display_text = self.multiplayer_lobby_code_input
+            if self.multiplayer_lobby_code_input_active and int(pygame.time.get_ticks() / 500) % 2:
+                display_text += "|"
+            
+            code_text = font_title.render(display_text, True, (255, 255, 255))
+            self.screen.blit(code_text, (input_rect.x + 10, input_rect.y + 10))
+            self.multiplayer_lobby_code_input_rect = input_rect
+            
+            # Кнопка подключения
+            connect_btn = pygame.Rect(SCREEN_WIDTH//2 - 80, code_y + 100, 160, 40)
+            can_connect = len(self.multiplayer_lobby_code_input) == 6
+            connect_color = (100, 180, 100) if can_connect else (80, 80, 100)
+            pygame.draw.rect(self.screen, connect_color, connect_btn, border_radius=8)
+            connect_text = font_normal.render("Подключиться", True, (255, 255, 255))
+            self.screen.blit(connect_text, (connect_btn.x + connect_btn.w//2 - connect_text.get_width()//2, connect_btn.y + 10))
+            self.multiplayer_connect_btn_rect = connect_btn
+        else:
+            self.multiplayer_lobby_code_input_rect = None
+            self.multiplayer_connect_btn_rect = None
+        
+        # === ВЫБОР РАСЫ И КЛАССА ДЛЯ КЛИЕНТА (после подключения) ===
+        if self.is_multiplayer_client and self.multiplayer_client and self.multiplayer_client.is_connected:
+            # Кнопки выбора расы для клиента
+            if not self.multiplayer_p2_race:
+                # Размещаем кнопки выбора расы ниже текста "Раса:" и "Выберите расу"
+                y_offset = 120  # Начинаем ниже текста "Раса:" (который на y_offset=60) и "Выберите расу"
+                self.multiplayer_p2_race_rects = []
+                for idx, (race_key, race_name, race_color) in enumerate(races):
+                    btn_y = panel_y + y_offset + idx * 40
+                    # Убеждаемся, что кнопки не выходят за пределы панели
+                    if btn_y + 35 > panel_y + panel_h - 100:  # Оставляем место для кнопки готовности
+                        break
+                    btn_rect = pygame.Rect(panel_x2 + 20, btn_y, panel_w - 40, 35)
+                    hovered = btn_rect.collidepoint(get_scaled_mouse_pos())
+                    btn_color = (80, 100, 120) if hovered else (60, 70, 90)
+                    pygame.draw.rect(self.screen, btn_color, btn_rect, border_radius=6)
+                    pygame.draw.rect(self.screen, race_color, btn_rect, 2, border_radius=6)
+                    btn_text = font_small.render(race_name, True, (255, 255, 255))
+                    self.screen.blit(btn_text, (btn_rect.x + 10, btn_rect.y + 8))
+                    self.multiplayer_p2_race_rects.append((btn_rect, race_key))
+            else:
+                self.multiplayer_p2_race_rects = []
+            
+            # Кнопки выбора класса для клиента (если раса выбрана)
+            if self.multiplayer_p2_race and not self.multiplayer_p2_class:
+                y_offset = 170
+                self.multiplayer_p2_class_rects = []
+                for idx, (class_key, class_name) in enumerate(class_options):
+                    btn_y = panel_y + y_offset + idx * 40
+                    btn_rect = pygame.Rect(panel_x2 + 20, btn_y, panel_w - 40, 35)
+                    hovered = btn_rect.collidepoint(get_scaled_mouse_pos())
+                    btn_color = (80, 100, 120) if hovered else (60, 70, 90)
+                    pygame.draw.rect(self.screen, btn_color, btn_rect, border_radius=6)
+                    pygame.draw.rect(self.screen, (150, 150, 170), btn_rect, 2, border_radius=6)
+                    btn_text = font_small.render(class_name, True, (255, 255, 255))
+                    self.screen.blit(btn_text, (btn_rect.x + 10, btn_rect.y + 8))
+                    self.multiplayer_p2_class_rects.append((btn_rect, class_key))
+            else:
+                self.multiplayer_p2_class_rects = []
+        
+        # === КНОПКА НАЧАТЬ ИГРУ (только для хоста, если оба готовы) ===
+        # Проверяем готовность с дополнительным логированием
+        p1_ready = bool(self.multiplayer_p1_ready)
+        p2_ready = bool(self.multiplayer_p2_ready)
+        both_ready = p1_ready and p2_ready
+        
+        # Логируем состояние готовности каждый кадр (для отладки)
+        if self.is_multiplayer_host:
+            # Логируем только раз в секунду, чтобы не засорять консоль
+            if not hasattr(self, '_last_ready_log_time'):
+                self._last_ready_log_time = 0
+            current_time = pygame.time.get_ticks()
+            if current_time - self._last_ready_log_time > 1000:  # Раз в секунду
+                print(f"[Хост] Статус готовности: P1={p1_ready} (значение={self.multiplayer_p1_ready}, тип: {type(self.multiplayer_p1_ready)}), P2={p2_ready} (значение={self.multiplayer_p2_ready}, тип: {type(self.multiplayer_p2_ready)}), both={both_ready}, is_host={self.is_multiplayer_host}")
+                self._last_ready_log_time = current_time
+        
+        # ВРЕМЕННО: Принудительно показываем кнопку для отладки, если оба показывают "Готов" визуально
+        # Это поможет понять, в чем проблема
+        force_show_button = False
+        if self.is_multiplayer_host:
+            # Проверяем, что оба игрока выбрали расу и класс (это видно на экране)
+            p1_has_selection = self.multiplayer_p1_race and self.multiplayer_p1_class
+            p2_has_selection = self.multiplayer_p2_race and self.multiplayer_p2_class
+            # Если оба выбрали расу и класс - принудительно показываем кнопку (даже если готовность не синхронизирована)
+            # Это временное решение для отладки
+            if p1_has_selection and p2_has_selection:
+                if not both_ready:
+                    print(f"[Хост] ОТЛАДКА: Оба выбрали расу/класс, но готовность не синхронизирована! P1_ready={p1_ready} (значение={self.multiplayer_p1_ready}), P2_ready={p2_ready} (значение={self.multiplayer_p2_ready})")
+                    # Принудительно показываем кнопку для отладки
+                    force_show_button = True
+                else:
+                    print(f"[Хост] ОТЛАДКА: Оба готовы! P1_ready={p1_ready}, P2_ready={p2_ready}")
+        
+        if self.is_multiplayer_host and (both_ready or force_show_button):
+            # Размещаем кнопку ниже панелей, но в пределах экрана
+            # panel_y = 150, panel_h = 450, значит панели заканчиваются на y = 600
+            # SCREEN_HEIGHT = 600, поэтому размещаем кнопку выше, чтобы она была видна
+            start_y = panel_y + panel_h + 20  # 150 + 450 + 20 = 620, но это за пределами экрана!
+            # Исправляем: размещаем кнопку внутри экрана
+            start_y = min(panel_y + panel_h + 20, SCREEN_HEIGHT - 70)  # Оставляем место снизу
+            start_btn = pygame.Rect(SCREEN_WIDTH//2 - 100, start_y, 200, 50)
+            # Если принудительно показываем - используем другой цвет для отладки
+            btn_color = (200, 100, 100) if force_show_button else (100, 200, 100)
+            border_color = (255, 150, 150) if force_show_button else (150, 255, 150)
+            pygame.draw.rect(self.screen, btn_color, start_btn, border_radius=10)
+            pygame.draw.rect(self.screen, border_color, start_btn, 3, border_radius=10)
+            start_text = font_title.render("Начать игру" if both_ready else "Начать игру (ОТЛАДКА)", True, (255, 255, 255))
+            self.screen.blit(start_text, (start_btn.x + start_btn.w//2 - start_text.get_width()//2, start_btn.y + 10))
+            self.multiplayer_start_btn_rect = start_btn
+            # Отладочная информация (временно) - размещаем выше кнопки, чтобы была видна
+            if force_show_button:
+                debug_text = font_small.render(f"ОТЛАДКА: P1={p1_ready}, P2={p2_ready}, принудительно показано", True, (255, 200, 200))
+            else:
+                debug_text = font_small.render(f"Кнопка активна: P1={p1_ready}, P2={p2_ready}", True, (150, 255, 150))
+            debug_y = max(start_y - 25, 10)  # Размещаем выше кнопки, но не за пределами экрана
+            self.screen.blit(debug_text, (SCREEN_WIDTH//2 - debug_text.get_width()//2, debug_y))
+        else:
+            self.multiplayer_start_btn_rect = None
+            # Отладочная информация (временно) - всегда показываем для хоста
+            if self.is_multiplayer_host:
+                # Размещаем отладочную информацию в видимой области экрана
+                # Панели заканчиваются на panel_y + panel_h = 150 + 450 = 600, что равно SCREEN_HEIGHT
+                # Размещаем информацию выше панелей или внутри них
+                debug_y = min(panel_y + panel_h - 100, SCREEN_HEIGHT - 130)  # Внутри панелей или чуть выше
+                # Показываем детальную информацию о состоянии
+                debug_lines = [
+                    f"Хост: {self.is_multiplayer_host}",
+                    f"P1 готов: {p1_ready} (значение: {self.multiplayer_p1_ready})",
+                    f"P2 готов: {p2_ready} (значение: {self.multiplayer_p2_ready})",
+                    f"Оба готовы: {both_ready}",
+                    f"P1 раса: {self.multiplayer_p1_race}, класс: {self.multiplayer_p1_class}",
+                    f"P2 раса: {self.multiplayer_p2_race}, класс: {self.multiplayer_p2_class}"
+                ]
+                # Ограничиваем количество строк, чтобы не выходить за пределы экрана
+                max_lines = min(len(debug_lines), 4)
+                for i, line in enumerate(debug_lines[:max_lines]):
+                    debug_text = font_small.render(line, True, (200, 200, 200))
+                    self.screen.blit(debug_text, (SCREEN_WIDTH//2 - debug_text.get_width()//2, debug_y + i * 20))
+            # Отладочная информация (временно)
+            if self.is_multiplayer_host:
+                debug_y = panel_y + panel_h + 80
+                debug_text = font_small.render(f"Готовность: P1={p1_ready}, P2={p2_ready}", True, (200, 200, 200))
+                self.screen.blit(debug_text, (SCREEN_WIDTH//2 - debug_text.get_width()//2, debug_y))
+        
+        # Кнопка "Назад"
+        back_btn = pygame.Rect(20, SCREEN_HEIGHT - 60, 150, 40)
+        pygame.draw.rect(self.screen, (150, 80, 80), back_btn, border_radius=8)
+        back_text = font_normal.render("Назад", True, (255, 255, 255))
+        self.screen.blit(back_text, (back_btn.x + back_btn.w//2 - back_text.get_width()//2, back_btn.y + 10))
+        self.multiplayer_back_btn_rect = back_btn
 
     def draw_history_panel(self):
         # Отдельная большая панель истории событий
@@ -3670,7 +4387,10 @@ class Game:
                     setattr(spell, param, value)
 
     def _apply_unit_overrides_to_instance(self, unit):
-        # Для героев используем ключ вида Hero_<race>_<class>, чтобы настраивать по расам и классам
+        # ВАЖНО: Эта функция применяет параметры из unit_overrides.json к экземплярам юнитов
+        # Ключи для поиска оверрайдов:
+        # - Для героев: Hero_<race>_<class> (например, Hero_human_warrior) -> Hero_<race> (например, Hero_human) -> Hero (общий)
+        # - Для обычных юнитов: <class_name> (например, Peasant, Skeleton)
         # ВАЖНО: Используем unit_race (расу), а не team (команду), так как оверрайды привязаны к расе
         data = None
         try:
@@ -3680,27 +4400,51 @@ class Game:
                 unit_race = getattr(unit, 'unit_race', '')
                 hero_class = getattr(unit, 'hero_class', '')
                 # Пытаемся найти специфичный оверрайд для race+class (например, Hero_human_warrior)
+                # Это соответствует ключу в редакторе юнитов, когда выбран конкретный герой
                 if unit_race and hero_class:
                     data = self.unit_overrides.get(f"Hero_{unit_race}_{hero_class}")
                 # Если не нашли, ищем по расе (например, Hero_human)
+                # Это соответствует ключу в редакторе, когда выбран общий герой расы
                 if not data and unit_race:
                     data = self.unit_overrides.get(f"Hero_{unit_race}")
                 # Если и это не нашли, используем общий Hero
+                # Это соответствует ключу 'Hero' в редакторе
                 if not data:
                     data = self.unit_overrides.get('Hero')
         except Exception:
             pass
+        # Для обычных юнитов используем имя класса (например, Peasant, Skeleton)
+        # Это соответствует ключу в редакторе юнитов
         if data is None:
             data = self.unit_overrides.get(unit.__class__.__name__)
         if not data:
             return
         # Сохраняем список примененных параметров для отслеживания
         applied_params = []
-        # Применяем все параметры из JSON (кроме health и max_health для отрядов - они вычисляются автоматически)
+        # ВАЖНО: Сначала применяем unit_hp и current_unit_hp из JSON (если указаны), так как они нужны для расчета health
+        # Применяем unit_hp и current_unit_hp первыми, если они есть в JSON
+        if 'unit_hp' in data:
+            try:
+                unit.unit_hp = int(data['unit_hp'])
+                applied_params.append('unit_hp')
+            except Exception:
+                pass
+        if 'current_unit_hp' in data:
+            try:
+                unit.current_unit_hp = int(data['current_unit_hp'])
+                applied_params.append('current_unit_hp')
+            except Exception:
+                pass
+        
+        # ВАЖНО: Применяем все параметры из JSON, которые могут быть отредактированы в редакторе юнитов
+        # Для героев: hero_class, attack, defense, knowledge, spell_power, mana, max_mana, mana_regen, luck, combat_spirit
+        # Для обычных юнитов: squad_count, base_squad_count, unit_hp, current_unit_hp, health, max_health,
+        #   phys_attack, magic_attack, phys_defense, magic_defense, magic_resist, speed, initiative, attack_range, attack_type, is_ranged
+        # Применяем все остальные параметры из JSON (кроме health и max_health для отрядов - они вычисляются автоматически)
         for key in ['attack','defense','speed','initiative','attack_range','is_ranged',
                     'knowledge','spell_power','mana','max_mana','mana_regen',
                     'phys_attack','magic_attack','phys_defense','magic_defense','magic_resist','attack_type','hero_class',
-                    'squad_count','base_squad_count','luck','combat_spirit','unit_hp','current_unit_hp']:
+                    'squad_count','base_squad_count','luck','combat_spirit']:
             if key in data:
                 try:
                     # У нежити боевой дух всегда 0, игнорируем изменения
@@ -3727,24 +4471,30 @@ class Game:
         
         # Для отрядов: синхронизируем health и max_health на основе unit_hp и squad_count
         if hasattr(unit, 'squad_count') and getattr(unit, 'squad_count', 1) > 1:
-            # Если unit_hp не был установлен из JSON, вычисляем его
+            # ВАЖНО: unit_hp из JSON имеет приоритет, если указан
+            # Если unit_hp не был установлен из JSON выше, вычисляем его из max_health или health
             if not hasattr(unit, 'unit_hp') or unit.unit_hp is None:
+                # Используем base_squad_count для правильного расчета (если есть)
+                base_count = getattr(unit, 'base_squad_count', None) or getattr(unit, 'squad_count', 1)
                 # Сначала проверяем max_health из JSON (для обратной совместимости)
                 if 'max_health' in data:
-                    unit.unit_hp = max(1, int(data['max_health']) // unit.squad_count)
+                    unit.unit_hp = max(1, int(data['max_health']) // base_count)
                 # Иначе используем текущий max_health
                 elif hasattr(unit, 'max_health') and unit.max_health > 0:
-                    unit.unit_hp = max(1, unit.max_health // unit.squad_count)
+                    unit.unit_hp = max(1, unit.max_health // base_count)
                 else:
                     # Если max_health тоже нет, используем health (для обратной совместимости)
                     if 'health' in data:
-                        unit.unit_hp = max(1, int(data['health']) // unit.squad_count)
+                        # Для health нужно учесть, что это общее здоровье отряда
+                        # health = (squad_count - 1) * unit_hp + current_unit_hp
+                        # Приблизительно: unit_hp ≈ health / squad_count
+                        unit.unit_hp = max(1, int(data['health']) // base_count)
                     elif hasattr(unit, 'health') and unit.health > 0:
-                        unit.unit_hp = max(1, unit.health // unit.squad_count)
+                        unit.unit_hp = max(1, unit.health // base_count)
                     else:
                         unit.unit_hp = 1  # Значение по умолчанию
             
-            # Если current_unit_hp не установлен, вычисляем из текущего health
+            # Если current_unit_hp не установлен из JSON, вычисляем из текущего health
             if not hasattr(unit, 'current_unit_hp') or unit.current_unit_hp is None:
                 if hasattr(unit, 'health') and unit.health > 0:
                     unit_hp = getattr(unit, 'unit_hp', 1)
@@ -3755,11 +4505,13 @@ class Game:
                         unit.current_unit_hp = 1
                 else:
                     # Если health не установлен, текущий юнит полный
-                    unit.current_unit_hp = unit.unit_hp
+                    unit.current_unit_hp = getattr(unit, 'unit_hp', 1)
             
-            # Пересчитываем health и max_health на основе unit_hp и squad_count
+            # ВАЖНО: Пересчитываем health и max_health на основе unit_hp и squad_count
+            # Используем base_squad_count для max_health, а squad_count для текущего health
+            base_squad_count = getattr(unit, 'base_squad_count', None) or getattr(unit, 'squad_count', 1)
             unit.health = (unit.squad_count - 1) * unit.unit_hp + unit.current_unit_hp
-            unit.max_health = unit.squad_count * unit.unit_hp
+            unit.max_health = base_squad_count * unit.unit_hp
         else:
             # Для одиночных юнитов: применяем health и max_health из JSON если указаны
             # Если указан только health, устанавливаем и health, и max_health в одно значение
@@ -4904,20 +5656,28 @@ class Game:
         self.turn_queue = []
         # Применение звуковых настроек из файла настроек
         self._apply_audio_volumes()
-        # Найти героев (если есть)
+        # Найти героев (если есть) - ВАЖНО: ищем по командам player1 и player2, а не по расам
         heroes = [u for u in self.units if isinstance(u, Hero)]
-        self.hero1 = next((h for h in heroes if h.team in ['human','elf', 'player1']), heroes[0] if heroes else None)
-        self.hero2 = next((h for h in heroes if h is not self.hero1), None)
+        # Ищем героев по командам (в креативе команды всегда player1 и player2)
+        self.hero1 = next((h for h in heroes if h.team == 'player1'), None)
+        self.hero2 = next((h for h in heroes if h.team == 'player2'), None)
+        # Если не нашли по командам, ищем первого и второго героя (для обратной совместимости)
+        if not self.hero1 and heroes:
+            self.hero1 = heroes[0]
+        if not self.hero2 and heroes:
+            self.hero2 = next((h for h in heroes if h is not self.hero1), None)
         if hasattr(self, 'hero1') and self.hero1:
             self.hero1.game_ref = self
             # Применяем бонусы героя к армии (как в обычной игре)
-            team1_units = [u for u in self.units if not isinstance(u, Hero) and u.team == self.hero1.team]
+            # ВАЖНО: ищем юнитов по команде player1, а не по расе
+            team1_units = [u for u in self.units if not isinstance(u, Hero) and u.team == 'player1']
             if team1_units:
                 self.hero1.apply_bonuses_to_army(team1_units)
         if hasattr(self, 'hero2') and self.hero2:
             self.hero2.game_ref = self
             # Применяем бонусы героя к армии (как в обычной игре)
-            team2_units = [u for u in self.units if not isinstance(u, Hero) and u.team == self.hero2.team]
+            # ВАЖНО: ищем юнитов по команде player2, а не по расе
+            team2_units = [u for u in self.units if not isinstance(u, Hero) and u.team == 'player2']
             if team2_units:
                 self.hero2.apply_bonuses_to_army(team2_units)
         # Инициативная очередь
@@ -4997,9 +5757,16 @@ class Game:
         unit_key = self._unit_editor_selected_unit
         # Для Героя показываем геройские параметры, для остальных — общие боевые
         if unit_key == 'Hero' or unit_key.startswith('Hero_'):
-            params = ['attack','defense','knowledge','spell_power','max_mana','luck','combat_spirit']
+            # ВАЖНО: hero_class должен быть доступен для редактирования, так как он влияет на тип атаки и дальность
+            # ВАЖНО: Все параметры из этого списка должны применяться в _apply_unit_overrides_to_instance
+            # Добавляем mana и mana_regen для полного контроля над параметрами героя
+            params = ['hero_class','attack','defense','knowledge','spell_power','mana','max_mana','mana_regen','luck','combat_spirit']
         else:
-            params = ['squad_count','health','phys_attack','magic_attack','phys_defense','magic_defense','magic_resist','speed','initiative','attack_range','attack_type']
+            # ВАЖНО: unit_hp и current_unit_hp должны быть доступны для редактирования в креативе
+            # Они применяются к юнитам в обычной игре через unit_overrides
+            # is_ranged также должен быть доступен для редактирования
+            # ВАЖНО: Все параметры из этого списка должны применяться в _apply_unit_overrides_to_instance
+            params = ['squad_count','base_squad_count','unit_hp','current_unit_hp','health','max_health','phys_attack','magic_attack','phys_defense','magic_defense','magic_resist','speed','initiative','attack_range','attack_type','is_ranged']
         x = 420
         y = 80
         overrides = self.unit_overrides.get(unit_key, {})
@@ -5032,6 +5799,9 @@ class Game:
                     tmp = unit_cls(0, 0, tmp_team)
                 base_val = {
                     'squad_count': getattr(tmp, 'squad_count', 1),
+                    'base_squad_count': getattr(tmp, 'base_squad_count', getattr(tmp, 'squad_count', 1)),
+                    'unit_hp': getattr(tmp, 'unit_hp', None) or getattr(tmp, 'max_health', 0),
+                    'current_unit_hp': getattr(tmp, 'current_unit_hp', None) or getattr(tmp, 'unit_hp', None) or getattr(tmp, 'max_health', 0),
                     'health': getattr(tmp, 'health', 0),
                     'max_health': getattr(tmp, 'max_health', 0),
                     'attack': getattr(tmp, 'attack', 0),
@@ -5265,6 +6035,221 @@ class Game:
             # Очищаем мертвых юнитов при возврате в креатив
             self.units = [u for u in self.units if u.health > 0]
             return
+
+    def clear_multiplayer_data(self):
+        """Очищает все данные мультиплеера"""
+        # Останавливаем сервер и клиент
+        if self.multiplayer_server:
+            self.multiplayer_server.stop()
+            self.multiplayer_server = None
+        if self.multiplayer_client:
+            self.multiplayer_client.disconnect()
+            self.multiplayer_client = None
+        # Очищаем флаги
+        self.is_multiplayer_host = False
+        self.is_multiplayer_client = False
+        # Очищаем код лобби
+        self.lobby_code = None
+        # Очищаем выборы игроков
+        self.multiplayer_p1_race = None
+        self.multiplayer_p1_class = None
+        self.multiplayer_p2_race = None
+        self.multiplayer_p2_class = None
+        # Очищаем готовность
+        self.multiplayer_p1_ready = False
+        self.multiplayer_p2_ready = False
+        # Очищаем ввод кода
+        self.multiplayer_lobby_code_input = ''
+        self.multiplayer_lobby_code_input_active = False
+        # Очищаем выбор режима
+        self.multiplayer_mode_selection = None
+
+    def handle_multiplayer_mode_selection_click(self, pos, button=1):
+        """Обрабатывает клики в экране выбора режима мультиплеера"""
+        if hasattr(self, 'multiplayer_mode_selection_back_btn_rect') and self.multiplayer_mode_selection_back_btn_rect.collidepoint(pos):
+            self.clear_multiplayer_data()
+            self.state = 'menu'
+            return
+        
+        if hasattr(self, 'multiplayer_host_btn_rect') and self.multiplayer_host_btn_rect.collidepoint(pos):
+            # Запускаем сервер и переходим в лобби
+            self.start_multiplayer_host()
+            return
+        
+        if hasattr(self, 'multiplayer_client_btn_rect') and self.multiplayer_client_btn_rect.collidepoint(pos):
+            # Переходим в лобби как клиент
+            self.is_multiplayer_client = True
+            self.is_multiplayer_host = False
+            self.multiplayer_lobby_code_input = ''
+            self.multiplayer_lobby_code_input_active = True
+            self.state = 'multiplayer_lobby'
+            return
+
+    def handle_multiplayer_lobby_click(self, pos, button=1):
+        """Обрабатывает клики в лобби мультиплеера"""
+        if hasattr(self, 'multiplayer_back_btn_rect') and self.multiplayer_back_btn_rect.collidepoint(pos):
+            # Выход из лобби - полная очистка данных
+            self.clear_multiplayer_data()
+            self.state = 'menu'
+            return
+        
+        # Хост выбирает расу и класс
+        if self.is_multiplayer_host:
+            if hasattr(self, 'multiplayer_p1_race_rects'):
+                for rect, race_key in self.multiplayer_p1_race_rects:
+                    if rect.collidepoint(pos):
+                        self.multiplayer_p1_race = race_key
+                        self.multiplayer_p1_class = None  # Сбрасываем класс при смене расы
+                        # Отправляем выбор клиенту
+                        if self.multiplayer_server:
+                            print(f"[Хост] Отправляю выбор расы клиенту: {race_key}")
+                            success = self.multiplayer_server.send({
+                                'type': 'player1_choice',
+                                'race': race_key
+                            })
+                            if not success:
+                                print("[Хост] ОШИБКА: Не удалось отправить выбор расы!")
+                        return
+            
+            if hasattr(self, 'multiplayer_p1_class_rects'):
+                for rect, class_key in self.multiplayer_p1_class_rects:
+                    if rect.collidepoint(pos):
+                        self.multiplayer_p1_class = class_key
+                        # Отправляем выбор клиенту
+                        if self.multiplayer_server:
+                            print(f"[Хост] Отправляю выбор класса клиенту: {class_key}")
+                            success = self.multiplayer_server.send({
+                                'type': 'player1_choice',
+                                'class': class_key
+                            })
+                            if not success:
+                                print("[Хост] ОШИБКА: Не удалось отправить выбор класса!")
+                        return
+            
+            if hasattr(self, 'multiplayer_p1_ready_rect') and self.multiplayer_p1_ready_rect.collidepoint(pos):
+                if self.multiplayer_p1_race and self.multiplayer_p1_class:
+                    self.multiplayer_p1_ready = not self.multiplayer_p1_ready
+                    # Отправляем статус готовности клиенту
+                    if self.multiplayer_server:
+                        print(f"[Хост] Отправляю статус готовности клиенту: {self.multiplayer_p1_ready}")
+                        success = self.multiplayer_server.send({
+                            'type': 'player1_choice',
+                            'ready': self.multiplayer_p1_ready
+                        })
+                        if not success:
+                            print("[Хост] ОШИБКА: Не удалось отправить статус готовности!")
+                return
+            
+            # Проверяем клик по кнопке "Начать игру"
+            if hasattr(self, 'multiplayer_start_btn_rect') and self.multiplayer_start_btn_rect:
+                print(f"[Хост] Клик по кнопке 'Начать игру'. Кнопка существует: {self.multiplayer_start_btn_rect}")
+                print(f"[Хост] Позиция клика: {pos}, Позиция кнопки: {self.multiplayer_start_btn_rect}")
+                if self.multiplayer_start_btn_rect.collidepoint(pos):
+                    print(f"[Хост] ✓ Клик попал в кнопку! P1 готов: {self.multiplayer_p1_ready}, P2 готов: {self.multiplayer_p2_ready}")
+                    print(f"[Хост] P1 раса: {self.multiplayer_p1_race}, класс: {self.multiplayer_p1_class}")
+                    print(f"[Хост] P2 раса: {self.multiplayer_p2_race}, класс: {self.multiplayer_p2_class}")
+                    if self.multiplayer_p1_ready and self.multiplayer_p2_ready:
+                        # Начинаем игру
+                        if self.multiplayer_server:
+                            print("[Хост] Отправляю команду начала игры клиенту")
+                            success = self.multiplayer_server.send({
+                                'type': 'start_game',
+                                'p1_race': self.multiplayer_p1_race,
+                                'p1_class': self.multiplayer_p1_class,
+                                'p2_race': self.multiplayer_p2_race,
+                                'p2_class': self.multiplayer_p2_class
+                            })
+                            if not success:
+                                print("[Хост] ОШИБКА: Не удалось отправить команду начала игры!")
+                        # Применяем настройки для хоста
+                        self.player1_race = self.multiplayer_p1_race
+                        self.player2_race = self.multiplayer_p2_race
+                        self.player1_hero_class = self.multiplayer_p1_class
+                        self.player2_hero_class = self.multiplayer_p2_class
+                        self.player1_type = 'human'
+                        self.player2_type = 'human'
+                        # НЕ останавливаем сервер - он нужен для синхронизации во время игры!
+                        # Инициализируем игру (как в обычном режиме)
+                        print("[Хост] Инициализирую игру...")
+                        self.initialize_units(self.player1_race, self.player2_race)
+                        # Генерируем поле боя
+                        self.background = self.generate_battlefield()
+                        # Инициализируем очередь ходов
+                        self.prepare_initiative_queue()
+                        # Сбрасываем состояние боя
+                        self.round_number = 1
+                        self.game_over = False
+                        self.victory_state = None
+                        self.battle_intro_playing = False
+                        # Убеждаемся, что хост НЕ в режиме наблюдения
+                        self.spectator_mode = False
+                        # Устанавливаем состояние игры
+                        self.state = 'game'
+                        print("[Хост] Игра начата!")
+                    else:
+                        print(f"[Хост] ✗ Оба игрока не готовы! P1: {self.multiplayer_p1_ready}, P2: {self.multiplayer_p2_ready}")
+                return
+        
+        # Клиент выбирает расу и класс
+        if self.is_multiplayer_client:
+            if hasattr(self, 'multiplayer_lobby_code_input_rect') and self.multiplayer_lobby_code_input_rect and self.multiplayer_lobby_code_input_rect.collidepoint(pos):
+                self.multiplayer_lobby_code_input_active = True
+                return
+            else:
+                # Клик вне поля ввода - деактивируем его
+                self.multiplayer_lobby_code_input_active = False
+            
+            if hasattr(self, 'multiplayer_connect_btn_rect') and self.multiplayer_connect_btn_rect and self.multiplayer_connect_btn_rect.collidepoint(pos):
+                if len(self.multiplayer_lobby_code_input) == 6:
+                    self.start_multiplayer_client(self.multiplayer_lobby_code_input)
+                return
+            
+            # Клиент может выбирать расу и класс только после подключения
+            if self.multiplayer_client and self.multiplayer_client.is_connected:
+                if hasattr(self, 'multiplayer_p2_race_rects'):
+                    for rect, race_key in self.multiplayer_p2_race_rects:
+                        if rect.collidepoint(pos):
+                            self.multiplayer_p2_race = race_key
+                            self.multiplayer_p2_class = None  # Сбрасываем класс при смене расы
+                            # Отправляем выбор хосту
+                            if self.multiplayer_client:
+                                print(f"[Клиент] Отправляю выбор расы хосту: {race_key}")
+                                success = self.multiplayer_client.send({
+                                    'type': 'player2_choice',
+                                    'race': race_key
+                                })
+                                if not success:
+                                    print("[Клиент] ОШИБКА: Не удалось отправить выбор расы!")
+                            return
+                
+                if hasattr(self, 'multiplayer_p2_class_rects'):
+                    for rect, class_key in self.multiplayer_p2_class_rects:
+                        if rect.collidepoint(pos):
+                            self.multiplayer_p2_class = class_key
+                            # Отправляем выбор хосту
+                            if self.multiplayer_client:
+                                print(f"[Клиент] Отправляю выбор класса хосту: {class_key}")
+                                success = self.multiplayer_client.send({
+                                    'type': 'player2_choice',
+                                    'class': class_key
+                                })
+                                if not success:
+                                    print("[Клиент] ОШИБКА: Не удалось отправить выбор класса!")
+                            return
+                
+                if hasattr(self, 'multiplayer_p2_ready_rect') and self.multiplayer_p2_ready_rect.collidepoint(pos):
+                    if self.multiplayer_p2_race and self.multiplayer_p2_class:
+                        self.multiplayer_p2_ready = not self.multiplayer_p2_ready
+                        # Отправляем статус готовности хосту
+                        if self.multiplayer_client:
+                            print(f"[Клиент] Отправляю статус готовности хосту: {self.multiplayer_p2_ready}")
+                            success = self.multiplayer_client.send({
+                                'type': 'player2_choice',
+                                'ready': self.multiplayer_p2_ready
+                            })
+                            if not success:
+                                print("[Клиент] ОШИБКА: Не удалось отправить статус готовности!")
+                    return
 
     def draw_victory_screen(self):
         """Отрисовка заставки победы"""
@@ -5581,6 +6566,12 @@ class Game:
         """
         if self.state == 'menu':
             self.draw_menu()
+            return
+        if self.state == 'multiplayer_mode_selection':
+            self.draw_multiplayer_mode_selection()
+            return
+        if self.state == 'multiplayer_lobby':
+            self.draw_multiplayer_lobby()
             return
         if self.state == 'creative':
             self.draw_creative()
@@ -7915,7 +8906,7 @@ class Game:
                         pass
                     self.button_click_sound.play()
                 pygame.quit()
-                exit()
+                sys.exit()
             if hasattr(self, 'fullscreen_button_rect') and self.fullscreen_button_rect.collidepoint(pos):
                 # Звук нажатия на кнопку - мгновенное воспроизведение
                 if self.button_click_sound:
@@ -8075,7 +9066,7 @@ class Game:
             return
         # Если открыта панель истории (не работает в режиме наблюдения)
         if self.history_panel_open and not self.spectator_mode:
-            if self.history_panel_close_rect.collidepoint(pos):
+            if hasattr(self, 'history_panel_close_rect') and self.history_panel_close_rect.collidepoint(pos):
                 # Звук нажатия на кнопку - мгновенное воспроизведение
                 if self.button_click_sound:
                     try:
@@ -8120,6 +9111,18 @@ class Game:
                     self.button_click_sound.play()
                 self.state = 'battle_setup'
                 return
+            if hasattr(self, 'multiplayer_button_rect') and self.multiplayer_button_rect.collidepoint(pos):
+                # Звук нажатия на кнопку
+                if self.button_click_sound:
+                    try:
+                        self.button_click_sound.stop()
+                    except:
+                        pass
+                    self.button_click_sound.play()
+                # Переходим в выбор режима (хост или клиент)
+                self.multiplayer_mode_selection = None
+                self.state = 'multiplayer_mode_selection'
+                return
             if self.exit_button_rect.collidepoint(pos):
                 # Звук нажатия на кнопку - мгновенное воспроизведение
                 if self.button_click_sound:
@@ -8129,7 +9132,7 @@ class Game:
                         pass
                     self.button_click_sound.play()
                 pygame.quit()
-                exit()
+                sys.exit()
             if hasattr(self, 'dev_button_rect') and self.dev_button_rect.collidepoint(pos):
                 if self.button_click_sound:
                     try:
@@ -8161,6 +9164,12 @@ class Game:
             result = self.handle_settings_click(pos)
             if result == 'apply_resolution':
                 return 'apply_resolution'
+            return
+        if self.state == 'multiplayer_mode_selection':
+            self.handle_multiplayer_mode_selection_click(pos, button=button)
+            return
+        if self.state == 'multiplayer_lobby':
+            self.handle_multiplayer_lobby_click(pos, button=button)
             return
         if self.state == 'unit_editor':
             self.handle_unit_editor_click(pos)
@@ -8951,7 +9960,7 @@ class Game:
                 break
         if clicked_unit is None:
             # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units, self.barriers):
+            if self.selected_unit and self.selected_unit.can_move(x, y, self.units, self.barriers):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
                     self.animate_unit_move(self.selected_unit, x, y)
@@ -8961,7 +9970,7 @@ class Game:
                         self.next_turn()
                     return
             print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
+        elif clicked_unit and self.selected_unit and clicked_unit.team != self.selected_unit.team:
             # Если выбран неатакующий spell — не атаковать
             if (isinstance(self.selected_unit, Hero)
                 and self.selected_unit.selected_spell is not None):
@@ -9020,9 +10029,7 @@ class Game:
                         # Определяем тип снаряда в зависимости от юнита/героя
                         if is_hero and hero_class == 'archer':
                             # Герой-лучник: стреляет стрелами
-                            if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
-                                self.selected_unit.bow_draw_sound.play()
-                            pygame.time.delay(150)
+                            # Герой-лучник: сразу используем «живой» звук выстрела
                             if self.shot_sound and self.shot2_sound:
                                 shot_sound = random.choice([self.shot_sound, self.shot2_sound])
                                 shot_sound.play()
@@ -9030,8 +10037,6 @@ class Game:
                                 self.shot_sound.play()
                             elif self.shot2_sound:
                                 self.shot2_sound.play()
-                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
-                                self.selected_unit.arrow_shot_sound.play()
                             animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
                             if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
                                 self.selected_unit.arrow_hit_sound.play()
@@ -9046,11 +10051,10 @@ class Game:
                                 except Exception as anim_error:
                                     handled_ranged_animation = False
                                     print(f"Ошибка анимации выстрела у {self.selected_unit.unit_type}: {anim_error}")
+                            # Звук выстрела — используем ТОЛЬКО пользовательские «выстрел» / «выстрел 2»
                             if not handled_ranged_animation:
-                                if hasattr(self.selected_unit, 'bow_draw_sound') and self.selected_unit.bow_draw_sound:
-                                    self.selected_unit.bow_draw_sound.play()
+                                # Никакого синтетического натяжения тетивы — сразу основной выстрел
                                 pygame.time.delay(150)
-                            # Звук выстрела - используем новые звуки выстрелов (случайный выбор)
                             if self.shot_sound and self.shot2_sound:
                                 shot_sound = random.choice([self.shot_sound, self.shot2_sound])
                                 shot_sound.play()
@@ -9058,13 +10062,10 @@ class Game:
                                 self.shot_sound.play()
                             elif self.shot2_sound:
                                 self.shot2_sound.play()
-                            elif hasattr(self.selected_unit, 'arrow_shot_sound') and self.selected_unit.arrow_shot_sound:
-                                self.selected_unit.arrow_shot_sound.play()
                             # Анимация полета стрелы
                             animate_arrow_fly(self.screen, start, end, redraw_callback=self.draw)
                             # Звук попадания
-                            if hasattr(self.selected_unit, 'arrow_hit_sound') and self.selected_unit.arrow_hit_sound:
-                                self.selected_unit.arrow_hit_sound.play()
+                            # Отдельный синтетический звук попадания стрелы больше не используем
                             if handled_ranged_animation and hasattr(self.selected_unit, 'finish_ranged_attack_animation'):
                                 self.selected_unit.finish_ranged_attack_animation(self)
                             elif not handled_ranged_animation and hasattr(self.selected_unit, 'set_animation_state'):
@@ -9830,7 +10831,7 @@ class Game:
                 break
         if clicked_unit is None:
             # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units, self.barriers):
+            if self.selected_unit and self.selected_unit.can_move(x, y, self.units, self.barriers):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
                     self.selected_unit.x = x
@@ -9842,7 +10843,7 @@ class Game:
                     return
                 else:
                     print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
+        elif clicked_unit and self.selected_unit and clicked_unit.team != self.selected_unit.team:
             # Если выбран неатакующий spell — не атаковать
             if (isinstance(self.selected_unit, Hero)
                 and self.selected_unit.selected_spell is not None):
@@ -10697,7 +11698,7 @@ class Game:
                 break
         if clicked_unit is None:
             # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units, self.barriers):
+            if self.selected_unit and self.selected_unit.can_move(x, y, self.units, self.barriers):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
                     self.selected_unit.x = x
@@ -10709,7 +11710,7 @@ class Game:
                     return
                 else:
                     print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
+        elif clicked_unit and self.selected_unit and clicked_unit.team != self.selected_unit.team:
             # Если выбран неатакующий spell — не атаковать
             if (isinstance(self.selected_unit, Hero)
                 and self.selected_unit.selected_spell is not None):
@@ -11564,7 +12565,7 @@ class Game:
                 break
         if clicked_unit is None:
             # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units, self.barriers):
+            if self.selected_unit and self.selected_unit.can_move(x, y, self.units, self.barriers):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
                     self.selected_unit.x = x
@@ -11576,7 +12577,7 @@ class Game:
                     return
                 else:
                     print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
+        elif clicked_unit and self.selected_unit and clicked_unit.team != self.selected_unit.team:
             # Если выбран неатакующий spell — не атаковать
             if (isinstance(self.selected_unit, Hero)
                 and self.selected_unit.selected_spell is not None):
@@ -12431,7 +13432,7 @@ class Game:
                 break
         if clicked_unit is None:
             # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units, self.barriers):
+            if self.selected_unit and self.selected_unit.can_move(x, y, self.units, self.barriers):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
                     self.selected_unit.x = x
@@ -12443,7 +13444,7 @@ class Game:
                     return
                 else:
                     print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
+        elif clicked_unit and self.selected_unit and clicked_unit.team != self.selected_unit.team:
             # Если выбран неатакующий spell — не атаковать
             if (isinstance(self.selected_unit, Hero)
                 and self.selected_unit.selected_spell is not None):
@@ -13303,7 +14304,7 @@ class Game:
                 break
         if clicked_unit is None:
             # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units, self.barriers):
+            if self.selected_unit and self.selected_unit.can_move(x, y, self.units, self.barriers):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
                     self.selected_unit.x = x
@@ -13315,7 +14316,7 @@ class Game:
                     return
                 else:
                     print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
+        elif clicked_unit and self.selected_unit and clicked_unit.team != self.selected_unit.team:
             # Если выбран неатакующий spell — не атаковать
             if (isinstance(self.selected_unit, Hero)
                 and self.selected_unit.selected_spell is not None):
@@ -14178,7 +15179,7 @@ class Game:
                 break
         if clicked_unit is None:
             # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units, self.barriers):
+            if self.selected_unit and self.selected_unit.can_move(x, y, self.units, self.barriers):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
                     self.selected_unit.x = x
@@ -14190,7 +15191,7 @@ class Game:
                     return
                 else:
                     print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
+        elif clicked_unit and self.selected_unit and clicked_unit.team != self.selected_unit.team:
             # Если выбран неатакующий spell — не атаковать
             if (isinstance(self.selected_unit, Hero)
                 and self.selected_unit.selected_spell is not None):
@@ -15053,7 +16054,7 @@ class Game:
                 break
         if clicked_unit is None:
             # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units, self.barriers):
+            if self.selected_unit and self.selected_unit.can_move(x, y, self.units, self.barriers):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
                     self.selected_unit.x = x
@@ -15065,7 +16066,7 @@ class Game:
                     return
                 else:
                     print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
+        elif clicked_unit and self.selected_unit and clicked_unit.team != self.selected_unit.team:
             # Если выбран неатакующий spell — не атаковать
             if (isinstance(self.selected_unit, Hero)
                 and self.selected_unit.selected_spell is not None):
@@ -15928,7 +16929,7 @@ class Game:
                 break
         if clicked_unit is None:
             # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units, self.barriers):
+            if self.selected_unit and self.selected_unit.can_move(x, y, self.units, self.barriers):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
                     self.selected_unit.x = x
@@ -15940,7 +16941,7 @@ class Game:
                     return
                 else:
                     print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
+        elif clicked_unit and self.selected_unit and clicked_unit.team != self.selected_unit.team:
             # Если выбран неатакующий spell — не атаковать
             if (isinstance(self.selected_unit, Hero)
                 and self.selected_unit.selected_spell is not None):
@@ -16803,7 +17804,7 @@ class Game:
                 break
         if clicked_unit is None:
             # Пустая клетка — попытка перемещения
-            if self.selected_unit.can_move(x, y, self.units, self.barriers):
+            if self.selected_unit and self.selected_unit.can_move(x, y, self.units, self.barriers):
                 path_len = self.get_path_length(self.selected_unit.x, self.selected_unit.y, x, y)
                 if path_len <= self.selected_unit.move_points_left:
                     self.selected_unit.x = x
@@ -16815,7 +17816,7 @@ class Game:
                     return
                 else:
                     print('Недостаточно очков хода для перемещения!')
-        elif clicked_unit.team != self.selected_unit.team:
+        elif clicked_unit and self.selected_unit and clicked_unit.team != self.selected_unit.team:
             # Если выбран неатакующий spell — не атаковать
             if (isinstance(self.selected_unit, Hero)
                 and self.selected_unit.selected_spell is not None):

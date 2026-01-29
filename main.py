@@ -173,20 +173,35 @@ def main():
     
     # Начальный масштаб и смещения
     def update_render_params():
-        # Рассчитываем масштаб с сохранением пропорций
-        scale = min(screen_width / BASE_WIDTH, screen_height / BASE_HEIGHT)
-        scaled_width = int(BASE_WIDTH * scale)
-        scaled_height = int(BASE_HEIGHT * scale)
+        # ВАЖНО: Используем pixel-perfect scaling (целочисленное масштабирование)
+        # Каждый пиксель текстуры отображается как NxN пикселей на экране, где N - целое число
+        # Это сохраняет четкость пикселей без размытия, идеально для pixel-art стиля
+        # Вычисляем максимальный целочисленный масштаб, который помещается в экран
+        scale_x = screen_width // BASE_WIDTH  # Целочисленное деление
+        scale_y = screen_height // BASE_HEIGHT  # Целочисленное деление
+        # Берем минимум, чтобы изображение помещалось полностью
+        integer_scale = min(scale_x, scale_y)
+        # Минимальный масштаб - 1 (не уменьшаем изображение)
+        integer_scale = max(1, integer_scale)
+        
+        # Вычисляем размеры масштабированного изображения
+        scaled_width = BASE_WIDTH * integer_scale
+        scaled_height = BASE_HEIGHT * integer_scale
+        
+        # Центрируем изображение на экране (черные полосы будут минимальными)
         offset_x = (screen_width - scaled_width) // 2
         offset_y = (screen_height - scaled_height) // 2
+        
         # Сохраняем в конфиг для использования в игре
-        config.RENDER_SCALE = scale
+        config.RENDER_SCALE = float(integer_scale)
+        config.RENDER_SCALE_X = float(integer_scale)
+        config.RENDER_SCALE_Y = float(integer_scale)
         config.RENDER_OFFSET_X = offset_x
         config.RENDER_OFFSET_Y = offset_y
         # Масштаб для координат мыши
-        config.MOUSE_SCALE_X = scale
-        config.MOUSE_SCALE_Y = scale
-        return scale, scaled_width, scaled_height, offset_x, offset_y
+        config.MOUSE_SCALE_X = float(integer_scale)
+        config.MOUSE_SCALE_Y = float(integer_scale)
+        return integer_scale, scaled_width, scaled_height, offset_x, offset_y
     
     scale, scaled_width, scaled_height, offset_x, offset_y = update_render_params()
 
@@ -194,22 +209,35 @@ def main():
 
     def present_frame():
         nonlocal display_screen, render_surface
-        display_screen.fill((0, 0, 0))
-        scale = max(config.RENDER_SCALE, 1e-6)
-        scaled_w = int(config.BASE_WIDTH * scale)
-        scaled_h = int(config.BASE_HEIGHT * scale)
+        display_screen.fill((0, 0, 0))  # Черный фон для черных полос
+        # ВАЖНО: Используем целочисленное масштабирование (pixel-perfect scaling)
+        # scale всегда целое число (1, 2, 3, 4...)
+        # Это обеспечивает идеальное качество для pixel-art текстур:
+        # - Каждый пиксель дублируется точно N раз (без интерполяции)
+        # - Нет размытия или искажений
+        # - Сохраняется четкость границ и деталей
+        scale = int(max(config.RENDER_SCALE, 1))
+        scaled_w = BASE_WIDTH * scale
+        scaled_h = BASE_HEIGHT * scale
+        
         if scaled_w > 0 and scaled_h > 0:
-            if abs(scale - 1.0) < 1e-6:
+            if scale == 1:
+                # Масштаб 1:1 - просто копируем поверхность без изменений
                 surface_to_blit = render_surface
             else:
-                surface_to_blit = pygame.transform.smoothscale(render_surface, (scaled_w, scaled_h))
+                # Целочисленное масштабирование: используем scale() вместо smoothscale()
+                # pygame.transform.scale() использует nearest neighbor интерполяцию
+                # Это идеально для pixel-art: каждый пиксель становится блоком NxN пикселей
+                # НЕ используем smoothscale(), так как он размывает пиксели
+                surface_to_blit = pygame.transform.scale(render_surface, (scaled_w, scaled_h))
             display_screen.blit(surface_to_blit, (config.RENDER_OFFSET_X, config.RENDER_OFFSET_Y))
         original_flip()
 
     pygame.display.flip = present_frame
     
     def screen_to_base(pos):
-        scale = max(config.RENDER_SCALE, 1e-6)
+        # ВАЖНО: scale всегда целое число для целочисленного масштабирования
+        scale = int(max(config.RENDER_SCALE, 1))
         x = int((pos[0] - config.RENDER_OFFSET_X) / scale)
         y = int((pos[1] - config.RENDER_OFFSET_Y) / scale)
         return x, y
@@ -329,6 +357,27 @@ def main():
                     if event.key == pygame.K_ESCAPE:
                         pygame.quit()
                         sys.exit()
+                elif game.state == 'multiplayer_mode_selection':
+                    if event.key == pygame.K_ESCAPE:
+                        game.clear_multiplayer_data()
+                        game.state = 'menu'
+                elif game.state == 'multiplayer_lobby':
+                    # Обработка ввода кода лобби для клиента
+                    if (hasattr(game, 'multiplayer_lobby_code_input_active') and 
+                        game.multiplayer_lobby_code_input_active):
+                        if event.key == pygame.K_BACKSPACE:
+                            game.multiplayer_lobby_code_input = game.multiplayer_lobby_code_input[:-1]
+                        elif event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
+                            if len(game.multiplayer_lobby_code_input) == 6:
+                                game.start_multiplayer_client(game.multiplayer_lobby_code_input)
+                        elif event.unicode and event.unicode.isdigit() and len(game.multiplayer_lobby_code_input) < 6:
+                            game.multiplayer_lobby_code_input += event.unicode
+                        elif event.key == pygame.K_ESCAPE:
+                            game.multiplayer_lobby_code_input_active = False
+                    elif event.key == pygame.K_ESCAPE:
+                        # Выход из лобби - полная очистка данных
+                        game.clear_multiplayer_data()
+                        game.state = 'menu'
                 else:
                     if event.key == pygame.K_ESCAPE:
                         game.handle_key(event.key)

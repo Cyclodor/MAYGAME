@@ -121,6 +121,17 @@ class AIActions:
         if hasattr(attacker, 'is_ranged') and attacker.is_ranged:
             if is_melee:
                 # Ближний бой для лучников
+                # Сначала проигрываем звук и возможную анимацию ближнего боя
+                if hasattr(self.game, '_play_melee_attack_sound'):
+                    try:
+                        self.game._play_melee_attack_sound(attacker)
+                    except Exception:
+                        pass
+                if hasattr(attacker, 'play_melee_animation'):
+                    try:
+                        attacker.play_melee_animation(self.game, target, is_counter=False)
+                    except Exception:
+                        pass
                 damage = max(1, attacker.get_current_attack() // 2)
                 attack_type = getattr(attacker, 'attack_type', 'physical')
                 if target.take_damage(damage, attack_type=attack_type):
@@ -135,6 +146,29 @@ class AIActions:
                 self.game.battle_manager.perform_counterattack(attacker, target, True, True)
             else:
                 # Дальнобойная атака
+                # Звук выстрела/магического снаряда
+                try:
+                    if attacker.unit_type in ['crossbowman', 'elf_archer'] or (
+                        isinstance(attacker, Hero) and getattr(attacker, 'hero_class', None) == 'archer'
+                    ):
+                        # Обычный или герой-лучник
+                        shot_sound = None
+                        if getattr(self.game, 'shot_sound', None) and getattr(self.game, 'shot2_sound', None):
+                            import random
+                            shot_sound = random.choice([self.game.shot_sound, self.game.shot2_sound])
+                        elif getattr(self.game, 'shot_sound', None):
+                            shot_sound = self.game.shot_sound
+                        elif getattr(self.game, 'shot2_sound', None):
+                            shot_sound = self.game.shot2_sound
+                        if shot_sound:
+                            shot_sound.play()
+                    else:
+                        # Магические выстрелы (гог, лич, герои-маги и т.п.)
+                        if getattr(self.game, 'magic_shot_sound', None):
+                            self.game.magic_shot_sound.play()
+                except Exception:
+                    pass
+
                 damage = attacker.ranged_damage(target.x, target.y)
                 attack_type = getattr(attacker, 'attack_type', 'physical')
                 if target.take_damage(damage, attack_type=attack_type):
@@ -187,6 +221,18 @@ class AIActions:
                     pygame.display.flip()
         else:
             # Ближний бой
+            # Сначала проигрываем звук и возможную анимацию ближнего боя
+            if hasattr(self.game, '_play_melee_attack_sound'):
+                try:
+                    self.game._play_melee_attack_sound(attacker)
+                except Exception:
+                    pass
+            if hasattr(attacker, 'play_melee_animation'):
+                try:
+                    attacker.play_melee_animation(self.game, target, is_counter=False)
+                except Exception:
+                    pass
+
             damage = attacker.get_current_attack()
             attack_type = getattr(attacker, 'attack_type', 'physical')
             if target.take_damage(damage, attack_type=attack_type):

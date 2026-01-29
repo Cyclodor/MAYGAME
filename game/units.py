@@ -18,11 +18,41 @@ from .graphics import (
     load_ent_texture,
     load_unicorn_texture,
     load_skeleton_texture,
+    load_zombie_texture,
+    load_ghost_texture,
+    load_vampire_texture,
+    load_lich_texture,
+    load_monk_texture,
+    load_angel_texture,
+    load_cavalryman_texture,
+    load_greendragon_texture,
     load_imp_texture,
     load_gog_texture,
     load_demon_texture,
     load_cerberus_texture,
     load_succubus_texture,
+    load_miner_texture,
+    load_spearthrower_texture,
+    load_bearrider_texture,
+    load_runemage_texture,
+    load_jarl_texture,
+    load_scout_texture,
+    load_beast_texture,
+    load_minotaur_texture,
+    load_witch_texture,
+    load_lizardrider_texture,
+    load_deathknight_texture,
+    load_bonedragon_texture,
+    load_reaper_texture,
+    load_bloodpriestess_texture,
+    load_devil_texture,
+    load_hellhorse_texture,
+    load_forgedragon_texture,
+    load_mountainruler_texture,
+    load_volkhv_texture,
+    load_manticore_texture,
+    load_reddragon_texture,
+    load_beholder_texture,
 )
 from .config import CELL_SIZE, RED, GREEN, BLUE, PURPLE, LIGHT_BLUE, TOOLTIP_BG, SCREEN_WIDTH, SCREEN_HEIGHT, GRID_WIDTH
 
@@ -1363,9 +1393,8 @@ class Crossbowman(AnimatedHumanoidMixin, Unit):
         self.attack_range = 3
         self.base_defense = 2
         self.convert_old_stats_to_new()
-        self.bow_draw_sound = load_sound('bow_draw')
-        self.arrow_shot_sound = load_sound('arrow_shot')
-        self.arrow_hit_sound = load_sound('arrow_hit')
+        # Используем только «живые» звуки выстрела, которые были даны пользователем
+        # (основной звук выстрела обрабатывается в Game через self.shot_sound / self.shot2_sound)
         animation_states = [
             'Idle', 'IdleBreath', 'Walk', 'WalkAlt',
             'Attack', 'AttackAim', 'AttackRelease', 'AttackFollow', 'AttackRecover',
@@ -1572,7 +1601,7 @@ class Gryphon(AnimatedHumanoidMixin, Unit):
         self.set_animation_state('Corpse')
 
 # --- Юниты нежити ---
-class Skeleton(Unit):
+class Skeleton(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'skeleton')
         self.health = 35
@@ -1584,10 +1613,45 @@ class Skeleton(Unit):
         self.attack_range = 1
         self.base_defense = 2
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_skeleton_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=720,
+            idle_pause_duration=580,
+            turn_sequence_duration=120,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 110),
+            ('AttackStrike', 150),
+            ('AttackRecover', 110),
+        ]
+        self._hurt_sequence = [('Hurt', 170)]
+        self._death_sequence = [('Death', 300)]
 
-    # Используем базовый рендер через спрайт self.image
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
 
-class Zombie(Unit):
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+
+class Zombie(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'zombie')
         self.health = 80
@@ -1599,10 +1663,46 @@ class Zombie(Unit):
         self.attack_range = 1
         self.base_defense = 7
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_zombie_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=800,
+            idle_pause_duration=700,
+            movement_cycle=('Walk', 'WalkAlt'),
+            turn_sequence_duration=130,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 150),
+            ('AttackStrike', 190),
+            ('AttackRecover', 150),
+        ]
+        self._hurt_sequence = [('Hurt', 200)]
+        self._death_sequence = [('Death', 320)]
 
-    # Используем базовый рендер через спрайт self.image
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(90, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
 
-class Ghost(Unit):
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+
+class Ghost(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'ghost')
         self.health = 30
@@ -1614,10 +1714,46 @@ class Ghost(Unit):
         self.attack_range = 1
         self.base_defense = 2
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_ghost_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=820,
+            idle_pause_duration=720,
+            movement_cycle=('Walk', 'WalkAlt'),
+            turn_sequence_duration=130,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 190)]
+        self._death_sequence = [('Death', 310)]
 
-    # Используем базовый рендер через спрайт self.image
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 30)) for state, delay in seq]
+        self._play_sequence(seq, game)
 
-class Vampire(Unit):
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+
+class Vampire(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'vampire')
         self.health = 70
@@ -1629,10 +1765,46 @@ class Vampire(Unit):
         self.attack_range = 1
         self.base_defense = 5
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_vampire_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=780,
+            idle_pause_duration=640,
+            movement_cycle=('Walk', 'WalkAlt'),
+            turn_sequence_duration=130,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 180),
+            ('AttackRecover', 140),
+        ]
+        self._hurt_sequence = [('Hurt', 190)]
+        self._death_sequence = [('Death', 320)]
 
-    # Используем базовый рендер через спрайт self.image
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(90, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
 
-class Lich(Unit):
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+
+class Lich(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'lich')
         self.health = 60
@@ -1645,10 +1817,42 @@ class Lich(Unit):
         self.attack_range = 4
         self.base_defense = 4
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_lich_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=800,
+            idle_pause_duration=680,
+            movement_cycle=('Walk', 'WalkAlt'),
+            turn_sequence_duration=140,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 140),
+            ('AttackStrike', 190),
+            ('AttackRecover', 140),
+        ]
+        self._hurt_sequence = [('Hurt', 200)]
+        self._death_sequence = [('Death', 330)]
 
-    # Используем базовый рендер через спрайт self.image
+    def play_ranged_attack_animation(self, game, target):
+        if target:
+            self.set_facing_by_position(target.x)
+        self._play_sequence(self._attack_sequence, game, reset_to_idle=False)
+        return True
 
- 
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
 
 # Старые классы Warrior, Archer, Knight больше не нужны 
 
@@ -1963,9 +2167,8 @@ class ElfArcher(AnimatedHumanoidMixin, Unit):
         self.attack_range = 4
         self.base_defense = 2
         self.convert_old_stats_to_new()
-        self.bow_draw_sound = load_sound('bow_draw')
-        self.arrow_shot_sound = load_sound('arrow_shot')
-        self.arrow_hit_sound = load_sound('arrow_hit')
+        # Не подгружаем синтетические звуки натяжения и полёта стрелы —
+        # для выстрела используются только звуки «выстрел» / «выстрел 2», предоставленные пользователем
         animation_states = [
             'Idle', 'IdleBreath',
             'Walk', 'WalkAlt',
@@ -2302,7 +2505,7 @@ class Succubus(AnimatedHumanoidMixin, Unit):
         self._death_sequence = [('Death', 260)]
 
 # --- Гномы ---
-class Miner(Unit):
+class Miner(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'miner')
         self.health = 30
@@ -2314,8 +2517,43 @@ class Miner(Unit):
         self.attack_range = 1
         self.base_defense = 3
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_miner_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 120),
+            ('AttackStrike', 160),
+            ('AttackRecover', 120),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
 
-class Spearthrower(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Spearthrower(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'spearthrower')
         self.health = 24
@@ -2328,8 +2566,55 @@ class Spearthrower(Unit):
         self.attack_range = 3
         self.base_defense = 2
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'CastStart', 'CastRelease', 'CastRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_spearthrower_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._ranged_sequence = [
+            ('CastStart', 140),
+            ('CastRelease', 170),
+        ]
+        self._ranged_recover = [('CastRecover', 130)]
+        self._hurt_sequence = [('Hurt', 170)]
+        self._death_sequence = [('Death', 300)]
+        self._pending_post_attack_states = []
 
-class BearRider(Unit):
+    def play_ranged_attack_animation(self, game, target):
+        if target:
+            self.set_facing_by_position(target.x)
+        self._play_sequence(self._ranged_sequence, game, reset_to_idle=False)
+        self._pending_post_attack_states = list(self._ranged_recover)
+        return True
+
+    def finish_ranged_attack_animation(self, game=None):
+        if self._pending_post_attack_states:
+            self._play_sequence(self._pending_post_attack_states, game)
+            self._pending_post_attack_states = []
+        self.set_animation_state('Idle')
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        sequence = self._ranged_sequence + self._ranged_recover
+        self._play_sequence(sequence, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class BearRider(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'bearrider')
         self.health = 40
@@ -2341,8 +2626,43 @@ class BearRider(Unit):
         self.attack_range = 1
         self.base_defense = 4
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_bearrider_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
 
-class RuneMage(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class RuneMage(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'runemage')
         self.health = 22
@@ -2355,8 +2675,55 @@ class RuneMage(Unit):
         self.attack_range = 4
         self.base_defense = 2
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'CastStart', 'CastRelease', 'CastRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_runemage_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._ranged_sequence = [
+            ('CastStart', 140),
+            ('CastRelease', 170),
+        ]
+        self._ranged_recover = [('CastRecover', 130)]
+        self._hurt_sequence = [('Hurt', 170)]
+        self._death_sequence = [('Death', 300)]
+        self._pending_post_attack_states = []
 
-class Jarl(Unit):
+    def play_ranged_attack_animation(self, game, target):
+        if target:
+            self.set_facing_by_position(target.x)
+        self._play_sequence(self._ranged_sequence, game, reset_to_idle=False)
+        self._pending_post_attack_states = list(self._ranged_recover)
+        return True
+
+    def finish_ranged_attack_animation(self, game=None):
+        if self._pending_post_attack_states:
+            self._play_sequence(self._pending_post_attack_states, game)
+            self._pending_post_attack_states = []
+        self.set_animation_state('Idle')
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        sequence = self._ranged_sequence + self._ranged_recover
+        self._play_sequence(sequence, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Jarl(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'jarl')
         self.health = 50
@@ -2368,9 +2735,44 @@ class Jarl(Unit):
         self.attack_range = 1
         self.base_defense = 6
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_jarl_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
 
 # --- Лига теней ---
-class Scout(Unit):
+class Scout(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'scout')
         self.health = 20
@@ -2382,8 +2784,43 @@ class Scout(Unit):
         self.attack_range = 1
         self.base_defense = 2
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_scout_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 120),
+            ('AttackStrike', 160),
+            ('AttackRecover', 120),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
 
-class Beast(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Beast(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'beast')
         self.health = 32
@@ -2395,8 +2832,43 @@ class Beast(Unit):
         self.attack_range = 1
         self.base_defense = 3
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_beast_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
 
-class Minotaur(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Minotaur(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'minotaur')
         self.health = 44
@@ -2408,8 +2880,43 @@ class Minotaur(Unit):
         self.attack_range = 1
         self.base_defense = 5
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_minotaur_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
 
-class Witch(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Witch(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'witch')
         self.health = 24
@@ -2422,8 +2929,55 @@ class Witch(Unit):
         self.attack_range = 3
         self.base_defense = 2
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'CastStart', 'CastRelease', 'CastRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_witch_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._ranged_sequence = [
+            ('CastStart', 140),
+            ('CastRelease', 170),
+        ]
+        self._ranged_recover = [('CastRecover', 130)]
+        self._hurt_sequence = [('Hurt', 170)]
+        self._death_sequence = [('Death', 300)]
+        self._pending_post_attack_states = []
 
-class LizardRider(Unit):
+    def play_ranged_attack_animation(self, game, target):
+        if target:
+            self.set_facing_by_position(target.x)
+        self._play_sequence(self._ranged_sequence, game, reset_to_idle=False)
+        self._pending_post_attack_states = list(self._ranged_recover)
+        return True
+
+    def finish_ranged_attack_animation(self, game=None):
+        if self._pending_post_attack_states:
+            self._play_sequence(self._pending_post_attack_states, game)
+            self._pending_post_attack_states = []
+        self.set_animation_state('Idle')
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        sequence = self._ranged_sequence + self._ranged_recover
+        self._play_sequence(sequence, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class LizardRider(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'lizardrider')
         self.health = 38
@@ -2435,10 +2989,45 @@ class LizardRider(Unit):
         self.attack_range = 1
         self.base_defense = 4
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_lizardrider_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
 
 # --- Заглушки для будущих юнитов ---
 # Люди
-class Monk(Unit):
+class Monk(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'monk')
         self.health = 60
@@ -2450,8 +3039,44 @@ class Monk(Unit):
         self.attack_range = 1
         self.base_defense = 6
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_monk_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
 
-class Angel(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            # Чуть быстрее анимация при контратаке
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Angel(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'angel')
         self.health = 100
@@ -2463,8 +3088,44 @@ class Angel(Unit):
         self.attack_range = 1
         self.base_defense = 12
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_angel_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=620,
+            turn_sequence_duration=120,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 320)]
 
-class Cavalryman(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Cavalryman(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'cavalryman')
         self.health = 80
@@ -2476,9 +3137,45 @@ class Cavalryman(Unit):
         self.attack_range = 1
         self.base_defense = 8
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_cavalryman_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=650,
+            idle_pause_duration=580,
+            turn_sequence_duration=120,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 120),
+            ('AttackStrike', 160),
+            ('AttackRecover', 120),
+        ]
+        self._hurt_sequence = [('Hurt', 170)]
+        self._death_sequence = [('Death', 310)]
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
 
 # Эльфы
-class GreenDragon(Unit):
+class GreenDragon(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'greendragon')
         self.health = 120
@@ -2490,6 +3187,42 @@ class GreenDragon(Unit):
         self.attack_range = 1
         self.base_defense = 14
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_greendragon_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=680,
+            idle_pause_duration=560,
+            turn_sequence_duration=120,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 180),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 190)]
+        self._death_sequence = [('Death', 320)]
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
 
 class Druid(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
@@ -2601,7 +3334,7 @@ class Unicorn(AnimatedHumanoidMixin, Unit):
         self.set_animation_state('Corpse')
 
 # Нежить
-class DeathKnight(Unit):
+class DeathKnight(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'deathknight')
         self.health = 95
@@ -2613,8 +3346,43 @@ class DeathKnight(Unit):
         self.attack_range = 1
         self.base_defense = 11
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_deathknight_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
 
-class BoneDragon(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class BoneDragon(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'bonedragon')
         self.health = 130
@@ -2626,8 +3394,43 @@ class BoneDragon(Unit):
         self.attack_range = 1
         self.base_defense = 15
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_bonedragon_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 180),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 190)]
+        self._death_sequence = [('Death', 320)]
 
-class Reaper(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Reaper(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'reaper')
         self.health = 70
@@ -2639,9 +3442,44 @@ class Reaper(Unit):
         self.attack_range = 1
         self.base_defense = 7
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_reaper_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
 
 # Демоны
-class BloodPriestess(Unit):
+class BloodPriestess(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'bloodpriestess')
         self.health = 65
@@ -2654,8 +3492,55 @@ class BloodPriestess(Unit):
         self.attack_range = 4
         self.base_defense = 6
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'CastStart', 'CastRelease', 'CastRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_bloodpriestess_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._ranged_sequence = [
+            ('CastStart', 140),
+            ('CastRelease', 170),
+        ]
+        self._ranged_recover = [('CastRecover', 130)]
+        self._hurt_sequence = [('Hurt', 170)]
+        self._death_sequence = [('Death', 300)]
+        self._pending_post_attack_states = []
 
-class Devil(Unit):
+    def play_ranged_attack_animation(self, game, target):
+        if target:
+            self.set_facing_by_position(target.x)
+        self._play_sequence(self._ranged_sequence, game, reset_to_idle=False)
+        self._pending_post_attack_states = list(self._ranged_recover)
+        return True
+
+    def finish_ranged_attack_animation(self, game=None):
+        if self._pending_post_attack_states:
+            self._play_sequence(self._pending_post_attack_states, game)
+            self._pending_post_attack_states = []
+        self.set_animation_state('Idle')
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        sequence = self._ranged_sequence + self._ranged_recover
+        self._play_sequence(sequence, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Devil(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'devil')
         self.health = 110
@@ -2667,8 +3552,43 @@ class Devil(Unit):
         self.attack_range = 1
         self.base_defense = 13
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_devil_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
 
-class HellHorse(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class HellHorse(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'hellhorse')
         self.health = 85
@@ -2680,9 +3600,44 @@ class HellHorse(Unit):
         self.attack_range = 1
         self.base_defense = 9
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_hellhorse_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
 
 # Гномы
-class ForgeDragon(Unit):
+class ForgeDragon(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'forgedragon')
         self.health = 125
@@ -2694,8 +3649,43 @@ class ForgeDragon(Unit):
         self.attack_range = 1
         self.base_defense = 16
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_forgedragon_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 180),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 190)]
+        self._death_sequence = [('Death', 320)]
 
-class MountainRuler(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class MountainRuler(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'mountainruler')
         self.health = 100
@@ -2707,8 +3697,43 @@ class MountainRuler(Unit):
         self.attack_range = 1
         self.base_defense = 14
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_mountainruler_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
 
-class Volkhv(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Volkhv(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'volkhv')
         self.health = 75
@@ -2721,9 +3746,56 @@ class Volkhv(Unit):
         self.attack_range = 4
         self.base_defense = 8
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'CastStart', 'CastRelease', 'CastRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_volkhv_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._ranged_sequence = [
+            ('CastStart', 140),
+            ('CastRelease', 170),
+        ]
+        self._ranged_recover = [('CastRecover', 130)]
+        self._hurt_sequence = [('Hurt', 170)]
+        self._death_sequence = [('Death', 300)]
+        self._pending_post_attack_states = []
+
+    def play_ranged_attack_animation(self, game, target):
+        if target:
+            self.set_facing_by_position(target.x)
+        self._play_sequence(self._ranged_sequence, game, reset_to_idle=False)
+        self._pending_post_attack_states = list(self._ranged_recover)
+        return True
+
+    def finish_ranged_attack_animation(self, game=None):
+        if self._pending_post_attack_states:
+            self._play_sequence(self._pending_post_attack_states, game)
+            self._pending_post_attack_states = []
+        self.set_animation_state('Idle')
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        sequence = self._ranged_sequence + self._ranged_recover
+        self._play_sequence(sequence, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
 
 # Тени
-class Manticore(Unit):
+class Manticore(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'manticore')
         self.health = 95
@@ -2735,8 +3807,43 @@ class Manticore(Unit):
         self.attack_range = 1
         self.base_defense = 11
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_manticore_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 170),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 180)]
+        self._death_sequence = [('Death', 300)]
 
-class RedDragon(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class RedDragon(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'reddragon')
         self.health = 135
@@ -2748,8 +3855,43 @@ class RedDragon(Unit):
         self.attack_range = 1
         self.base_defense = 17
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_reddragon_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._attack_sequence = [
+            ('AttackPrep', 130),
+            ('AttackStrike', 180),
+            ('AttackRecover', 130),
+        ]
+        self._hurt_sequence = [('Hurt', 190)]
+        self._death_sequence = [('Death', 320)]
 
-class Beholder(Unit):
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        seq = list(self._attack_sequence)
+        if is_counter:
+            seq = [(state, max(80, delay - 40)) for state, delay in seq]
+        self._play_sequence(seq, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
+
+class Beholder(AnimatedHumanoidMixin, Unit):
     def __init__(self, x, y, team):
         super().__init__(x, y, team, 'beholder')
         self.health = 80
@@ -2762,6 +3904,53 @@ class Beholder(Unit):
         self.attack_range = 5
         self.base_defense = 10
         self.convert_old_stats_to_new()
+        animation_states = [
+            'Idle', 'IdleBreath',
+            'Walk', 'WalkAlt',
+            'AttackPrep', 'AttackStrike', 'AttackRecover',
+            'Hurt', 'Death', 'Corpse'
+        ]
+        self._init_animation_system(
+            load_beholder_texture,
+            animation_states,
+            idle_cycle=('Idle', 'IdleBreath'),
+            idle_switch_interval=700,
+            idle_pause_duration=600,
+        )
+        self._ranged_sequence = [
+            ('AttackPrep', 140),
+            ('AttackStrike', 170),
+        ]
+        self._ranged_recover = [('AttackRecover', 130)]
+        self._hurt_sequence = [('Hurt', 170)]
+        self._death_sequence = [('Death', 300)]
+        self._pending_post_attack_states = []
+
+    def play_ranged_attack_animation(self, game, target):
+        if target:
+            self.set_facing_by_position(target.x)
+        self._play_sequence(self._ranged_sequence, game, reset_to_idle=False)
+        self._pending_post_attack_states = list(self._ranged_recover)
+        return True
+
+    def finish_ranged_attack_animation(self, game=None):
+        if self._pending_post_attack_states:
+            self._play_sequence(self._pending_post_attack_states, game)
+            self._pending_post_attack_states = []
+        self.set_animation_state('Idle')
+
+    def play_melee_animation(self, game, opponent, is_counter=False):
+        if opponent:
+            self.set_facing_by_position(opponent.x)
+        sequence = self._ranged_sequence + self._ranged_recover
+        self._play_sequence(sequence, game)
+
+    def on_hurt_animation(self, game=None):
+        self._play_sequence(self._hurt_sequence, game)
+
+    def on_death_animation(self, game=None):
+        self._play_sequence(self._death_sequence, game, reset_to_idle=False)
+        self.set_animation_state('Corpse')
 
 class Corpse:
     """Труп юнита - остаётся на поле после смерти, юниты могут проходить сквозь него"""

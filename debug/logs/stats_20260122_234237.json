@@ -1,0 +1,52 @@
+{
+  "session_id": "20260122_234237",
+  "session_start": "2026-01-22T23:42:37.887751",
+  "session_end": "2026-01-22T23:42:38.392626",
+  "stats": {
+    "session_id": "20260122_234237",
+    "session_duration_seconds": 0.504881,
+    "total_logs": 12,
+    "by_level": {
+      "DEBUG": 5,
+      "INFO": 6,
+      "WARNING": 0,
+      "ERROR": 0,
+      "CRITICAL": 1
+    },
+    "by_category": {
+      "GAME": 0,
+      "COMBAT": 0,
+      "UNITS": 0,
+      "SPELLS": 0,
+      "AI": 0,
+      "UI": 0,
+      "ANIMATION": 0,
+      "SOUND": 0,
+      "GRAPHICS": 0,
+      "BERSERKER": 0,
+      "RESURRECTION": 0,
+      "BATTLE_MANAGER": 0,
+      "TURN_SYSTEM": 0,
+      "VALIDATION": 1,
+      "DIAGNOSTICS": 6,
+      "METRICS": 1,
+      "SYSTEM": 3,
+      "ERROR": 1,
+      "PERFORMANCE": 0
+    },
+    "error_count": 0,
+    "warning_count": 0,
+    "critical_count": 1
+  },
+  "recent_errors": [],
+  "recent_warnings": [],
+  "critical_history": [
+    {
+      "timestamp": "2026-01-22T23:42:38.392555",
+      "category": "ERROR",
+      "message": "Критическая ошибка при работе игры",
+      "extra_data": null,
+      "exception": "not enough values to unpack (expected 6, got 5)"
+    }
+  ]
+}

@@ -1,4 +1,7 @@
 # Базовое разрешение для игры (всегда 800x600 для правильного масштабирования)
+# ВАЖНО: Используется целочисленное масштабирование (pixel-perfect scaling)
+# Каждый пиксель текстуры отображается как NxN пикселей на экране, где N - целое число (1, 2, 3, 4...)
+# Это обеспечивает четкие пиксели без размытия при изменении разрешения
 BASE_WIDTH = 800
 BASE_HEIGHT = 600
 SCREEN_WIDTH = 800
@@ -6,11 +9,14 @@ SCREEN_HEIGHT = 600
 CELL_SIZE = 40
 GRID_WIDTH = SCREEN_WIDTH // CELL_SIZE
 GRID_HEIGHT = SCREEN_HEIGHT // CELL_SIZE
-SCALE = 1.0  # Масштаб для отображения
+SCALE = 1.0  # Масштаб для отображения (устаревший, используется RENDER_SCALE)
 
 # Масштаб для преобразования координат мыши (устанавливается в main.py)
 # Параметры масштабирования экрана
-RENDER_SCALE = 1.0
+# Используем растягивание на весь экран без черных полос
+RENDER_SCALE = 1.0  # Основной масштаб (для обратной совместимости)
+RENDER_SCALE_X = 1.0  # Масштаб по X
+RENDER_SCALE_Y = 1.0  # Масштаб по Y
 RENDER_OFFSET_X = 0
 RENDER_OFFSET_Y = 0
 
@@ -25,9 +31,13 @@ def get_scaled_mouse_pos():
     try:
         import pygame
         mx, my = pygame.mouse.get_pos()
+        # ВАЖНО: Используем целочисленное масштабирование
+        # MOUSE_SCALE_X и MOUSE_SCALE_Y всегда целые числа (1, 2, 3, 4...)
+        scale_x = int(max(MOUSE_SCALE_X, 1))
+        scale_y = int(max(MOUSE_SCALE_Y, 1))
         # Учитываем смещение и масштаб
-        mx = (mx - RENDER_OFFSET_X) / max(MOUSE_SCALE_X, 1e-6)
-        my = (my - RENDER_OFFSET_Y) / max(MOUSE_SCALE_Y, 1e-6)
+        mx = (mx - RENDER_OFFSET_X) / scale_x
+        my = (my - RENDER_OFFSET_Y) / scale_y
         return int(mx), int(my)
     except:
         return (0, 0)

@@ -1,0 +1,446 @@
+{
+  "session_id": "20260123_005652",
+  "session_start": "2026-01-23T00:56:52.298535",
+  "session_end": "2026-01-23T01:01:35.370971",
+  "stats": {
+    "session_id": "20260123_005652",
+    "session_duration_seconds": 283.072436,
+    "total_logs": 68,
+    "by_level": {
+      "DEBUG": 5,
+      "INFO": 6,
+      "WARNING": 28,
+      "ERROR": 28,
+      "CRITICAL": 1
+    },
+    "by_category": {
+      "GAME": 0,
+      "COMBAT": 0,
+      "UNITS": 0,
+      "SPELLS": 0,
+      "AI": 0,
+      "UI": 0,
+      "ANIMATION": 0,
+      "SOUND": 0,
+      "GRAPHICS": 0,
+      "BERSERKER": 0,
+      "RESURRECTION": 0,
+      "BATTLE_MANAGER": 0,
+      "TURN_SYSTEM": 0,
+      "VALIDATION": 1,
+      "DIAGNOSTICS": 62,
+      "METRICS": 1,
+      "SYSTEM": 3,
+      "ERROR": 1,
+      "PERFORMANCE": 0
+    },
+    "error_count": 28,
+    "warning_count": 28,
+    "critical_count": 1
+  },
+  "recent_errors": [
+    {
+      "timestamp": "2026-01-23T00:57:02.587979",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:57:12.587397",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:57:22.594460",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:57:32.597642",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:57:42.604828",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:57:52.607443",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:58:02.612459",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:58:12.612367",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:58:22.613367",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:58:32.612797",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:58:42.614040",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:58:52.617280",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:59:02.619069",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:59:12.620873",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:59:22.624964",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:59:32.633519",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:59:42.636059",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T00:59:52.639076",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:00:02.639908",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:00:12.645634",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:00:22.651490",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:00:32.652645",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:00:42.653616",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:00:52.658277",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:01:02.662590",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:01:12.663148",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:01:22.666043",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:01:32.668175",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    }
+  ],
+  "recent_warnings": [
+    {
+      "timestamp": "2026-01-23T00:57:02.587979",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:57:12.587397",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:57:22.594460",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:57:32.597642",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:57:42.604828",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:57:52.607443",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:58:02.612459",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:58:12.612367",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:58:22.613367",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:58:32.613798",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:58:42.614040",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:58:52.617280",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:59:02.619069",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:59:12.620873",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:59:22.624964",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:59:32.633519",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:59:42.636059",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T00:59:52.639076",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:00:02.639908",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:00:12.645634",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:00:22.651490",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:00:32.652645",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:00:42.653616",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:00:52.658277",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:01:02.662590",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:01:12.663148",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:01:22.667042",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:01:32.668175",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    }
+  ],
+  "critical_history": [
+    {
+      "timestamp": "2026-01-23T01:01:35.370971",
+      "category": "ERROR",
+      "message": "Критическая ошибка при работе игры",
+      "extra_data": null,
+      "exception": "local variable 'sys' referenced before assignment"
+    }
+  ]
+}

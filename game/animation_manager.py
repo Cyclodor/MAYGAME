@@ -44,7 +44,7 @@ class AnimationManager:
             pygame.draw.circle(s, (*color, alpha), (cx, cy), r, 4)
             self.game.screen.blit(s, (0, 0))
             pygame.display.flip()
-            pygame.time.delay(10)  # Уменьшена задержка для плавности
+            pygame.time.delay(5)  # Ускорено для быстрых заклинаний
 
     def animate_unit_move(self, unit, dest_x, dest_y):
         """Пошаговая анимация перемещения юнита по манхэттен-пути"""

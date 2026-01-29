@@ -1,0 +1,34 @@
+{
+  "session_start": "2026-01-22T23:42:37.907690",
+  "session_end": "2026-01-22T23:42:38.400435",
+  "performance_summary": {
+    "session_duration_seconds": 0.492752,
+    "fps": {
+      "current": 0.0,
+      "average": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "memory": {
+      "memory_mb": 119.328125,
+      "memory_percent": 1.4811043798469343
+    },
+    "frame_times": {
+      "avg": 0.0,
+      "min": 0.0,
+      "max": 0.0
+    },
+    "function_stats": {},
+    "event_counts": {},
+    "game_metrics": {
+      "rounds_played": 0,
+      "turns_played": 0,
+      "spells_cast": 0,
+      "attacks_made": 0,
+      "units_killed": 0,
+      "units_created": 0
+    }
+  },
+  "recent_memory_history": [],
+  "recent_fps_history": []
+}

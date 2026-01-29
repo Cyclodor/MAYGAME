@@ -1,0 +1,525 @@
+{
+  "session_id": "20260122_231858",
+  "session_start": "2026-01-22T23:18:58.075150",
+  "session_end": "2026-01-22T23:19:59.785249",
+  "stats": {
+    "session_id": "20260122_231858",
+    "session_duration_seconds": 61.710103,
+    "total_logs": 79,
+    "by_level": {
+      "DEBUG": 5,
+      "INFO": 6,
+      "WARNING": 67,
+      "ERROR": 0,
+      "CRITICAL": 1
+    },
+    "by_category": {
+      "GAME": 0,
+      "COMBAT": 0,
+      "UNITS": 0,
+      "SPELLS": 0,
+      "AI": 0,
+      "UI": 0,
+      "ANIMATION": 0,
+      "SOUND": 0,
+      "GRAPHICS": 0,
+      "BERSERKER": 0,
+      "RESURRECTION": 0,
+      "BATTLE_MANAGER": 0,
+      "TURN_SYSTEM": 0,
+      "VALIDATION": 1,
+      "DIAGNOSTICS": 20,
+      "METRICS": 1,
+      "SYSTEM": 3,
+      "ERROR": 1,
+      "PERFORMANCE": 53
+    },
+    "error_count": 0,
+    "warning_count": 67,
+    "critical_count": 1
+  },
+  "recent_errors": [],
+  "recent_warnings": [
+    {
+      "timestamp": "2026-01-22T23:19:18.512056",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-22T23:19:18.755779",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.4 (порог: 80.0)",
+      "extra_data": {
+        "fps": 26.4298118005526,
+        "memory_mb": 118.48828125,
+        "memory_percent": 1.470680213234813
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:19.769106",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.8 (порог: 80.0)",
+      "extra_data": {
+        "fps": 26.791858748404525,
+        "memory_mb": 118.7265625,
+        "memory_percent": 1.473637767482903
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:20.790781",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 27.5 (порог: 80.0)",
+      "extra_data": {
+        "fps": 27.519718231399242,
+        "memory_mb": 118.69140625,
+        "memory_percent": 1.47320140702007
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:21.817490",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 27.6 (порог: 80.0)",
+      "extra_data": {
+        "fps": 27.610116607320005,
+        "memory_mb": 118.70703125,
+        "memory_percent": 1.4733953450035515
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:22.846327",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 27.3 (порог: 80.0)",
+      "extra_data": {
+        "fps": 27.314805188281465,
+        "memory_mb": 118.70703125,
+        "memory_percent": 1.4733953450035515
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:23.877145",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 27.4 (порог: 80.0)",
+      "extra_data": {
+        "fps": 27.444030937381196,
+        "memory_mb": 118.9375,
+        "memory_percent": 1.4762559302599012
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:24.886019",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 27.0 (порог: 80.0)",
+      "extra_data": {
+        "fps": 26.96671922547857,
+        "memory_mb": 118.93359375,
+        "memory_percent": 1.4762074457640308
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:25.914128",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.6 (порог: 80.0)",
+      "extra_data": {
+        "fps": 26.556257991541887,
+        "memory_mb": 118.94140625,
+        "memory_percent": 1.4763044147557716
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:26.947810",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.3 (порог: 80.0)",
+      "extra_data": {
+        "fps": 26.292616228125734,
+        "memory_mb": 119.14453125,
+        "memory_percent": 1.4788256085410287
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:27.976602",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.4 (порог: 80.0)",
+      "extra_data": {
+        "fps": 26.44469967938523,
+        "memory_mb": 119.15234375,
+        "memory_percent": 1.4789225775327695
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:28.536895",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:28.542695",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-22T23:19:28.986094",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 25.4 (порог: 80.0)",
+      "extra_data": {
+        "fps": 25.438659765183605,
+        "memory_mb": 119.140625,
+        "memory_percent": 1.4787771240451584
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:29.992344",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.1 (порог: 80.0)",
+      "extra_data": {
+        "fps": 26.09933150866901,
+        "memory_mb": 119.31640625,
+        "memory_percent": 1.4809589263593235
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:30.996753",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.3 (порог: 80.0)",
+      "extra_data": {
+        "fps": 26.284446157910306,
+        "memory_mb": 119.3359375,
+        "memory_percent": 1.4812013488386753
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:32.007071",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 25.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 25.191822455525177,
+        "memory_mb": 119.34375,
+        "memory_percent": 1.4812983178304158
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:33.035627",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 25.5 (порог: 80.0)",
+      "extra_data": {
+        "fps": 25.542700096615373,
+        "memory_mb": 119.3046875,
+        "memory_percent": 1.4808134728717124
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:34.041115",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.1 (порог: 80.0)",
+      "extra_data": {
+        "fps": 26.05464907266767,
+        "memory_mb": 119.3359375,
+        "memory_percent": 1.4812013488386753
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:35.045756",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 25.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 25.247325796835753,
+        "memory_mb": 119.55859375,
+        "memory_percent": 1.483964965103284
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:36.047246",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 26.0 (порог: 80.0)",
+      "extra_data": {
+        "fps": 25.97135920163092,
+        "memory_mb": 119.58203125,
+        "memory_percent": 1.484255872078506
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:37.068682",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 24.9 (порог: 80.0)",
+      "extra_data": {
+        "fps": 24.87961656893986,
+        "memory_mb": 119.54296875,
+        "memory_percent": 1.4837710271198028
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:38.088868",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 25.6 (порог: 80.0)",
+      "extra_data": {
+        "fps": 25.6033291046128,
+        "memory_mb": 119.5703125,
+        "memory_percent": 1.484110418590895
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:38.549022",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:38.553932",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-22T23:19:39.098421",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 24.4 (порог: 80.0)",
+      "extra_data": {
+        "fps": 24.407194186425578,
+        "memory_mb": 119.56640625,
+        "memory_percent": 1.4840619340950247
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:40.132682",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 25.3 (порог: 80.0)",
+      "extra_data": {
+        "fps": 25.254946534726418,
+        "memory_mb": 119.58203125,
+        "memory_percent": 1.484255872078506
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:41.161260",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 25.5 (порог: 80.0)",
+      "extra_data": {
+        "fps": 25.50516781268789,
+        "memory_mb": 119.76171875,
+        "memory_percent": 1.4864861588885414
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:42.194982",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 24.5 (порог: 80.0)",
+      "extra_data": {
+        "fps": 24.53417605172986,
+        "memory_mb": 119.79296875,
+        "memory_percent": 1.486874034855504
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:43.226296",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 24.4 (порог: 80.0)",
+      "extra_data": {
+        "fps": 24.437498760034096,
+        "memory_mb": 119.75390625,
+        "memory_percent": 1.486389189896801
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:44.238750",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 24.0 (порог: 80.0)",
+      "extra_data": {
+        "fps": 23.96709774269845,
+        "memory_mb": 119.98046875,
+        "memory_percent": 1.48920129065728
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:45.257314",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 23.9 (порог: 80.0)",
+      "extra_data": {
+        "fps": 23.88924381970359,
+        "memory_mb": 119.9609375,
+        "memory_percent": 1.4889588681779284
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:46.293008",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 24.3 (порог: 80.0)",
+      "extra_data": {
+        "fps": 24.299485656931672,
+        "memory_mb": 119.9609375,
+        "memory_percent": 1.4889588681779284
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:47.295946",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 24.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 24.24024596899459,
+        "memory_mb": 119.98046875,
+        "memory_percent": 1.48920129065728
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:48.299316",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 24.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 24.21556152909123,
+        "memory_mb": 119.984375,
+        "memory_percent": 1.4892497751531504
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:48.571947",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:48.577835",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-22T23:19:49.325093",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 23.1 (порог: 80.0)",
+      "extra_data": {
+        "fps": 23.121000516136398,
+        "memory_mb": 120.1796875,
+        "memory_percent": 1.491673999946667
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:50.344735",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 22.8 (порог: 80.0)",
+      "extra_data": {
+        "fps": 22.75560513523859,
+        "memory_mb": 120.16015625,
+        "memory_percent": 1.4914315774673155
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:51.345567",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 22.3 (порог: 80.0)",
+      "extra_data": {
+        "fps": 22.34280876959396,
+        "memory_mb": 120.36328125,
+        "memory_percent": 1.4939527712525726
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:52.379954",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 22.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 22.212617949767253,
+        "memory_mb": 120.37109375,
+        "memory_percent": 1.4940497402443134
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:53.388801",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 22.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 22.185981087920027,
+        "memory_mb": 120.56640625,
+        "memory_percent": 1.49647396503783
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:54.400795",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 21.9 (порог: 80.0)",
+      "extra_data": {
+        "fps": 21.931009982726668,
+        "memory_mb": 120.80859375,
+        "memory_percent": 1.4994800037817908
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:55.437724",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 21.5 (порог: 80.0)",
+      "extra_data": {
+        "fps": 21.52471118072457,
+        "memory_mb": 120.97265625,
+        "memory_percent": 1.5015163526083448
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:56.482486",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 21.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 21.164788826688042,
+        "memory_mb": 120.953125,
+        "memory_percent": 1.501273930128993
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:57.495651",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 21.0 (порог: 80.0)",
+      "extra_data": {
+        "fps": 20.97366515239209,
+        "memory_mb": 121.15625,
+        "memory_percent": 1.5037951239142504
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:58.530691",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 20.5 (порог: 80.0)",
+      "extra_data": {
+        "fps": 20.4916923925153,
+        "memory_mb": 121.19140625,
+        "memory_percent": 1.5042314843770834
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:58.599558",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2026-01-22T23:19:58.606170",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-22T23:19:59.545988",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 20.3 (порог: 80.0)",
+      "extra_data": {
+        "fps": 20.263075240205584,
+        "memory_mb": 121.1796875,
+        "memory_percent": 1.5040860308894723
+      }
+    }
+  ],
+  "critical_history": [
+    {
+      "timestamp": "2026-01-22T23:19:59.785163",
+      "category": "ERROR",
+      "message": "Критическая ошибка при работе игры",
+      "extra_data": null,
+      "exception": "invalid color argument"
+    }
+  ]
+}

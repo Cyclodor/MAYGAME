@@ -1,0 +1,206 @@
+{
+  "session_id": "20260123_014105",
+  "session_start": "2026-01-23T01:41:05.190675",
+  "session_end": "2026-01-23T01:41:59.757485",
+  "stats": {
+    "session_id": "20260123_014105",
+    "session_duration_seconds": 54.56681,
+    "total_logs": 31,
+    "by_level": {
+      "DEBUG": 5,
+      "INFO": 6,
+      "WARNING": 14,
+      "ERROR": 5,
+      "CRITICAL": 1
+    },
+    "by_category": {
+      "GAME": 0,
+      "COMBAT": 0,
+      "UNITS": 0,
+      "SPELLS": 0,
+      "AI": 0,
+      "UI": 0,
+      "ANIMATION": 0,
+      "SOUND": 0,
+      "GRAPHICS": 0,
+      "BERSERKER": 0,
+      "RESURRECTION": 0,
+      "BATTLE_MANAGER": 0,
+      "TURN_SYSTEM": 0,
+      "VALIDATION": 1,
+      "DIAGNOSTICS": 19,
+      "METRICS": 1,
+      "SYSTEM": 3,
+      "ERROR": 1,
+      "PERFORMANCE": 6
+    },
+    "error_count": 5,
+    "warning_count": 14,
+    "critical_count": 1
+  },
+  "recent_errors": [
+    {
+      "timestamp": "2026-01-23T01:41:15.805496",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:25.816703",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:35.808673",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:45.821616",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:55.856982",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: game_state - ERROR",
+      "extra_data": {
+        "description": "Проверка состояния игры"
+      }
+    }
+  ],
+  "recent_warnings": [
+    {
+      "timestamp": "2026-01-23T01:41:05.799056",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:05.817995",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:41:15.826440",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:41:18.872804",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 79.4 (порог: 80.0)",
+      "extra_data": {
+        "fps": 79.36723407311645,
+        "memory_mb": 0.0,
+        "memory_percent": 0.0
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:25.830661",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:41:32.996006",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 63.5 (порог: 80.0)",
+      "extra_data": {
+        "fps": 63.45100401304134,
+        "memory_mb": 0.0,
+        "memory_percent": 0.0
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:35.822637",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:41:45.838573",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:41:55.828060",
+      "category": "DIAGNOSTICS",
+      "message": "Диагностика: performance_fps - WARNING",
+      "extra_data": {
+        "description": "Проверка FPS"
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:55.883909",
+      "category": "DIAGNOSTICS",
+      "message": "Неудачные проверки диагностики: performance_fps, game_state",
+      "extra_data": null
+    },
+    {
+      "timestamp": "2026-01-23T01:41:56.099986",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 67.7 (порог: 80.0)",
+      "extra_data": {
+        "fps": 67.72530572615463,
+        "memory_mb": 0.0,
+        "memory_percent": 0.0
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:57.153728",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 77.6 (порог: 80.0)",
+      "extra_data": {
+        "fps": 77.59504393885736,
+        "memory_mb": 0.0,
+        "memory_percent": 0.0
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:58.116343",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 75.4 (порог: 80.0)",
+      "extra_data": {
+        "fps": 75.38421273715396,
+        "memory_mb": 0.0,
+        "memory_percent": 0.0
+      }
+    },
+    {
+      "timestamp": "2026-01-23T01:41:59.124854",
+      "category": "PERFORMANCE",
+      "message": "Низкий FPS: 75.2 (порог: 80.0)",
+      "extra_data": {
+        "fps": 75.23936167318526,
+        "memory_mb": 0.0,
+        "memory_percent": 0.0
+      }
+    }
+  ],
+  "critical_history": [
+    {
+      "timestamp": "2026-01-23T01:41:59.757485",
+      "category": "ERROR",
+      "message": "Критическая ошибка при работе игры",
+      "extra_data": null,
+      "exception": "local variable 'sys' referenced before assignment"
+    }
+  ]
+}
